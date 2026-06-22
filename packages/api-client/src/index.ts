@@ -1,0 +1,98 @@
+import type {
+  CreateChallengeInput,
+  CreateOpenPlaySessionInput,
+  CreateTournamentInput,
+  ClubInvitation,
+  ClubMember,
+  ClubSummary,
+  InviteClubRole,
+  PaginatedData,
+  PlayerStatistics,
+} from '@squash/contracts';
+import Axios, { type AxiosInstance } from 'axios';
+
+export type ApiClientOptions = {
+  baseURL: string;
+  getLocale: () => 'en-US' | 'es-419';
+  getTimeZone: () => string;
+  getAuthCookie?: () => string | null | undefined;
+};
+
+export function createApiClient(options: ApiClientOptions): AxiosInstance {
+  const client = Axios.create({
+    baseURL: `${options.baseURL.replace(/\/$/, '')}/api/v1`,
+    timeout: 15_000,
+    withCredentials: options.getAuthCookie === undefined,
+  });
+  client.interceptors.request.use((config) => {
+    config.headers.set('Accept-Language', options.getLocale());
+    config.headers.set('X-Time-Zone', options.getTimeZone());
+    config.headers.set('X-Client-Version', '0.1.0');
+    const cookie = options.getAuthCookie?.();
+    if (cookie) {
+      config.headers.set('Cookie', cookie);
+      config.withCredentials = false;
+    }
+    return config;
+  });
+  return client;
+}
+
+export function squashApi(client: AxiosInstance) {
+  return {
+    getMe: async () => (await client.get('/me')).data,
+    getClubs: async (params: {
+      page?: number;
+      pageSize?: number;
+      search?: string;
+      includeArchived?: boolean;
+    }): Promise<{ data: PaginatedData<ClubSummary> }> =>
+      (await client.get('/clubs', { params })).data,
+    createClub: async (input: { name: string; slug: string; timeZone: string }) =>
+      (await client.post('/clubs', input)).data,
+    updateClub: async (clubId: string, input: { name: string; timeZone: string }) =>
+      (await client.patch(`/clubs/${clubId}`, input)).data,
+    archiveClub: async (clubId: string) => (await client.delete(`/clubs/${clubId}`)).data,
+    getClubMembers: async (
+      clubId: string,
+      params: { page?: number; pageSize?: number; search?: string },
+    ): Promise<{ data: PaginatedData<ClubMember> }> =>
+      (await client.get(`/clubs/${clubId}/members`, { params })).data,
+    getClubInvitations: async (
+      clubId: string,
+      params: { page?: number; pageSize?: number; search?: string },
+    ): Promise<{ data: PaginatedData<ClubInvitation> }> =>
+      (await client.get(`/clubs/${clubId}/invitations`, { params })).data,
+    inviteClubMember: async (
+      clubId: string,
+      input: { email: string; role: InviteClubRole; locale: 'en-US' | 'es-419' },
+    ) => (await client.post(`/clubs/${clubId}/invitations`, input)).data,
+    createChallenge: async (input: CreateChallengeInput) =>
+      (await client.post('/challenges', input)).data,
+    createOpenPlay: async (input: CreateOpenPlaySessionInput) =>
+      (await client.post('/open-play-sessions', input)).data,
+    createTournament: async (input: CreateTournamentInput) =>
+      (await client.post('/tournaments', input)).data,
+    getStatistics: async (playerId: string): Promise<{ data: PlayerStatistics }> =>
+      (await client.get(`/statistics/${playerId}`)).data,
+    presignUpload: async (input: {
+      fileName: string;
+      contentType: 'image/jpeg' | 'image/png' | 'image/webp';
+      contentLength: number;
+      purpose: 'avatar' | 'racket';
+    }) => (await client.post('/media/uploads', input)).data,
+  };
+}
+
+export const queryKeys = {
+  profile: (userId: string) => ['profile', userId] as const,
+  friends: () => ['friends'] as const,
+  clubs: () => ['clubs'] as const,
+  club: (clubId: string) => ['clubs', clubId] as const,
+  clubMembers: (clubId: string) => ['clubs', clubId, 'members'] as const,
+  clubInvitations: (clubId: string) => ['clubs', clubId, 'invitations'] as const,
+  openPlay: (clubId: string) => ['open-play', clubId] as const,
+  challenges: () => ['challenges'] as const,
+  tournaments: (clubId: string) => ['tournaments', clubId] as const,
+  statistics: (playerId: string) => ['statistics', playerId] as const,
+};

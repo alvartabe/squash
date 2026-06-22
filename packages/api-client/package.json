@@ -1,0 +1,22 @@
+{
+  "name": "@squash/api-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "tsc -p tsconfig.json",
+    "test": "node -e \"process.exit(0)\""
+  },
+  "dependencies": {
+    "@squash/contracts": "*",
+    "axios": "^1.11.0"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3"
+  }
+}

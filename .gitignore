@@ -1,0 +1,14 @@
+node_modules/
+.turbo/
+.next/
+dist/
+coverage/
+.expo/
+.env
+.env.local
+*.tsbuildinfo
+apps/mobile/android/
+apps/mobile/ios/
+packages/db/migrations/meta/_journal.json.tmp
+minio-data/
+postgres-data/

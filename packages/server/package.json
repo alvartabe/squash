@@ -1,0 +1,35 @@
+{
+  "name": "@squash/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./auth": "./src/auth.ts",
+    "./database": "./src/database.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "tsc -p tsconfig.json",
+    "test": "node -e \"process.exit(0)\""
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.840.0",
+    "@aws-sdk/s3-request-presigner": "^3.840.0",
+    "@better-auth/expo": "^1.6.0",
+    "@squash/contracts": "*",
+    "@squash/db": "*",
+    "@squash/domain": "*",
+    "@squash/i18n": "*",
+    "better-auth": "^1.6.0",
+    "drizzle-orm": "0.45.2",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-email": "^6.0.0",
+    "resend": "^6.0.2"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3"
+  }
+}

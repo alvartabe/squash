@@ -1,0 +1,10 @@
+@import 'tailwindcss';
+@import 'uniwind';
+
+@theme {
+  --color-brand: #166534;
+  --color-brand-soft: #dcfce7;
+  --color-surface: #ffffff;
+  --color-ink: #0f172a;
+  --color-muted: #64748b;
+}

@@ -1,0 +1,21 @@
+{
+  "name": "@squash/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "tsc -p tsconfig.json",
+    "test": "node -e \"process.exit(0)\""
+  },
+  "dependencies": {
+    "@squash/server": "*"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.4",
+    "typescript": "~5.9.3"
+  }
+}

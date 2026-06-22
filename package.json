@@ -1,0 +1,37 @@
+{
+  "name": "squash-platform",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "npm@10.9.8",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "dev:web": "npm run dev --workspace @squash/web",
+    "dev:mobile": "npm run dev --workspace @squash/mobile",
+    "dev:worker": "npm run dev --workspace @squash/worker",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "lint": "turbo lint",
+    "db:generate": "npm run db:generate --workspace @squash/db",
+    "db:migrate": "npm run db:migrate --workspace @squash/db",
+    "admin:promote": "npm run admin:promote --workspace @squash/db --",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "prettier": "^3.5.3",
+    "turbo": "^2.5.4",
+    "typescript": "~5.9.3"
+  },
+  "overrides": {
+    "typescript": "~5.9.3"
+  }
+}

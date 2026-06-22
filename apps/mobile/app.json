@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "Squash",
+    "slug": "squash",
+    "version": "0.1.0",
+    "scheme": "squash",
+    "platforms": ["ios", "android"],
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.squash.community",
+      "usesAppleSignIn": true
+    },
+    "android": {
+      "package": "com.squash.community",
+      "adaptiveIcon": { "backgroundColor": "#166534" }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-notifications",
+      [
+        "expo-image-picker",
+        { "photosPermission": "Allow Squash to add profile and racket photos." }
+      ]
+    ],
+    "experiments": { "typedRoutes": true },
+    "extra": { "eas": { "projectId": "replace-with-eas-project-id" } }
+  }
+}
