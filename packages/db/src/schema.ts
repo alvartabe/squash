@@ -1,7 +1,9 @@
 import { sql } from 'drizzle-orm';
 import {
   boolean,
+  check,
   date,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -20,7 +22,8 @@ const createdAt = () => timestamp('created_at', { withTimezone: true }).notNull(
 const updatedAt = () => timestamp('updated_at', { withTimezone: true }).notNull().defaultNow();
 
 export const platformRole = pgEnum('platform_role', ['user', 'platform-admin']);
-export const clubRole = pgEnum('club_role', ['owner', 'admin', 'coach', 'player']);
+export const membershipStatus = pgEnum('membership_status', ['active', 'suspended', 'ended']);
+export const clubResponsibility = pgEnum('club_responsibility', ['owner', 'admin', 'coach']);
 export const friendshipStatus = pgEnum('friendship_status', [
   'pending',
   'accepted',
@@ -164,7 +167,7 @@ export const clubInvitations = pgTable(
       .notNull()
       .references(() => clubs.id, { onDelete: 'cascade' }),
     email: text('email').notNull(),
-    role: clubRole('role').notNull(),
+    responsibility: clubResponsibility('responsibility'),
     tokenHash: text('token_hash').notNull().unique(),
     invitedById: text('invited_by_id')
       .notNull()
@@ -181,6 +184,10 @@ export const clubInvitations = pgTable(
     uniqueIndex('club_invitations_pending_email_idx')
       .on(table.clubId, table.email)
       .where(sql`${table.acceptedAt} is null and ${table.revokedAt} is null`),
+    check(
+      'club_invitations_responsibility_check',
+      sql`${table.responsibility} is null or ${table.responsibility} in ('admin', 'coach')`,
+    ),
   ],
 );
 
@@ -193,13 +200,37 @@ export const clubMemberships = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    role: clubRole('role').notNull().default('player'),
+    status: membershipStatus('status').notNull().default('active'),
     joinedAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (table) => [
     primaryKey({ columns: [table.clubId, table.userId] }),
     index('club_memberships_user_idx').on(table.userId),
+    index('club_memberships_club_status_idx').on(table.clubId, table.status),
+  ],
+);
+
+export const clubResponsibilities = pgTable(
+  'club_responsibilities',
+  {
+    clubId: uuid('club_id').notNull(),
+    userId: text('user_id').notNull(),
+    responsibility: clubResponsibility('responsibility').notNull(),
+    assignedAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.clubId, table.userId, table.responsibility] }),
+    foreignKey({
+      columns: [table.clubId, table.userId],
+      foreignColumns: [clubMemberships.clubId, clubMemberships.userId],
+      name: 'club_responsibilities_membership_fk',
+    }).onDelete('cascade'),
+    index('club_responsibilities_user_idx').on(table.userId),
+    uniqueIndex('club_responsibilities_one_owner_idx')
+      .on(table.clubId)
+      .where(sql`${table.responsibility} = 'owner'`),
   ],
 );
 

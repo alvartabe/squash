@@ -27,7 +27,14 @@ export default function WorkspacePage() {
                   <Shield className="size-5" />
                 </div>
                 <CardTitle>{membership.clubName}</CardTitle>
-                <CardDescription className="capitalize">{membership.role}</CardDescription>
+                <CardDescription>
+                  {(membership.responsibilities.length
+                    ? membership.responsibilities
+                    : (['player'] as const)
+                  )
+                    .map((responsibility) => t(`members.${responsibility}`))
+                    .join(', ')}
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <Button asChild variant="secondary">
@@ -49,9 +56,11 @@ export default function WorkspacePage() {
             <CardTitle>{t('workspace.noClub')}</CardTitle>
           </CardHeader>
           <CardContent>
-            <Button asChild>
-              <Link href="/workspace/clubs">{t('clubs.new')}</Link>
-            </Button>
+            {data?.platformAdmin && (
+              <Button asChild>
+                <Link href="/workspace/clubs">{t('clubs.new')}</Link>
+              </Button>
+            )}
           </CardContent>
         </Card>
       )}

@@ -1,11 +1,12 @@
 import type {
   CreateChallengeInput,
+  CreateClubInput,
   CreateOpenPlaySessionInput,
   CreateTournamentInput,
   ClubInvitation,
   ClubMember,
   ClubSummary,
-  InviteClubRole,
+  InviteClubResponsibility,
   PaginatedData,
   PlayerStatistics,
 } from '@squash/contracts';
@@ -48,8 +49,7 @@ export function squashApi(client: AxiosInstance) {
       includeArchived?: boolean;
     }): Promise<{ data: PaginatedData<ClubSummary> }> =>
       (await client.get('/clubs', { params })).data,
-    createClub: async (input: { name: string; slug: string; timeZone: string }) =>
-      (await client.post('/clubs', input)).data,
+    createClub: async (input: CreateClubInput) => (await client.post('/clubs', input)).data,
     updateClub: async (clubId: string, input: { name: string; timeZone: string }) =>
       (await client.patch(`/clubs/${clubId}`, input)).data,
     archiveClub: async (clubId: string) => (await client.delete(`/clubs/${clubId}`)).data,
@@ -65,7 +65,11 @@ export function squashApi(client: AxiosInstance) {
       (await client.get(`/clubs/${clubId}/invitations`, { params })).data,
     inviteClubMember: async (
       clubId: string,
-      input: { email: string; role: InviteClubRole; locale: 'en-US' | 'es-419' },
+      input: {
+        email: string;
+        responsibility: InviteClubResponsibility;
+        locale: 'en-US' | 'es-419';
+      },
     ) => (await client.post(`/clubs/${clubId}/invitations`, input)).data,
     createChallenge: async (input: CreateChallengeInput) =>
       (await client.post('/challenges', input)).data,

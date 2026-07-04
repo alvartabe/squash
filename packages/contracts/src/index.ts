@@ -116,12 +116,20 @@ export const createClubSchema = z.object({
     .max(80)
     .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
   timeZone: z.string().trim().min(1).max(100),
+  initialOwnerId: userIdSchema,
 });
 
 export const updateClubSchema = createClubSchema.pick({ name: true, timeZone: true });
 
-export const clubRoleSchema = z.enum(['owner', 'admin', 'coach', 'player']);
-export const inviteClubRoleSchema = z.enum(['admin', 'coach', 'player']);
+export const membershipStatusSchema = z.enum(['active', 'suspended', 'ended']);
+export const clubResponsibilitySchema = z.enum(['owner', 'admin', 'coach']);
+export const inviteClubResponsibilitySchema = z.enum(['admin', 'coach']).nullable();
+export const clubResponsibilitiesSchema = z
+  .array(clubResponsibilitySchema)
+  .max(3)
+  .refine((items) => new Set(items).size === items.length, {
+    message: 'Club responsibilities must be unique',
+  });
 
 export const paginationQuerySchema = z.object({
   page: z.coerce.number().int().min(0).default(0),
@@ -141,11 +149,18 @@ export const inviteClubMemberSchema = z.object({
     .email()
     .max(320)
     .transform((value) => value.trim().toLowerCase()),
-  role: inviteClubRoleSchema,
+  responsibility: inviteClubResponsibilitySchema,
   locale: localeSchema.default('en-US'),
 });
 
-export const updateClubMemberSchema = z.object({ role: inviteClubRoleSchema });
+export const updateClubMemberSchema = z
+  .object({
+    status: membershipStatusSchema.optional(),
+    responsibilities: clubResponsibilitiesSchema.optional(),
+  })
+  .refine((input) => input.status !== undefined || input.responsibilities !== undefined, {
+    message: 'A membership change is required',
+  });
 export const transferClubOwnershipSchema = z.object({ userId: userIdSchema });
 
 export const clubSummarySchema = z.object({
@@ -153,7 +168,8 @@ export const clubSummarySchema = z.object({
   name: z.string(),
   slug: z.string(),
   timeZone: z.string(),
-  role: clubRoleSchema.nullable(),
+  membershipStatus: membershipStatusSchema.nullable(),
+  responsibilities: clubResponsibilitiesSchema,
   memberCount: z.number().int().nonnegative(),
   archivedAt: z.string().nullable(),
 });
@@ -163,7 +179,8 @@ export const clubMemberSchema = z.object({
   name: z.string(),
   email: z.string().nullable(),
   image: z.string().nullable(),
-  role: clubRoleSchema,
+  membershipStatus: membershipStatusSchema,
+  responsibilities: clubResponsibilitiesSchema,
   joinedAt: z.string(),
 });
 
@@ -171,7 +188,7 @@ export const clubInvitationSchema = z.object({
   id: idSchema,
   clubId: idSchema,
   email: z.email(),
-  role: inviteClubRoleSchema,
+  responsibility: inviteClubResponsibilitySchema,
   expiresAt: z.string(),
   acceptedAt: z.string().nullable(),
   revokedAt: z.string().nullable(),
@@ -189,8 +206,9 @@ export type PaginatedData<T> = {
 export type ClubSummary = z.infer<typeof clubSummarySchema>;
 export type ClubMember = z.infer<typeof clubMemberSchema>;
 export type ClubInvitation = z.infer<typeof clubInvitationSchema>;
-export type ClubRole = z.infer<typeof clubRoleSchema>;
-export type InviteClubRole = z.infer<typeof inviteClubRoleSchema>;
+export type MembershipStatus = z.infer<typeof membershipStatusSchema>;
+export type ClubResponsibility = z.infer<typeof clubResponsibilitySchema>;
+export type InviteClubResponsibility = z.infer<typeof inviteClubResponsibilitySchema>;
 
 export const profileSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -252,6 +270,7 @@ export const apiDataSchema = <T extends z.ZodType>(schema: T) => z.object({ data
 export type MatchRulesInput = z.infer<typeof matchRulesSchema>;
 export type SetScoreInput = z.infer<typeof setScoreSchema>;
 export type CreateChallengeInput = z.infer<typeof createChallengeSchema>;
+export type CreateClubInput = z.infer<typeof createClubSchema>;
 export type CreateOpenPlaySessionInput = z.infer<typeof createOpenPlaySessionSchema>;
 export type CreateTournamentInput = z.infer<typeof createTournamentSchema>;
 export type RecurringAvailabilityInput = z.infer<typeof recurringAvailabilitySchema>;

@@ -1,5 +1,6 @@
 import type {
   CreateChallengeInput,
+  CreateClubInput,
   CreateOpenPlaySessionInput,
   CreateTournamentInput,
   PlayerStatistics,
@@ -9,6 +10,7 @@ import {
   challengeStats,
   challenges,
   clubMemberships,
+  clubResponsibilities,
   clubs,
   auditLogs,
   deviceTokens,
@@ -58,44 +60,68 @@ import {
   requireClubAction,
   requirePlatformAdmin,
 } from './authorization';
+import { membershipResponsibilities } from './membership';
 
 function ruleRecord(rules: { bestOf: number; pointsToWin: number; winByTwo: boolean }) {
   return { bestOf: rules.bestOf, pointsToWin: rules.pointsToWin, winByTwo: rules.winByTwo };
 }
 
-export async function createClub(
-  actorId: string,
-  input: { name: string; slug: string; timeZone: string },
-) {
+export async function createClub(actorId: string, input: CreateClubInput) {
+  await requirePlatformAdmin(actorId);
+  const { initialOwnerId, ...clubInput } = input;
+
   return db.transaction(async (tx) => {
-    const [club] = await tx.insert(clubs).values(input).returning();
+    const [initialOwner] = await tx
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, initialOwnerId))
+      .limit(1);
+    if (!initialOwner) throw notFound('INITIAL_CLUB_OWNER_NOT_FOUND');
+
+    const [club] = await tx.insert(clubs).values(clubInput).returning();
     if (!club) throw new Error('Failed to create club.');
-    await tx.insert(clubMemberships).values({ clubId: club.id, userId: actorId, role: 'owner' });
+    await tx.insert(clubMemberships).values({ clubId: club.id, userId: initialOwnerId });
+    await tx
+      .insert(clubResponsibilities)
+      .values({ clubId: club.id, userId: initialOwnerId, responsibility: 'owner' });
     await tx.insert(auditLogs).values({
       actorId,
       clubId: club.id,
       action: 'club.create',
       entityType: 'club',
       entityId: club.id,
-      metadata: { name: club.name, slug: club.slug, timeZone: club.timeZone },
+      metadata: {
+        name: club.name,
+        slug: club.slug,
+        timeZone: club.timeZone,
+        initialOwnerId,
+      },
     });
     return club;
   });
 }
 
-export function listMyClubs(actorId: string) {
-  return db
+export async function listMyClubs(actorId: string) {
+  const memberships = await db
     .select({
       id: clubs.id,
       name: clubs.name,
       slug: clubs.slug,
       timeZone: clubs.timeZone,
-      role: clubMemberships.role,
+      membershipStatus: clubMemberships.status,
+      responsibilities: membershipResponsibilities,
     })
     .from(clubMemberships)
     .innerJoin(clubs, eq(clubs.id, clubMemberships.clubId))
-    .where(and(eq(clubMemberships.userId, actorId), isNull(clubs.archivedAt)))
+    .where(
+      and(
+        eq(clubMemberships.userId, actorId),
+        eq(clubMemberships.status, 'active'),
+        isNull(clubs.archivedAt),
+      ),
+    )
     .orderBy(asc(clubs.name));
+  return memberships;
 }
 
 export async function updateProfile(

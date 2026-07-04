@@ -2,28 +2,52 @@ import { canPerformClubAction } from '../permissions';
 
 describe('club permissions', () => {
   it('allows platform administrators to perform every action without a membership', () => {
-    expect(canPerformClubAction('platform-admin', null, 'club.manage')).toBe(true);
-    expect(canPerformClubAction('platform-admin', null, 'members.manage')).toBe(true);
+    expect(canPerformClubAction('platform-admin', null, [], 'club.archive')).toBe(true);
+    expect(canPerformClubAction('platform-admin', null, [], 'members.manage')).toBe(true);
   });
 
-  it('keeps club settings owner-only', () => {
-    expect(canPerformClubAction('user', 'owner', 'club.manage')).toBe(true);
-    expect(canPerformClubAction('user', 'admin', 'club.manage')).toBe(false);
+  it('lets Owners and Administrators update the Club Profile but keeps archival Owner-only', () => {
+    expect(canPerformClubAction('user', 'active', ['owner'], 'club.update')).toBe(true);
+    expect(canPerformClubAction('user', 'active', ['admin'], 'club.update')).toBe(true);
+    expect(canPerformClubAction('user', 'active', ['owner'], 'club.archive')).toBe(true);
+    expect(canPerformClubAction('user', 'active', ['admin'], 'club.archive')).toBe(false);
   });
 
   it('allows owners and admins to manage members', () => {
-    expect(canPerformClubAction('user', 'owner', 'members.manage')).toBe(true);
-    expect(canPerformClubAction('user', 'admin', 'members.manage')).toBe(true);
-    expect(canPerformClubAction('user', 'coach', 'members.manage')).toBe(false);
+    expect(canPerformClubAction('user', 'active', ['owner'], 'members.manage')).toBe(true);
+    expect(canPerformClubAction('user', 'active', ['admin'], 'members.manage')).toBe(true);
+    expect(canPerformClubAction('user', 'active', ['coach'], 'members.manage')).toBe(false);
   });
 
   it('allows coaches to view availability and organize sessions', () => {
-    expect(canPerformClubAction('user', 'coach', 'availability.view')).toBe(true);
-    expect(canPerformClubAction('user', 'coach', 'session.create')).toBe(true);
-    expect(canPerformClubAction('user', 'coach', 'tournament.manage')).toBe(false);
+    expect(canPerformClubAction('user', 'active', ['coach'], 'availability.view')).toBe(true);
+    expect(canPerformClubAction('user', 'active', ['coach'], 'session.create')).toBe(true);
+    expect(canPerformClubAction('user', 'active', ['coach'], 'tournament.manage')).toBe(false);
   });
 
-  it('does not grant club access without a role', () => {
-    expect(canPerformClubAction('user', null, 'club.view')).toBe(false);
+  it('unions permissions from independently assigned responsibilities', () => {
+    expect(canPerformClubAction('user', 'active', ['admin', 'coach'], 'members.manage')).toBe(true);
+    expect(canPerformClubAction('user', 'active', ['admin', 'coach'], 'session.create')).toBe(true);
+  });
+
+  it('allows an active member without responsibilities to view the club only', () => {
+    expect(canPerformClubAction('user', 'active', [], 'club.view')).toBe(true);
+    expect(canPerformClubAction('user', 'active', [], 'session.create')).toBe(false);
+  });
+
+  it.each(['suspended', 'ended'] as const)(
+    'denies club access to a %s membership even when responsibilities are retained',
+    (status) => {
+      expect(canPerformClubAction('user', status, ['owner', 'admin', 'coach'], 'club.view')).toBe(
+        false,
+      );
+      expect(
+        canPerformClubAction('user', status, ['owner', 'admin', 'coach'], 'members.manage'),
+      ).toBe(false);
+    },
+  );
+
+  it('does not grant club access without an active membership', () => {
+    expect(canPerformClubAction('user', null, [], 'club.view')).toBe(false);
   });
 });

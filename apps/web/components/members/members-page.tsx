@@ -12,7 +12,12 @@ import {
 } from '@tanstack/react-table';
 import { IconPlus } from '@tabler/icons-react';
 import { toast } from 'sonner';
-import type { ClubInvitation, ClubMember, InviteClubRole } from '@squash/contracts';
+import type {
+  ClubInvitation,
+  ClubMember,
+  ClubResponsibility,
+  MembershipStatus,
+} from '@squash/contracts';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -85,13 +90,13 @@ export function MembersPage({ clubId }: { clubId: string }) {
   });
   const { data: me } = useWorkspaceMe();
   const { data: club } = useWorkspaceClub(clubId);
-  const updateRole = useUpdateClubMember(clubId);
+  const updateMembership = useUpdateClubMember(clubId);
   const removeMember = useRemoveClubMember(clubId);
   const transfer = useTransferClubOwnership(clubId);
   const resend = useResendClubInvitation(clubId);
   const revoke = useRevokeClubInvitation(clubId);
-  const roleLabel = useCallback(
-    (role: string) => t(`members.${role as 'owner' | 'admin' | 'coach' | 'player'}`),
+  const responsibilityLabel = useCallback(
+    (responsibility: ClubResponsibility | 'player') => t(`members.${responsibility}`),
     [t],
   );
 
@@ -112,38 +117,124 @@ export function MembersPage({ clubId }: { clubId: string }) {
           </div>
         ),
       }),
-      memberHelper.accessor('role', {
-        header: t('common.role'),
-        cell: (info) =>
-          info.getValue() === 'owner' || info.row.original.userId === me?.user.id ? (
-            <Badge variant="secondary">{roleLabel(info.getValue())}</Badge>
-          ) : (
+      memberHelper.accessor('responsibilities', {
+        header: t('common.responsibilities'),
+        cell: (info) => {
+          const member = info.row.original;
+          const actorResponsibilities = club?.responsibilities ?? [];
+          const actorIsOwner = me?.platformAdmin || actorResponsibilities.includes('owner');
+          const actorIsAdministrator = actorResponsibilities.includes('admin');
+          const targetIsOwner = member.responsibilities.includes('owner');
+          const targetIsAdministrator = member.responsibilities.includes('admin');
+          const canEdit =
+            member.userId !== me?.user.id &&
+            member.membershipStatus !== 'ended' &&
+            !targetIsOwner &&
+            (actorIsOwner || (actorIsAdministrator && !targetIsAdministrator));
+          const toggle = async (responsibility: 'admin' | 'coach', checked: boolean) => {
+            const next = new Set(member.responsibilities);
+            if (checked) next.add(responsibility);
+            else next.delete(responsibility);
+            try {
+              await updateMembership.mutateAsync({
+                userId: member.userId,
+                responsibilities: [...next],
+              });
+              toast.success(t('members.membershipUpdated'));
+            } catch {
+              toast.error(t('error.invalidRequest'));
+            }
+          };
+          if (!canEdit) {
+            const responsibilities =
+              member.responsibilities.length > 0 ? member.responsibilities : (['player'] as const);
+            return (
+              <div className="flex flex-wrap gap-1">
+                {responsibilities.map((responsibility) => (
+                  <Badge key={responsibility} variant="secondary">
+                    {responsibilityLabel(responsibility)}
+                  </Badge>
+                ))}
+              </div>
+            );
+          }
+          return (
+            <div className="flex flex-col gap-1">
+              {actorIsOwner && (
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={member.responsibilities.includes('admin')}
+                    onChange={(event) => void toggle('admin', event.target.checked)}
+                  />
+                  {responsibilityLabel('admin')}
+                </label>
+              )}
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={member.responsibilities.includes('coach')}
+                  onChange={(event) => void toggle('coach', event.target.checked)}
+                />
+                {responsibilityLabel('coach')}
+              </label>
+              {!member.responsibilities.includes('admin') &&
+                !member.responsibilities.includes('coach') && (
+                  <span className="text-xs text-muted-foreground">
+                    {responsibilityLabel('player')}
+                  </span>
+                )}
+            </div>
+          );
+        },
+      }),
+      memberHelper.accessor('membershipStatus', {
+        header: t('common.status'),
+        cell: (info) => {
+          const member = info.row.original;
+          const targetIsOwner = member.responsibilities.includes('owner');
+          const targetIsAdministrator = member.responsibilities.includes('admin');
+          const actorResponsibilities = club?.responsibilities ?? [];
+          const actorCanManage =
+            me?.platformAdmin ||
+            actorResponsibilities.includes('owner') ||
+            (actorResponsibilities.includes('admin') && !targetIsAdministrator);
+          if (
+            targetIsOwner ||
+            member.userId === me?.user.id ||
+            member.membershipStatus === 'ended' ||
+            !actorCanManage
+          ) {
+            return <Badge variant="secondary">{t(`members.${info.getValue()}`)}</Badge>;
+          }
+          return (
             <Select
               value={info.getValue()}
-              onValueChange={async (role) => {
+              onValueChange={async (status) => {
                 try {
-                  await updateRole.mutateAsync({
-                    userId: info.row.original.userId,
-                    role: role as InviteClubRole,
+                  await updateMembership.mutateAsync({
+                    userId: member.userId,
+                    status: status as MembershipStatus,
                   });
-                  toast.success(t('members.roleUpdated'));
+                  toast.success(t('members.membershipUpdated'));
                 } catch {
                   toast.error(t('error.invalidRequest'));
                 }
               }}
             >
-              <SelectTrigger className="w-36">
+              <SelectTrigger className="w-32">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {(['admin', 'coach', 'player'] as const).map((role) => (
-                  <SelectItem key={role} value={role}>
-                    {roleLabel(role)}
+                {(['active', 'suspended'] as const).map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {t(`members.${status}`)}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          ),
+          );
+        },
       }),
       memberHelper.accessor('joinedAt', {
         header: t('members.joined'),
@@ -152,84 +243,108 @@ export function MembersPage({ clubId }: { clubId: string }) {
       memberHelper.display({
         id: 'actions',
         header: () => <span className="block text-right">{t('common.actions')}</span>,
-        cell: (info) => (
-          <div className="flex justify-end gap-2">
-            {club?.role === 'owner' &&
-              info.row.original.userId !== me?.user.id &&
-              info.row.original.role !== 'owner' && (
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button size="sm" variant="outline">
-                      {t('members.transfer')}
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>{t('members.transfer')}</DialogTitle>
-                      <DialogDescription>{info.row.original.name}</DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                      <DialogClose asChild>
-                        <Button variant="outline">{t('common.cancel')}</Button>
-                      </DialogClose>
-                      <DialogClose asChild>
-                        <Button
-                          onClick={async () => {
-                            try {
-                              await transfer.mutateAsync(info.row.original.userId);
-                              toast.success(t('members.roleUpdated'));
-                            } catch {
-                              toast.error(t('error.invalidRequest'));
-                            }
-                          }}
-                        >
-                          {t('members.transfer')}
-                        </Button>
-                      </DialogClose>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              )}
-            {info.row.original.userId !== me?.user.id && (
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button size="sm" variant="outline">
-                    {t('members.remove')}
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>{t('members.removeTitle')}</DialogTitle>
-                    <DialogDescription>{t('members.removeDescription')}</DialogDescription>
-                  </DialogHeader>
-                  <DialogFooter>
-                    <DialogClose asChild>
-                      <Button variant="outline">{t('common.cancel')}</Button>
-                    </DialogClose>
-                    <DialogClose asChild>
-                      <Button
-                        variant="destructive"
-                        onClick={async () => {
-                          try {
-                            await removeMember.mutateAsync(info.row.original.userId);
-                            toast.success(t('members.removed'));
-                          } catch {
-                            toast.error(t('error.invalidRequest'));
-                          }
-                        }}
-                      >
+        cell: (info) => {
+          const member = info.row.original;
+          const actorResponsibilities = club?.responsibilities ?? [];
+          const actorIsOwner = me?.platformAdmin || actorResponsibilities.includes('owner');
+          const actorIsAdministrator = actorResponsibilities.includes('admin');
+          const targetIsOwner = member.responsibilities.includes('owner');
+          const targetIsAdministrator = member.responsibilities.includes('admin');
+          const canManageTarget =
+            actorIsOwner || (actorIsAdministrator && !targetIsOwner && !targetIsAdministrator);
+          return (
+            <div className="flex justify-end gap-2">
+              {actorIsOwner &&
+                member.membershipStatus === 'active' &&
+                member.userId !== me?.user.id &&
+                !targetIsOwner && (
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button size="sm" variant="outline">
+                        {t('members.transfer')}
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>{t('members.transfer')}</DialogTitle>
+                        <DialogDescription>{member.name}</DialogDescription>
+                      </DialogHeader>
+                      <DialogFooter>
+                        <DialogClose asChild>
+                          <Button variant="outline">{t('common.cancel')}</Button>
+                        </DialogClose>
+                        <DialogClose asChild>
+                          <Button
+                            onClick={async () => {
+                              try {
+                                await transfer.mutateAsync(member.userId);
+                                toast.success(t('members.membershipUpdated'));
+                              } catch {
+                                toast.error(t('error.invalidRequest'));
+                              }
+                            }}
+                          >
+                            {t('members.transfer')}
+                          </Button>
+                        </DialogClose>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                )}
+              {canManageTarget &&
+                member.userId !== me?.user.id &&
+                member.membershipStatus !== 'ended' &&
+                !targetIsOwner && (
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button size="sm" variant="outline">
                         {t('members.remove')}
                       </Button>
-                    </DialogClose>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            )}
-          </div>
-        ),
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>{t('members.removeTitle')}</DialogTitle>
+                        <DialogDescription>{t('members.removeDescription')}</DialogDescription>
+                      </DialogHeader>
+                      <DialogFooter>
+                        <DialogClose asChild>
+                          <Button variant="outline">{t('common.cancel')}</Button>
+                        </DialogClose>
+                        <DialogClose asChild>
+                          <Button
+                            variant="destructive"
+                            onClick={async () => {
+                              try {
+                                await removeMember.mutateAsync(member.userId);
+                                toast.success(t('members.removed'));
+                              } catch {
+                                toast.error(t('error.invalidRequest'));
+                              }
+                            }}
+                          >
+                            {t('members.remove')}
+                          </Button>
+                        </DialogClose>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                )}
+            </div>
+          );
+        },
       }),
     ],
-    [club?.role, dateLocale, me?.user.id, removeMember, roleLabel, t, transfer, updateRole],
+    [
+      club?.responsibilities,
+      dateLocale,
+      me?.platformAdmin,
+      me?.user.id,
+      removeMember,
+      responsibilityLabel,
+      t,
+      transfer,
+      updateMembership,
+    ],
   );
   const invitationColumns = useMemo(
     () => [
@@ -237,9 +352,9 @@ export function MembersPage({ clubId }: { clubId: string }) {
         header: t('common.email'),
         cell: (info) => <span className="font-medium">{info.getValue()}</span>,
       }),
-      invitationHelper.accessor('role', {
-        header: t('common.role'),
-        cell: (info) => roleLabel(info.getValue()),
+      invitationHelper.accessor('responsibility', {
+        header: t('common.responsibility'),
+        cell: (info) => responsibilityLabel(info.getValue() ?? 'player'),
       }),
       invitationHelper.accessor('expiresAt', {
         header: t('invites.expires'),
@@ -311,7 +426,7 @@ export function MembersPage({ clubId }: { clubId: string }) {
         },
       }),
     ],
-    [dateLocale, locale, resend, revoke, roleLabel, t],
+    [dateLocale, locale, resend, revoke, responsibilityLabel, t],
   );
   const memberTable = useReactTable({
     data: members.data?.items ?? [],

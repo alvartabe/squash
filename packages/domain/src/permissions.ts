@@ -1,18 +1,23 @@
 export type PlatformRole = 'user' | 'platform-admin';
-export type ClubRole = 'owner' | 'admin' | 'coach' | 'player';
+export type MembershipStatus = 'active' | 'suspended' | 'ended';
+export type ClubResponsibility = 'owner' | 'admin' | 'coach';
 export type ClubAction =
   | 'club.view'
-  | 'club.manage'
+  | 'club.update'
+  | 'club.archive'
   | 'members.manage'
   | 'availability.view'
   | 'tournament.manage'
   | 'results.correct'
   | 'session.create';
 
-const permissions: Record<ClubRole, ReadonlySet<ClubAction>> = {
+const memberPermissions: ReadonlySet<ClubAction> = new Set(['club.view']);
+
+const permissions: Record<ClubResponsibility, ReadonlySet<ClubAction>> = {
   owner: new Set([
     'club.view',
-    'club.manage',
+    'club.update',
+    'club.archive',
     'members.manage',
     'availability.view',
     'tournament.manage',
@@ -21,6 +26,7 @@ const permissions: Record<ClubRole, ReadonlySet<ClubAction>> = {
   ]),
   admin: new Set([
     'club.view',
+    'club.update',
     'members.manage',
     'availability.view',
     'tournament.manage',
@@ -28,12 +34,12 @@ const permissions: Record<ClubRole, ReadonlySet<ClubAction>> = {
     'session.create',
   ]),
   coach: new Set(['club.view', 'availability.view', 'session.create']),
-  player: new Set(['club.view', 'session.create']),
 };
 
 export const clubActions: readonly ClubAction[] = [
   'club.view',
-  'club.manage',
+  'club.update',
+  'club.archive',
   'members.manage',
   'availability.view',
   'tournament.manage',
@@ -43,10 +49,14 @@ export const clubActions: readonly ClubAction[] = [
 
 export function canPerformClubAction(
   platformRole: PlatformRole,
-  clubRole: ClubRole | null,
+  membershipStatus: MembershipStatus | null,
+  responsibilities: readonly ClubResponsibility[],
   action: ClubAction,
 ): boolean {
+  if (platformRole === 'platform-admin') return true;
+  if (membershipStatus !== 'active') return false;
   return (
-    platformRole === 'platform-admin' || (clubRole !== null && permissions[clubRole].has(action))
+    memberPermissions.has(action) ||
+    responsibilities.some((responsibility) => permissions[responsibility].has(action))
   );
 }

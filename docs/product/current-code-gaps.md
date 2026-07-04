@@ -16,15 +16,12 @@ This document identifies known differences between intended product behavior and
 
 ## Clubs and membership
 
-| Intended behavior                                                      | Current evidence                                                          | Gap                                                            |
-| ---------------------------------------------------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| Only Platform Administrators create Clubs and assign the initial Owner | `createClub` in `packages/server/src/services.ts`                         | Any authenticated actor can create a Club and becomes Owner    |
-| Club Responsibilities are composable                                   | `clubRole` enum and `clubMemberships.role` in `packages/db/src/schema.ts` | Exactly one mutually exclusive role is stored                  |
-| Active, Suspended, and Ended Membership states                         | `clubMemberships` in `packages/db/src/schema.ts`                          | Membership has no lifecycle status                             |
-| Player-submitted Membership Requests                                   | Club routes and schema                                                    | No Membership Request model or workflow                        |
-| All active Clubs are discoverable                                      | `listMyClubs` in `packages/server/src/services.ts`                        | Service lists only the actor's Clubs                           |
-| Rich Club Profile                                                      | `clubs` in `packages/db/src/schema.ts`                                    | No description, logo, address, map, or contact fields          |
-| Club archival cascades documented activity behavior                    | Club admin services                                                       | Archive behavior does not implement the full product lifecycle |
+| Intended behavior                                                      | Current evidence                                   | Gap                                                            |
+| ---------------------------------------------------------------------- | -------------------------------------------------- | -------------------------------------------------------------- |
+| Player-submitted Membership Requests                                   | Club routes and schema                             | No Membership Request model or workflow                        |
+| All active Clubs are discoverable                                      | `listMyClubs` in `packages/server/src/services.ts` | Service lists only the actor's Clubs                           |
+| Rich Club Profile                                                      | `clubs` in `packages/db/src/schema.ts`             | No description, logo, address, map, or contact fields          |
+| Club archival cascades documented activity behavior                    | Club admin services                                | Archive behavior does not implement the full product lifecycle |
 
 ## Play
 

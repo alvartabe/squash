@@ -4,9 +4,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   ClubInvitation,
   ClubMember,
-  ClubRole,
+  ClubResponsibility,
   ClubSummary,
-  InviteClubRole,
+  CreateClubInput,
+  InviteClubResponsibility,
+  MembershipStatus,
   PaginatedData,
 } from '@squash/contracts';
 import { api } from '@/src/lib/api';
@@ -28,7 +30,8 @@ export type WorkspaceMe = {
     clubName: string;
     clubSlug: string;
     clubTimeZone: string;
-    role: ClubRole;
+    membershipStatus: MembershipStatus;
+    responsibilities: ClubResponsibility[];
     permissions: string[];
   }>;
 };
@@ -40,7 +43,8 @@ export type ClubDetails = {
   timeZone: string;
   archivedAt: string | null;
   memberCount: number;
-  role: ClubRole | null;
+  membershipStatus: MembershipStatus | null;
+  responsibilities: ClubResponsibility[];
   createdAt: string;
   updatedAt: string;
 };
@@ -86,8 +90,7 @@ export function useWorkspaceClub(clubId: string) {
 export function useCreateClub() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { name: string; slug: string; timeZone: string }) =>
-      (await api.post('/clubs', input)).data.data,
+    mutationFn: async (input: CreateClubInput) => (await api.post('/clubs', input)).data.data,
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ['workspace', 'clubs'] });
       client.invalidateQueries({ queryKey: workspaceKeys.me });
@@ -157,7 +160,7 @@ export function useInviteClubMember(clubId: string) {
   return useMutation({
     mutationFn: async (input: {
       email: string;
-      role: InviteClubRole;
+      responsibility: InviteClubResponsibility;
       locale: 'en-US' | 'es-419';
     }) => (await api.post(`/clubs/${clubId}/invitations`, input)).data.data,
     onSuccess: invalidate,
@@ -167,8 +170,14 @@ export function useInviteClubMember(clubId: string) {
 export function useUpdateClubMember(clubId: string) {
   const invalidate = useInvalidateMembers(clubId);
   return useMutation({
-    mutationFn: async ({ userId, role }: { userId: string; role: InviteClubRole }) =>
-      (await api.patch(`/clubs/${clubId}/members/${userId}`, { role })).data.data,
+    mutationFn: async ({
+      userId,
+      ...input
+    }: {
+      userId: string;
+      status?: MembershipStatus;
+      responsibilities?: ClubResponsibility[];
+    }) => (await api.patch(`/clubs/${clubId}/members/${userId}`, input)).data.data,
     onSuccess: invalidate,
   });
 }

@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import type { InviteClubRole } from '@squash/contracts';
+import type { InviteClubResponsibility } from '@squash/contracts';
 import { Button } from '@/components/ui/button';
 import {
   Drawer,
@@ -29,7 +29,10 @@ import {
 import { useInviteClubMember } from '@/src/hooks/workspace';
 import { useLocale } from '@/src/locale-provider';
 
-const schema = z.object({ email: z.email(), role: z.enum(['admin', 'coach', 'player']) });
+const schema = z.object({
+  email: z.email(),
+  responsibility: z.enum(['admin', 'coach', 'none']),
+});
 type Values = z.infer<typeof schema>;
 
 export function InviteMemberDrawer({
@@ -44,11 +47,18 @@ export function InviteMemberDrawer({
   const mutation = useInviteClubMember(clubId);
   const form = useForm<Values>({
     resolver: zodResolver(schema),
-    defaultValues: { email: '', role: 'player' },
+    defaultValues: { email: '', responsibility: 'none' },
   });
   const submit = form.handleSubmit(async (values) => {
     try {
-      await mutation.mutateAsync({ ...values, role: values.role as InviteClubRole, locale });
+      await mutation.mutateAsync({
+        email: values.email,
+        responsibility:
+          values.responsibility === 'none'
+            ? null
+            : (values.responsibility as InviteClubResponsibility),
+        locale,
+      });
       toast.success(t('invites.sent'));
       form.reset();
       setOpen(false);
@@ -73,18 +83,20 @@ export function InviteMemberDrawer({
             )}
           </div>
           <div className="space-y-2">
-            <Label>{t('invites.role')}</Label>
+            <Label>{t('invites.responsibility')}</Label>
             <Select
-              value={form.watch('role')}
-              onValueChange={(value) => form.setValue('role', value as InviteClubRole)}
+              value={form.watch('responsibility')}
+              onValueChange={(value) =>
+                form.setValue('responsibility', value as Values['responsibility'])
+              }
             >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {(['admin', 'coach', 'player'] as const).map((role) => (
-                  <SelectItem key={role} value={role}>
-                    {t(`members.${role}`)}
+                {(['admin', 'coach', 'none'] as const).map((responsibility) => (
+                  <SelectItem key={responsibility} value={responsibility}>
+                    {t(`members.${responsibility === 'none' ? 'player' : responsibility}`)}
                   </SelectItem>
                 ))}
               </SelectContent>

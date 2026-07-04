@@ -3,12 +3,14 @@ import { canPerformClubAction, type ClubAction } from '@squash/domain';
 import { and, eq, isNull } from 'drizzle-orm';
 import { db } from './database';
 import { forbidden, ServiceError } from './errors';
+import { membershipResponsibilities } from './membership';
 
 export async function getClubAuthorization(userId: string, clubId: string) {
   const [result] = await db
     .select({
       platformRole: users.role,
-      clubRole: clubMemberships.role,
+      membershipStatus: clubMemberships.status,
+      responsibilities: membershipResponsibilities,
       clubId: clubs.id,
       clubArchivedAt: clubs.archivedAt,
     })
@@ -25,7 +27,10 @@ export async function getClubAuthorization(userId: string, clubId: string) {
 
 export async function requireClubAccess(userId: string, clubId: string) {
   const result = await getClubAuthorization(userId, clubId);
-  if (!result?.clubId || (result.platformRole !== 'platform-admin' && result.clubRole === null)) {
+  if (
+    !result?.clubId ||
+    (result.platformRole !== 'platform-admin' && result.membershipStatus !== 'active')
+  ) {
     throw forbidden();
   }
   return result;
@@ -43,13 +48,17 @@ export async function requirePlatformAdmin(userId: string) {
 
 export async function requireActiveClubMembership(userId: string, clubId: string) {
   const [membership] = await db
-    .select({ role: clubMemberships.role })
+    .select({
+      status: clubMemberships.status,
+      responsibilities: membershipResponsibilities,
+    })
     .from(clubMemberships)
     .innerJoin(clubs, eq(clubs.id, clubMemberships.clubId))
     .where(
       and(
         eq(clubMemberships.userId, userId),
         eq(clubMemberships.clubId, clubId),
+        eq(clubMemberships.status, 'active'),
         isNull(clubs.archivedAt),
       ),
     )
@@ -61,7 +70,15 @@ export async function requireActiveClubMembership(userId: string, clubId: string
 export async function requireClubAction(userId: string, clubId: string, action: ClubAction) {
   const result = await getClubAuthorization(userId, clubId);
 
-  if (!result?.clubId || !canPerformClubAction(result.platformRole, result.clubRole, action)) {
+  if (
+    !result?.clubId ||
+    !canPerformClubAction(
+      result.platformRole,
+      result.membershipStatus,
+      result.responsibilities,
+      action,
+    )
+  ) {
     throw forbidden();
   }
   if (result.clubArchivedAt) {

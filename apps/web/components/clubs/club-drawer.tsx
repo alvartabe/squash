@@ -30,6 +30,7 @@ const schema = z.object({
     .max(80)
     .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
   timeZone: z.string().trim().min(1).max(100),
+  initialOwnerId: z.string().trim().max(128).optional(),
 });
 type Values = z.infer<typeof schema>;
 
@@ -50,6 +51,7 @@ export function ClubDrawer({
       name: club?.name ?? '',
       slug: club?.slug ?? '',
       timeZone: club?.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+      initialOwnerId: '',
     },
   });
   useEffect(() => {
@@ -58,6 +60,7 @@ export function ClubDrawer({
         name: club?.name ?? '',
         slug: club?.slug ?? '',
         timeZone: club?.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+        initialOwnerId: '',
       });
   }, [club, form, open]);
   const submit = form.handleSubmit(async (values) => {
@@ -66,7 +69,17 @@ export function ClubDrawer({
         await update.mutateAsync({ name: values.name, timeZone: values.timeZone });
         toast.success(t('clubs.updated'));
       } else {
-        await create.mutateAsync(values);
+        const initialOwnerId = values.initialOwnerId?.trim();
+        if (!initialOwnerId) {
+          form.setError('initialOwnerId', { message: t('clubForm.initialOwnerRequired') });
+          return;
+        }
+        await create.mutateAsync({
+          name: values.name,
+          slug: values.slug,
+          timeZone: values.timeZone,
+          initialOwnerId,
+        });
         toast.success(t('clubs.created'));
       }
       setOpen(false);
@@ -113,6 +126,18 @@ export function ClubDrawer({
               <p className="text-xs text-destructive">{form.formState.errors.timeZone.message}</p>
             )}
           </div>
+          {!club && (
+            <div className="space-y-2">
+              <Label htmlFor="club-initial-owner">{t('clubForm.initialOwner')}</Label>
+              <Input id="club-initial-owner" {...form.register('initialOwnerId')} />
+              <p className="text-xs text-muted-foreground">{t('clubForm.initialOwnerHint')}</p>
+              {form.formState.errors.initialOwnerId && (
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.initialOwnerId.message}
+                </p>
+              )}
+            </div>
+          )}
         </form>
         <DrawerFooter>
           <Button form="club-form" type="submit" disabled={create.isPending || update.isPending}>

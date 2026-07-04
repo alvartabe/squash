@@ -46,7 +46,15 @@ import { ClubDrawer } from './club-drawer';
 
 const columnHelper = createColumnHelper<ClubSummary>();
 
-function ClubActions({ club, canManage }: { club: ClubSummary; canManage: boolean }) {
+function ClubActions({
+  club,
+  canUpdate,
+  canArchive,
+}: {
+  club: ClubSummary;
+  canUpdate: boolean;
+  canArchive: boolean;
+}) {
   const archive = useArchiveClub(club.id);
   const { t } = useLocale();
   return (
@@ -54,14 +62,14 @@ function ClubActions({ club, canManage }: { club: ClubSummary; canManage: boolea
       <Button asChild variant="secondary" size="sm">
         <Link href={`/workspace/clubs/${club.id}`}>{t('clubs.open')}</Link>
       </Button>
-      {canManage && !club.archivedAt && (
+      {canUpdate && !club.archivedAt && (
         <ClubDrawer club={club}>
           <Button variant="outline" size="sm">
             {t('common.edit')}
           </Button>
         </ClubDrawer>
       )}
-      {canManage && !club.archivedAt && (
+      {canArchive && !club.archivedAt && (
         <Dialog>
           <DialogTrigger asChild>
             <Button variant="outline" size="sm">
@@ -143,7 +151,15 @@ export function ClubsTable() {
         cell: (info) => (
           <ClubActions
             club={info.row.original}
-            canManage={me?.platformAdmin === true || info.row.original.role === 'owner'}
+            canUpdate={
+              me?.platformAdmin === true ||
+              info.row.original.responsibilities.some((responsibility) =>
+                ['owner', 'admin'].includes(responsibility),
+              )
+            }
+            canArchive={
+              me?.platformAdmin === true || info.row.original.responsibilities.includes('owner')
+            }
           />
         ),
       }),
@@ -178,12 +194,14 @@ export function ClubsTable() {
           />
           {t('clubs.includeArchived')}
         </label>
-        <ClubDrawer>
-          <Button className="w-full sm:w-auto">
-            <IconPlus />
-            {t('clubs.new')}
-          </Button>
-        </ClubDrawer>
+        {me?.platformAdmin && (
+          <ClubDrawer>
+            <Button className="w-full sm:w-auto">
+              <IconPlus />
+              {t('clubs.new')}
+            </Button>
+          </ClubDrawer>
+        )}
       </div>
       <div className="rounded-lg border">
         <Table>

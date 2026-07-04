@@ -15,7 +15,7 @@ type InvitationView = {
   clubId: string;
   clubName: string;
   email: string;
-  role: string;
+  responsibility: 'admin' | 'coach' | null;
   status: 'pending' | 'accepted' | 'expired' | 'revoked';
   expiresAt: string;
 };
@@ -63,7 +63,8 @@ export function ClubInvitationCard({ token }: { token: string }) {
                   </Badge>
                 </div>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  {invitation.data.email} · {invitation.data.role}
+                  {invitation.data.email} ·{' '}
+                  {t(`members.${invitation.data.responsibility ?? 'player'}`)}
                 </p>
               </div>
               {invitation.data.status !== 'pending' ? (

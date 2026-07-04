@@ -29,7 +29,10 @@ export default function ClubPage() {
   const { t } = useLocale();
   if (isLoading || !club)
     return <main className="p-6 text-sm text-muted-foreground">{t('common.loading')}</main>;
-  const canManage = me?.platformAdmin || club.role === 'owner';
+  const canUpdate =
+    me?.platformAdmin ||
+    club.responsibilities.some((responsibility) => ['owner', 'admin'].includes(responsibility));
+  const canArchive = me?.platformAdmin || club.responsibilities.includes('owner');
   return (
     <main className="flex flex-col gap-6 px-4 py-6 lg:px-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -42,43 +45,47 @@ export default function ClubPage() {
             {club.timeZone} · /{club.slug}
           </p>
         </div>
-        {canManage && !club.archivedAt && (
+        {(canUpdate || canArchive) && !club.archivedAt && (
           <div className="flex gap-2">
-            <ClubDrawer club={club}>
-              <Button variant="outline">{t('common.edit')}</Button>
-            </ClubDrawer>
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="outline">{t('common.archive')}</Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>{t('clubs.archiveTitle')}</DialogTitle>
-                  <DialogDescription>{t('clubs.archiveDescription')}</DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                  <DialogClose asChild>
-                    <Button variant="outline">{t('common.cancel')}</Button>
-                  </DialogClose>
-                  <DialogClose asChild>
-                    <Button
-                      variant="destructive"
-                      onClick={async () => {
-                        try {
-                          await archive.mutateAsync();
-                          toast.success(t('clubs.archivedMessage'));
-                          router.push('/workspace/clubs');
-                        } catch {
-                          toast.error(t('error.invalidRequest'));
-                        }
-                      }}
-                    >
-                      {t('common.archive')}
-                    </Button>
-                  </DialogClose>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            {canUpdate && (
+              <ClubDrawer club={club}>
+                <Button variant="outline">{t('common.edit')}</Button>
+              </ClubDrawer>
+            )}
+            {canArchive && (
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="outline">{t('common.archive')}</Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>{t('clubs.archiveTitle')}</DialogTitle>
+                    <DialogDescription>{t('clubs.archiveDescription')}</DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter>
+                    <DialogClose asChild>
+                      <Button variant="outline">{t('common.cancel')}</Button>
+                    </DialogClose>
+                    <DialogClose asChild>
+                      <Button
+                        variant="destructive"
+                        onClick={async () => {
+                          try {
+                            await archive.mutateAsync();
+                            toast.success(t('clubs.archivedMessage'));
+                            router.push('/workspace/clubs');
+                          } catch {
+                            toast.error(t('error.invalidRequest'));
+                          }
+                        }}
+                      >
+                        {t('common.archive')}
+                      </Button>
+                    </DialogClose>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            )}
           </div>
         )}
       </div>

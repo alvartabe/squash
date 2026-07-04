@@ -2,15 +2,17 @@ import { createHash, randomBytes } from 'node:crypto';
 import type {
   ClubInvitation,
   ClubMember,
-  ClubRole,
+  ClubResponsibility,
   ClubSummary,
-  InviteClubRole,
+  InviteClubResponsibility,
+  MembershipStatus,
   PaginatedData,
 } from '@squash/contracts';
 import {
   auditLogs,
   clubInvitations,
   clubMemberships,
+  clubResponsibilities,
   clubs,
   outboxEvents,
   users,
@@ -22,6 +24,7 @@ import { requireClubAccess, requireClubAction, requirePlatformAdmin } from './au
 import { db } from './database';
 import { forbidden, notFound, ServiceError } from './errors';
 import { renderAuthEmail } from './emails';
+import { membershipResponsibilities } from './membership';
 
 const INVITATION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -47,6 +50,15 @@ function createInvitationToken() {
 
 function dateValue(value: Date | null) {
   return value?.toISOString() ?? null;
+}
+
+function invitationResponsibility(
+  responsibility: ClubResponsibility | null,
+): InviteClubResponsibility {
+  if (responsibility === 'owner') {
+    throw new ServiceError('INVALID_INVITATION_RESPONSIBILITY', 'error.invalidRequest', 409);
+  }
+  return responsibility;
 }
 
 async function platformRole(userId: string) {
@@ -99,11 +111,18 @@ export async function getCurrentWorkspaceUser(actorId: string) {
       clubName: clubs.name,
       clubSlug: clubs.slug,
       clubTimeZone: clubs.timeZone,
-      role: clubMemberships.role,
+      membershipStatus: clubMemberships.status,
+      responsibilities: membershipResponsibilities,
     })
     .from(clubMemberships)
     .innerJoin(clubs, eq(clubs.id, clubMemberships.clubId))
-    .where(and(eq(clubMemberships.userId, actorId), isNull(clubs.archivedAt)))
+    .where(
+      and(
+        eq(clubMemberships.userId, actorId),
+        eq(clubMemberships.status, 'active'),
+        isNull(clubs.archivedAt),
+      ),
+    )
     .orderBy(asc(clubs.name));
 
   return {
@@ -111,12 +130,17 @@ export async function getCurrentWorkspaceUser(actorId: string) {
     platformAdmin: user.role === 'platform-admin',
     workspaceAccess:
       user.role === 'platform-admin' ||
-      memberships.some((membership) => membership.role !== 'player') ||
+      memberships.some((membership) => membership.responsibilities.length > 0) ||
       memberships.length === 0,
     memberships: memberships.map((membership) => ({
       ...membership,
       permissions: clubActions.filter((action) =>
-        canPerformClubAction(user.role, membership.role, action),
+        canPerformClubAction(
+          user.role,
+          membership.membershipStatus,
+          membership.responsibilities,
+          action,
+        ),
       ),
     })),
   };
@@ -130,7 +154,9 @@ export async function listWorkspaceClubs(
   const searchFilter = query.search ? ilike(clubs.name, `%${query.search}%`) : undefined;
   const archivedFilter = query.includeArchived ? undefined : isNull(clubs.archivedAt);
   const memberCount = sql<number>`(
-    select count(*)::int from club_memberships cm where cm.club_id = ${clubs.id}
+    select count(*)::int
+    from club_memberships cm
+    where cm.club_id = ${clubs.id} and cm.status <> 'ended'
   )`.mapWith(Number);
 
   if (role === 'platform-admin') {
@@ -151,13 +177,23 @@ export async function listWorkspaceClubs(
       .offset(query.page * query.pageSize);
     const [totalRow] = await db.select({ value: count() }).from(clubs).where(condition);
     return pageResult(
-      rows.map((item) => ({ ...item, role: null, archivedAt: dateValue(item.archivedAt) })),
+      rows.map((item) => ({
+        ...item,
+        membershipStatus: null,
+        responsibilities: [],
+        archivedAt: dateValue(item.archivedAt),
+      })),
       totalRow?.value ?? 0,
       query,
     );
   }
 
-  const condition = and(eq(clubMemberships.userId, actorId), searchFilter, archivedFilter);
+  const condition = and(
+    eq(clubMemberships.userId, actorId),
+    eq(clubMemberships.status, 'active'),
+    searchFilter,
+    archivedFilter,
+  );
   const rows = await db
     .select({
       id: clubs.id,
@@ -165,7 +201,8 @@ export async function listWorkspaceClubs(
       slug: clubs.slug,
       timeZone: clubs.timeZone,
       archivedAt: clubs.archivedAt,
-      role: clubMemberships.role,
+      membershipStatus: clubMemberships.status,
+      responsibilities: membershipResponsibilities,
       memberCount,
     })
     .from(clubMemberships)
@@ -180,7 +217,10 @@ export async function listWorkspaceClubs(
     .innerJoin(clubs, eq(clubs.id, clubMemberships.clubId))
     .where(condition);
   return pageResult(
-    rows.map((item) => ({ ...item, archivedAt: dateValue(item.archivedAt) })),
+    rows.map((item) => ({
+      ...item,
+      archivedAt: dateValue(item.archivedAt),
+    })),
     totalRow?.value ?? 0,
     query,
   );
@@ -193,10 +233,13 @@ export async function getWorkspaceClub(actorId: string, clubId: string) {
   const [members] = await db
     .select({ value: count() })
     .from(clubMemberships)
-    .where(eq(clubMemberships.clubId, clubId));
+    .where(
+      and(eq(clubMemberships.clubId, clubId), ne(clubMemberships.status, 'ended')),
+    );
   return {
     ...club,
-    role: authorization.clubRole,
+    membershipStatus: authorization.membershipStatus,
+    responsibilities: authorization.responsibilities,
     memberCount: members?.value ?? 0,
     archivedAt: dateValue(club.archivedAt),
     createdAt: club.createdAt.toISOString(),
@@ -209,7 +252,7 @@ export async function updateWorkspaceClub(
   clubId: string,
   input: { name: string; timeZone: string },
 ) {
-  await requireClubAction(actorId, clubId, 'club.manage');
+  await requireClubAction(actorId, clubId, 'club.update');
   const [club] = await db
     .update(clubs)
     .set({ name: input.name, timeZone: input.timeZone, updatedAt: new Date() })
@@ -230,7 +273,7 @@ export async function updateWorkspaceClub(
 }
 
 export async function archiveWorkspaceClub(actorId: string, clubId: string) {
-  await requireClubAction(actorId, clubId, 'club.manage');
+  await requireClubAction(actorId, clubId, 'club.archive');
   const archivedAt = new Date();
   const [club] = await db
     .update(clubs)
@@ -266,7 +309,8 @@ export async function listClubMembers(
       name: users.name,
       email: users.email,
       image: users.image,
-      role: clubMemberships.role,
+      membershipStatus: clubMemberships.status,
+      responsibilities: membershipResponsibilities,
       joinedAt: clubMemberships.joinedAt,
     })
     .from(clubMemberships)
@@ -281,7 +325,10 @@ export async function listClubMembers(
     .innerJoin(users, eq(users.id, clubMemberships.userId))
     .where(condition);
   return pageResult(
-    rows.map((item) => ({ ...item, joinedAt: item.joinedAt.toISOString() })),
+    rows.map((item) => ({
+      ...item,
+      joinedAt: item.joinedAt.toISOString(),
+    })),
     totalRow?.value ?? 0,
     query,
   );
@@ -308,7 +355,7 @@ export async function listClubInvitations(
       id: item.id,
       clubId: item.clubId,
       email: item.email,
-      role: item.role as InviteClubRole,
+      responsibility: invitationResponsibility(item.responsibility),
       expiresAt: item.expiresAt.toISOString(),
       acceptedAt: dateValue(item.acceptedAt),
       revokedAt: dateValue(item.revokedAt),
@@ -332,9 +379,16 @@ async function invitationEmail(locale: Locale, inviteUrl: string) {
 export async function inviteClubMember(
   actorId: string,
   clubId: string,
-  input: { email: string; role: InviteClubRole; locale: Locale },
+  input: { email: string; responsibility: InviteClubResponsibility; locale: Locale },
 ) {
-  await requireClubAction(actorId, clubId, 'members.manage');
+  const authorization = await requireClubAction(actorId, clubId, 'members.manage');
+  if (
+    input.responsibility === 'admin' &&
+    authorization.platformRole !== 'platform-admin' &&
+    !authorization.responsibilities.includes('owner')
+  ) {
+    throw forbidden();
+  }
   const [club] = await db
     .select({ id: clubs.id, name: clubs.name })
     .from(clubs)
@@ -348,11 +402,13 @@ export async function inviteClubMember(
     .limit(1);
   if (existingUser) {
     const [membership] = await db
-      .select({ userId: clubMemberships.userId })
+      .select({ status: clubMemberships.status })
       .from(clubMemberships)
       .where(and(eq(clubMemberships.clubId, clubId), eq(clubMemberships.userId, existingUser.id)))
       .limit(1);
-    if (membership) throw new ServiceError('ALREADY_CLUB_MEMBER', 'error.invalidRequest', 409);
+    if (membership && membership.status !== 'ended') {
+      throw new ServiceError('ALREADY_CLUB_MEMBER', 'error.invalidRequest', 409);
+    }
   }
 
   const rawToken = createInvitationToken();
@@ -360,7 +416,10 @@ export async function inviteClubMember(
   const expiresAt = new Date(Date.now() + INVITATION_LIFETIME_MS);
   const invitation = await db.transaction(async (tx) => {
     const [pending] = await tx
-      .select({ id: clubInvitations.id })
+      .select({
+        id: clubInvitations.id,
+        responsibility: clubInvitations.responsibility,
+      })
       .from(clubInvitations)
       .where(
         and(
@@ -370,12 +429,20 @@ export async function inviteClubMember(
           isNull(clubInvitations.revokedAt),
         ),
       )
-      .limit(1);
+      .limit(1)
+      .for('update');
+    if (
+      pending?.responsibility === 'admin' &&
+      authorization.platformRole !== 'platform-admin' &&
+      !authorization.responsibilities.includes('owner')
+    ) {
+      throw forbidden();
+    }
     const [record] = pending
       ? await tx
           .update(clubInvitations)
           .set({
-            role: input.role,
+            responsibility: input.responsibility,
             tokenHash: hashed,
             expiresAt,
             invitedById: actorId,
@@ -388,7 +455,7 @@ export async function inviteClubMember(
           .values({
             clubId,
             email: input.email,
-            role: input.role,
+            responsibility: input.responsibility,
             tokenHash: hashed,
             invitedById: actorId,
             expiresAt,
@@ -412,7 +479,7 @@ export async function inviteClubMember(
         action: pending ? 'club.invitation.resend' : 'club.invitation.create',
         entityType: 'club-invitation',
         entityId: record.id,
-        metadata: { email: input.email, role: input.role },
+        metadata: { email: input.email, responsibility: input.responsibility },
       }),
     );
     return record;
@@ -428,7 +495,10 @@ export async function resendClubInvitation(
 ) {
   await requireClubAction(actorId, clubId, 'members.manage');
   const [invitation] = await db
-    .select({ email: clubInvitations.email, role: clubInvitations.role })
+    .select({
+      email: clubInvitations.email,
+      responsibility: clubInvitations.responsibility,
+    })
     .from(clubInvitations)
     .where(
       and(
@@ -440,39 +510,66 @@ export async function resendClubInvitation(
     )
     .limit(1);
   if (!invitation) throw notFound('INVITATION_NOT_FOUND');
-  if (invitation.role === 'owner') throw forbidden();
+  const responsibility = invitationResponsibility(invitation.responsibility);
   return inviteClubMember(actorId, clubId, {
     email: invitation.email,
-    role: invitation.role,
+    responsibility,
     locale,
   });
 }
 
 export async function revokeClubInvitation(actorId: string, clubId: string, invitationId: string) {
-  await requireClubAction(actorId, clubId, 'members.manage');
-  const [record] = await db
-    .update(clubInvitations)
-    .set({ revokedAt: new Date(), updatedAt: new Date() })
-    .where(
-      and(
-        eq(clubInvitations.id, invitationId),
-        eq(clubInvitations.clubId, clubId),
-        isNull(clubInvitations.acceptedAt),
-        isNull(clubInvitations.revokedAt),
-      ),
-    )
-    .returning();
-  if (!record) throw notFound('INVITATION_NOT_FOUND');
-  await db.insert(auditLogs).values(
-    auditValue({
-      actorId,
-      clubId,
-      action: 'club.invitation.revoke',
-      entityType: 'club-invitation',
-      entityId: invitationId,
-    }),
-  );
-  return { id: record.id, revokedAt: record.revokedAt?.toISOString() };
+  const authorization = await requireClubAction(actorId, clubId, 'members.manage');
+  return db.transaction(async (tx) => {
+    const [invitation] = await tx
+      .select({
+        id: clubInvitations.id,
+        responsibility: clubInvitations.responsibility,
+      })
+      .from(clubInvitations)
+      .where(
+        and(
+          eq(clubInvitations.id, invitationId),
+          eq(clubInvitations.clubId, clubId),
+          isNull(clubInvitations.acceptedAt),
+          isNull(clubInvitations.revokedAt),
+        ),
+      )
+      .limit(1)
+      .for('update');
+    if (!invitation) throw notFound('INVITATION_NOT_FOUND');
+    if (
+      invitation.responsibility === 'admin' &&
+      authorization.platformRole !== 'platform-admin' &&
+      !authorization.responsibilities.includes('owner')
+    ) {
+      throw forbidden();
+    }
+
+    const revokedAt = new Date();
+    const [record] = await tx
+      .update(clubInvitations)
+      .set({ revokedAt, updatedAt: revokedAt })
+      .where(
+        and(
+          eq(clubInvitations.id, invitationId),
+          isNull(clubInvitations.acceptedAt),
+          isNull(clubInvitations.revokedAt),
+        ),
+      )
+      .returning();
+    if (!record) throw notFound('INVITATION_NOT_FOUND');
+    await tx.insert(auditLogs).values(
+      auditValue({
+        actorId,
+        clubId,
+        action: 'club.invitation.revoke',
+        entityType: 'club-invitation',
+        entityId: invitationId,
+      }),
+    );
+    return { id: record.id, revokedAt: record.revokedAt?.toISOString() };
+  });
 }
 
 export async function getClubInvitation(token: string) {
@@ -482,7 +579,7 @@ export async function getClubInvitation(token: string) {
       clubId: clubInvitations.clubId,
       clubName: clubs.name,
       email: clubInvitations.email,
-      role: clubInvitations.role,
+      responsibility: clubInvitations.responsibility,
       expiresAt: clubInvitations.expiresAt,
       acceptedAt: clubInvitations.acceptedAt,
       revokedAt: clubInvitations.revokedAt,
@@ -492,6 +589,7 @@ export async function getClubInvitation(token: string) {
     .where(eq(clubInvitations.tokenHash, tokenHash(token)))
     .limit(1);
   if (!record) throw notFound('INVITATION_NOT_FOUND');
+  const responsibility = invitationResponsibility(record.responsibility);
   const status = record.acceptedAt
     ? 'accepted'
     : record.revokedAt
@@ -501,6 +599,7 @@ export async function getClubInvitation(token: string) {
         : 'pending';
   return {
     ...record,
+    responsibility,
     status,
     email: record.email.replace(/^(.{2}).*(@.*)$/, '$1***$2'),
     expiresAt: record.expiresAt.toISOString(),
@@ -517,7 +616,7 @@ export async function acceptClubInvitation(actorId: string, token: string) {
         id: clubInvitations.id,
         clubId: clubInvitations.clubId,
         email: clubInvitations.email,
-        role: clubInvitations.role,
+        responsibility: clubInvitations.responsibility,
         expiresAt: clubInvitations.expiresAt,
         acceptedAt: clubInvitations.acceptedAt,
         revokedAt: clubInvitations.revokedAt,
@@ -528,6 +627,7 @@ export async function acceptClubInvitation(actorId: string, token: string) {
       .where(eq(clubInvitations.tokenHash, hashed))
       .limit(1);
     if (!record) throw notFound('INVITATION_NOT_FOUND');
+    const responsibility = invitationResponsibility(record.responsibility);
     if (record.userEmail.toLowerCase() !== record.email) {
       throw new ServiceError('INVITATION_EMAIL_MISMATCH', 'error.forbidden', 403);
     }
@@ -537,10 +637,41 @@ export async function acceptClubInvitation(actorId: string, token: string) {
     if (record.acceptedAt) {
       return { clubId: record.clubId, accepted: true };
     }
+    const [existingMembership] = await tx
+      .select({ status: clubMemberships.status })
+      .from(clubMemberships)
+      .where(and(eq(clubMemberships.clubId, record.clubId), eq(clubMemberships.userId, actorId)))
+      .limit(1);
+    if (existingMembership && existingMembership.status !== 'ended') {
+      throw new ServiceError('ALREADY_CLUB_MEMBER', 'error.invalidRequest', 409);
+    }
     await tx
       .insert(clubMemberships)
-      .values({ clubId: record.clubId, userId: actorId, role: record.role })
-      .onConflictDoNothing();
+      .values({ clubId: record.clubId, userId: actorId })
+      .onConflictDoUpdate({
+        target: [clubMemberships.clubId, clubMemberships.userId],
+        set: { status: 'active', joinedAt: new Date(), updatedAt: new Date() },
+      });
+    if (existingMembership?.status === 'ended') {
+      await tx
+        .delete(clubResponsibilities)
+        .where(
+          and(
+            eq(clubResponsibilities.clubId, record.clubId),
+            eq(clubResponsibilities.userId, actorId),
+          ),
+        );
+    }
+    if (responsibility) {
+      await tx
+        .insert(clubResponsibilities)
+        .values({
+          clubId: record.clubId,
+          userId: actorId,
+          responsibility,
+        })
+        .onConflictDoNothing();
+    }
     const acceptedAt = new Date();
     await tx
       .update(clubInvitations)
@@ -553,104 +684,166 @@ export async function acceptClubInvitation(actorId: string, token: string) {
         action: 'club.invitation.accept',
         entityType: 'club-invitation',
         entityId: record.id,
-        metadata: { role: record.role },
+        metadata: { responsibility },
       }),
     );
     return { clubId: record.clubId, accepted: true };
   });
 }
 
-export async function updateClubMemberRole(
+export async function updateClubMembership(
   actorId: string,
   clubId: string,
   userId: string,
-  role: InviteClubRole,
+  input: {
+    status?: MembershipStatus;
+    responsibilities?: readonly ClubResponsibility[];
+  },
 ) {
-  await requireClubAction(actorId, clubId, 'members.manage');
-  if (actorId === userId)
-    throw new ServiceError('CANNOT_CHANGE_OWN_ROLE', 'error.invalidRequest', 409);
+  const selfEndingMembership =
+    actorId === userId && input.status === 'ended' && input.responsibilities === undefined;
+  if (actorId === userId && !selfEndingMembership) {
+    throw new ServiceError('CANNOT_CHANGE_OWN_MEMBERSHIP', 'error.invalidRequest', 409);
+  }
+  const authorization = selfEndingMembership
+    ? null
+    : await requireClubAction(actorId, clubId, 'members.manage');
   const [current] = await db
-    .select({ role: clubMemberships.role })
+    .select({
+      status: clubMemberships.status,
+      responsibilities: membershipResponsibilities,
+    })
     .from(clubMemberships)
     .where(and(eq(clubMemberships.clubId, clubId), eq(clubMemberships.userId, userId)))
     .limit(1);
   if (!current) throw notFound('MEMBERSHIP_NOT_FOUND');
-  if (current.role === 'owner')
+
+  const nextStatus = input.status ?? current.status;
+  const nextResponsibilities = input.responsibilities ?? current.responsibilities;
+  const isCurrentOwner = current.responsibilities.includes('owner');
+  const isNextOwner = nextResponsibilities.includes('owner');
+  if (isCurrentOwner && (nextStatus !== 'active' || !isNextOwner)) {
     throw new ServiceError('OWNER_TRANSFER_REQUIRED', 'error.invalidRequest', 409);
-  const [membership] = await db
-    .update(clubMemberships)
-    .set({ role, updatedAt: new Date() })
-    .where(and(eq(clubMemberships.clubId, clubId), eq(clubMemberships.userId, userId)))
-    .returning();
-  await db.insert(auditLogs).values(
-    auditValue({
-      actorId,
-      clubId,
-      action: 'club.member.role-update',
-      entityType: 'club-membership',
-      entityId: userId,
-      metadata: { from: current.role, to: role },
-    }),
-  );
-  return membership;
+  }
+  if (!isCurrentOwner && isNextOwner) {
+    throw new ServiceError('OWNER_TRANSFER_REQUIRED', 'error.invalidRequest', 409);
+  }
+  if (current.status === 'ended' && nextStatus !== 'ended') {
+    throw new ServiceError('MEMBERSHIP_REJOIN_REQUIRED', 'error.invalidRequest', 409);
+  }
+  const actorIsOwner =
+    authorization?.platformRole === 'platform-admin' ||
+    authorization?.responsibilities.includes('owner');
+  if (
+    authorization &&
+    !actorIsOwner &&
+    (current.responsibilities.includes('admin') || nextResponsibilities.includes('admin'))
+  ) {
+    throw forbidden();
+  }
+
+  const storedResponsibilities = nextStatus === 'ended' ? [] : [...nextResponsibilities];
+  return db.transaction(async (tx) => {
+    const [membership] = await tx
+      .update(clubMemberships)
+      .set({ status: nextStatus, updatedAt: new Date() })
+      .where(and(eq(clubMemberships.clubId, clubId), eq(clubMemberships.userId, userId)))
+      .returning();
+    if (!membership) throw notFound('MEMBERSHIP_NOT_FOUND');
+
+    if (input.responsibilities !== undefined || nextStatus === 'ended') {
+      await tx
+        .delete(clubResponsibilities)
+        .where(
+          and(eq(clubResponsibilities.clubId, clubId), eq(clubResponsibilities.userId, userId)),
+        );
+      if (storedResponsibilities.length > 0) {
+        await tx.insert(clubResponsibilities).values(
+          storedResponsibilities.map((responsibility) => ({
+            clubId,
+            userId,
+            responsibility,
+          })),
+        );
+      }
+    }
+    await tx.insert(auditLogs).values(
+      auditValue({
+        actorId,
+        clubId,
+        action: 'club.membership.update',
+        entityType: 'club-membership',
+        entityId: userId,
+        metadata: {
+          fromStatus: current.status,
+          toStatus: nextStatus,
+          fromResponsibilities: current.responsibilities,
+          toResponsibilities: storedResponsibilities,
+        },
+      }),
+    );
+    return {
+      ...membership,
+      responsibilities: storedResponsibilities,
+    };
+  });
 }
 
 export async function removeClubMember(actorId: string, clubId: string, userId: string) {
-  await requireClubAction(actorId, clubId, 'members.manage');
-  if (actorId === userId) throw new ServiceError('CANNOT_REMOVE_SELF', 'error.invalidRequest', 409);
-  const [member] = await db
-    .select({ role: clubMemberships.role })
-    .from(clubMemberships)
-    .where(and(eq(clubMemberships.clubId, clubId), eq(clubMemberships.userId, userId)))
-    .limit(1);
-  if (!member) throw notFound('MEMBERSHIP_NOT_FOUND');
-  if (member.role === 'owner') {
-    const [owners] = await db
-      .select({ value: count() })
-      .from(clubMemberships)
-      .where(and(eq(clubMemberships.clubId, clubId), eq(clubMemberships.role, 'owner')));
-    if ((owners?.value ?? 0) <= 1)
-      throw new ServiceError('LAST_OWNER', 'error.invalidRequest', 409);
-  }
-  await db
-    .delete(clubMemberships)
-    .where(and(eq(clubMemberships.clubId, clubId), eq(clubMemberships.userId, userId)));
-  await db.insert(auditLogs).values(
-    auditValue({
-      actorId,
-      clubId,
-      action: 'club.member.remove',
-      entityType: 'club-membership',
-      entityId: userId,
-      metadata: { role: member.role },
-    }),
-  );
+  await updateClubMembership(actorId, clubId, userId, { status: 'ended' });
   return { userId, removed: true };
 }
 
 export async function transferClubOwnership(actorId: string, clubId: string, newOwnerId: string) {
   const authorization = await requireClubAccess(actorId, clubId);
-  if (authorization.platformRole !== 'platform-admin' && authorization.clubRole !== 'owner') {
+  if (
+    authorization.platformRole !== 'platform-admin' &&
+    !authorization.responsibilities.includes('owner')
+  ) {
     throw forbidden();
   }
   if (actorId === newOwnerId) throw new ServiceError('ALREADY_OWNER', 'error.invalidRequest', 409);
   const [target] = await db
-    .select({ role: clubMemberships.role })
+    .select({
+      status: clubMemberships.status,
+      responsibilities: membershipResponsibilities,
+    })
     .from(clubMemberships)
     .where(and(eq(clubMemberships.clubId, clubId), eq(clubMemberships.userId, newOwnerId)))
     .limit(1);
   if (!target) throw notFound('MEMBERSHIP_NOT_FOUND');
+  if (target.status !== 'active') {
+    throw new ServiceError('ACTIVE_MEMBERSHIP_REQUIRED', 'error.invalidRequest', 409);
+  }
+  if (target.responsibilities.includes('owner')) {
+    throw new ServiceError('ALREADY_OWNER', 'error.invalidRequest', 409);
+  }
   await db.transaction(async (tx) => {
+    const [currentOwner] = await tx
+      .select({ userId: clubResponsibilities.userId })
+      .from(clubResponsibilities)
+      .where(
+        and(
+          eq(clubResponsibilities.clubId, clubId),
+          eq(clubResponsibilities.responsibility, 'owner'),
+        ),
+      )
+      .limit(1)
+      .for('update');
+    if (!currentOwner) throw notFound('CLUB_OWNER_NOT_FOUND');
     await tx
-      .update(clubMemberships)
-      .set({ role: 'owner', updatedAt: new Date() })
-      .where(and(eq(clubMemberships.clubId, clubId), eq(clubMemberships.userId, newOwnerId)));
-    if (authorization.clubRole === 'owner') {
-      await tx
-        .update(clubMemberships)
-        .set({ role: 'admin', updatedAt: new Date() })
-        .where(and(eq(clubMemberships.clubId, clubId), eq(clubMemberships.userId, actorId)));
-    }
+      .delete(clubResponsibilities)
+      .where(
+        and(
+          eq(clubResponsibilities.clubId, clubId),
+          eq(clubResponsibilities.responsibility, 'owner'),
+        ),
+      );
+    await tx.insert(clubResponsibilities).values({
+      clubId,
+      userId: newOwnerId,
+      responsibility: 'owner',
+    });
     await tx.insert(auditLogs).values(
       auditValue({
         actorId,
@@ -658,7 +851,11 @@ export async function transferClubOwnership(actorId: string, clubId: string, new
         action: 'club.owner.transfer',
         entityType: 'club-membership',
         entityId: newOwnerId,
-        metadata: { previousRole: target.role },
+        metadata: {
+          previousOwnerId: currentOwner.userId,
+          newOwnerId,
+          newOwnerPreviousResponsibilities: target.responsibilities,
+        },
       }),
     );
   });
