@@ -1,7 +1,7 @@
 import { canPerformClubAction } from '../permissions';
 
 describe('club permissions', () => {
-  it('allows platform administrators to perform every action without a membership', () => {
+  it('allows Platform Administrators to perform existing oversight actions without a Membership', () => {
     expect(canPerformClubAction('platform-admin', null, [], 'club.archive')).toBe(true);
     expect(canPerformClubAction('platform-admin', null, [], 'members.manage')).toBe(true);
   });
@@ -17,6 +17,22 @@ describe('club permissions', () => {
     expect(canPerformClubAction('user', 'active', ['owner'], 'members.manage')).toBe(true);
     expect(canPerformClubAction('user', 'active', ['admin'], 'members.manage')).toBe(true);
     expect(canPerformClubAction('user', 'active', ['coach'], 'members.manage')).toBe(false);
+  });
+
+  it('allows only Owners and Administrators to review Membership Requests', () => {
+    expect(canPerformClubAction('user', 'active', ['owner'], 'membership-requests.review')).toBe(
+      true,
+    );
+    expect(canPerformClubAction('user', 'active', ['admin'], 'membership-requests.review')).toBe(
+      true,
+    );
+    expect(canPerformClubAction('user', 'active', ['coach'], 'membership-requests.review')).toBe(
+      false,
+    );
+    expect(canPerformClubAction('user', 'active', [], 'membership-requests.review')).toBe(false);
+    expect(canPerformClubAction('platform-admin', null, [], 'membership-requests.review')).toBe(
+      false,
+    );
   });
 
   it('allows coaches to view availability and organize sessions', () => {

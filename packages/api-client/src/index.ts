@@ -7,6 +7,8 @@ import type {
   ClubMember,
   ClubSummary,
   InviteClubResponsibility,
+  MembershipRequest,
+  MembershipRequestStatus,
   PaginatedData,
   PlayerStatistics,
 } from '@squash/contracts';
@@ -63,6 +65,24 @@ export function squashApi(client: AxiosInstance) {
       params: { page?: number; pageSize?: number; search?: string },
     ): Promise<{ data: PaginatedData<ClubInvitation> }> =>
       (await client.get(`/clubs/${clubId}/invitations`, { params })).data,
+    getMembershipRequests: async (
+      clubId: string,
+      params: {
+        page?: number;
+        pageSize?: number;
+        search?: string;
+        status?: MembershipRequestStatus;
+      },
+    ): Promise<{ data: PaginatedData<MembershipRequest> }> =>
+      (await client.get(`/clubs/${clubId}/membership-requests`, { params })).data,
+    submitMembershipRequest: async (clubId: string) =>
+      (await client.post(`/clubs/${clubId}/membership-requests`)).data,
+    cancelMembershipRequest: async (clubId: string, requestId: string) =>
+      (await client.post(`/clubs/${clubId}/membership-requests/${requestId}/cancel`)).data,
+    approveMembershipRequest: async (clubId: string, requestId: string) =>
+      (await client.post(`/clubs/${clubId}/membership-requests/${requestId}/approve`)).data,
+    rejectMembershipRequest: async (clubId: string, requestId: string) =>
+      (await client.post(`/clubs/${clubId}/membership-requests/${requestId}/reject`)).data,
     inviteClubMember: async (
       clubId: string,
       input: {
@@ -95,6 +115,7 @@ export const queryKeys = {
   club: (clubId: string) => ['clubs', clubId] as const,
   clubMembers: (clubId: string) => ['clubs', clubId, 'members'] as const,
   clubInvitations: (clubId: string) => ['clubs', clubId, 'invitations'] as const,
+  membershipRequests: (clubId: string) => ['clubs', clubId, 'membership-requests'] as const,
   openPlay: (clubId: string) => ['open-play', clubId] as const,
   challenges: () => ['challenges'] as const,
   tournaments: (clubId: string) => ['tournaments', clubId] as const,

@@ -23,6 +23,12 @@ const updatedAt = () => timestamp('updated_at', { withTimezone: true }).notNull(
 
 export const platformRole = pgEnum('platform_role', ['user', 'platform-admin']);
 export const membershipStatus = pgEnum('membership_status', ['active', 'suspended', 'ended']);
+export const membershipRequestStatus = pgEnum('membership_request_status', [
+  'pending',
+  'approved',
+  'rejected',
+  'cancelled',
+]);
 export const clubResponsibility = pgEnum('club_responsibility', ['owner', 'admin', 'coach']);
 export const friendshipStatus = pgEnum('friendship_status', [
   'pending',
@@ -208,6 +214,39 @@ export const clubMemberships = pgTable(
     primaryKey({ columns: [table.clubId, table.userId] }),
     index('club_memberships_user_idx').on(table.userId),
     index('club_memberships_club_status_idx').on(table.clubId, table.status),
+  ],
+);
+
+export const membershipRequests = pgTable(
+  'membership_requests',
+  {
+    id: id(),
+    clubId: uuid('club_id')
+      .notNull()
+      .references(() => clubs.id, { onDelete: 'cascade' }),
+    playerId: text('player_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    status: membershipRequestStatus('status').notNull().default('pending'),
+    submittedAt: timestamp('submitted_at', { withTimezone: true }).notNull().defaultNow(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    resolvedById: text('resolved_by_id').references(() => users.id, { onDelete: 'set null' }),
+  },
+  (table) => [
+    index('membership_requests_club_status_submitted_idx').on(
+      table.clubId,
+      table.status,
+      table.submittedAt,
+    ),
+    index('membership_requests_player_idx').on(table.playerId),
+    uniqueIndex('membership_requests_one_pending_idx')
+      .on(table.clubId, table.playerId)
+      .where(sql`${table.status} = 'pending'`),
+    check(
+      'membership_requests_resolution_check',
+      sql`(${table.status} = 'pending' and ${table.resolvedAt} is null and ${table.resolvedById} is null)
+        or (${table.status} <> 'pending' and ${table.resolvedAt} is not null)`,
+    ),
   ],
 );
 

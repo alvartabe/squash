@@ -4,5 +4,6 @@ export * from './club-admin';
 export * from './errors';
 export * from './media';
 export * from './membership';
+export * from './membership-requests';
 export * from './outbox';
 export * from './services';

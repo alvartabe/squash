@@ -122,6 +122,12 @@ export const createClubSchema = z.object({
 export const updateClubSchema = createClubSchema.pick({ name: true, timeZone: true });
 
 export const membershipStatusSchema = z.enum(['active', 'suspended', 'ended']);
+export const membershipRequestStatusSchema = z.enum([
+  'pending',
+  'approved',
+  'rejected',
+  'cancelled',
+]);
 export const clubResponsibilitySchema = z.enum(['owner', 'admin', 'coach']);
 export const inviteClubResponsibilitySchema = z.enum(['admin', 'coach']).nullable();
 export const clubResponsibilitiesSchema = z
@@ -135,6 +141,10 @@ export const paginationQuerySchema = z.object({
   page: z.coerce.number().int().min(0).default(0),
   pageSize: z.coerce.number().int().min(1).max(100).default(15),
   search: z.string().trim().max(120).default(''),
+});
+
+export const membershipRequestListQuerySchema = paginationQuerySchema.extend({
+  status: membershipRequestStatusSchema.optional(),
 });
 
 export const clubListQuerySchema = paginationQuerySchema.extend({
@@ -195,6 +205,18 @@ export const clubInvitationSchema = z.object({
   createdAt: z.string(),
 });
 
+export const membershipRequestSchema = z.object({
+  id: idSchema,
+  clubId: idSchema,
+  playerId: userIdSchema,
+  playerName: z.string(),
+  playerImage: z.string().nullable(),
+  status: membershipRequestStatusSchema,
+  submittedAt: z.string(),
+  resolvedAt: z.string().nullable(),
+  resolvedById: userIdSchema.nullable(),
+});
+
 export type PaginatedData<T> = {
   items: T[];
   page: number;
@@ -207,6 +229,8 @@ export type ClubSummary = z.infer<typeof clubSummarySchema>;
 export type ClubMember = z.infer<typeof clubMemberSchema>;
 export type ClubInvitation = z.infer<typeof clubInvitationSchema>;
 export type MembershipStatus = z.infer<typeof membershipStatusSchema>;
+export type MembershipRequest = z.infer<typeof membershipRequestSchema>;
+export type MembershipRequestStatus = z.infer<typeof membershipRequestStatusSchema>;
 export type ClubResponsibility = z.infer<typeof clubResponsibilitySchema>;
 export type InviteClubResponsibility = z.infer<typeof inviteClubResponsibilitySchema>;
 

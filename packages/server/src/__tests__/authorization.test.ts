@@ -1,5 +1,9 @@
 import { db } from '../database';
-import { requireClubAction, requirePlatformAdmin } from '../authorization';
+import {
+  requireClubAction,
+  requireMembershipRequestReviewer,
+  requirePlatformAdmin,
+} from '../authorization';
 
 jest.mock('../database', () => ({
   db: {
@@ -98,4 +102,40 @@ describe('club action authorization', () => {
       );
     },
   );
+});
+
+describe('Membership Request review authorization', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it.each(['owner', 'admin'] as const)('allows an active Club %s', async (responsibility) => {
+    mockAuthorization({
+      platformRole: 'user',
+      membershipStatus: 'active',
+      responsibilities: [responsibility],
+      clubId: 'club-id',
+      clubArchivedAt: null,
+    });
+
+    await expect(
+      requireMembershipRequestReviewer(`${responsibility}-id`, 'club-id'),
+    ).resolves.toMatchObject({ responsibilities: [responsibility] });
+  });
+
+  it.each([
+    { platformRole: 'user', membershipStatus: 'active', responsibilities: ['coach'] },
+    { platformRole: 'user', membershipStatus: 'active', responsibilities: [] },
+    { platformRole: 'user', membershipStatus: 'suspended', responsibilities: ['admin'] },
+    { platformRole: 'platform-admin', membershipStatus: null, responsibilities: [] },
+  ] as const)('rejects an unauthorized reviewer', async (authorization) => {
+    mockAuthorization({
+      ...authorization,
+      clubId: 'club-id',
+      clubArchivedAt: null,
+    });
+
+    await expect(requireMembershipRequestReviewer('actor-id', 'club-id')).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      status: 403,
+    });
+  });
 });

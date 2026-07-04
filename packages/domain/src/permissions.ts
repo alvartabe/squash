@@ -6,6 +6,7 @@ export type ClubAction =
   | 'club.update'
   | 'club.archive'
   | 'members.manage'
+  | 'membership-requests.review'
   | 'availability.view'
   | 'tournament.manage'
   | 'results.correct'
@@ -19,6 +20,7 @@ const permissions: Record<ClubResponsibility, ReadonlySet<ClubAction>> = {
     'club.update',
     'club.archive',
     'members.manage',
+    'membership-requests.review',
     'availability.view',
     'tournament.manage',
     'results.correct',
@@ -28,6 +30,7 @@ const permissions: Record<ClubResponsibility, ReadonlySet<ClubAction>> = {
     'club.view',
     'club.update',
     'members.manage',
+    'membership-requests.review',
     'availability.view',
     'tournament.manage',
     'results.correct',
@@ -41,6 +44,7 @@ export const clubActions: readonly ClubAction[] = [
   'club.update',
   'club.archive',
   'members.manage',
+  'membership-requests.review',
   'availability.view',
   'tournament.manage',
   'results.correct',
@@ -53,6 +57,14 @@ export function canPerformClubAction(
   responsibilities: readonly ClubResponsibility[],
   action: ClubAction,
 ): boolean {
+  if (action === 'membership-requests.review') {
+    return (
+      membershipStatus === 'active' &&
+      responsibilities.some(
+        (responsibility) => responsibility === 'owner' || responsibility === 'admin',
+      )
+    );
+  }
   if (platformRole === 'platform-admin') return true;
   if (membershipStatus !== 'active') return false;
   return (

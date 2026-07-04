@@ -86,3 +86,22 @@ export async function requireClubAction(userId: string, clubId: string, action: 
   }
   return result;
 }
+
+export async function requireMembershipRequestReviewer(userId: string, clubId: string) {
+  const result = await getClubAuthorization(userId, clubId);
+  if (
+    !result?.clubId ||
+    !canPerformClubAction(
+      result.platformRole,
+      result.membershipStatus,
+      result.responsibilities,
+      'membership-requests.review',
+    )
+  ) {
+    throw forbidden();
+  }
+  if (result.clubArchivedAt) {
+    throw new ServiceError('CLUB_ARCHIVED', 'error.invalidRequest', 409);
+  }
+  return result;
+}
