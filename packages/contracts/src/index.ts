@@ -23,7 +23,7 @@ export const submitMatchResultSchema = z.object({
 });
 
 export const createChallengeSchema = z.object({
-  clubId: idSchema,
+  clubId: idSchema.optional(),
   opponentId: userIdSchema,
   scheduledAt: isoDateTimeSchema,
   timeZone: z.string().trim().min(1).max(100),
@@ -39,6 +39,12 @@ export const challengeStatusSchema = z.enum([
   'disputed',
 ]);
 export const respondToChallengeSchema = z.object({ accept: z.boolean() });
+export const cancelChallengeSchema = z.object({
+  reason: z.string().trim().min(1).max(500).optional(),
+});
+export const disputeChallengeSchema = z.object({
+  reason: z.string().trim().min(1).max(500),
+});
 
 export const attendanceStatusSchema = z.enum(['invited', 'accepted', 'declined', 'withdrawn']);
 export const updateAttendanceSchema = z.object({

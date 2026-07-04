@@ -1,0 +1,3 @@
+# Require Guardian supervision for Junior Players
+
+Costa Rica-based Players under eighteen use Junior Player accounts supervised by a verified Guardian rather than unrestricted adult accounts. A Junior may receive restricted login access, while the Guardian controls consent, visibility, social permissions, data access, and deletion, and the Junior is excluded from global discovery. Separate reversible Guardian settings enable direct social play and independent Club participation without requiring per-action approval; this adds identity and permission complexity to support youth participation without treating minors as independent adult users.

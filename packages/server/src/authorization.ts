@@ -1,16 +1,22 @@
-import { clubMemberships, users } from '@squash/db/schema';
+import { clubMemberships, clubs, users } from '@squash/db/schema';
 import { canPerformClubAction, type ClubAction } from '@squash/domain';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { db } from './database';
-import { forbidden } from './errors';
+import { forbidden, ServiceError } from './errors';
 
 export async function getClubAuthorization(userId: string, clubId: string) {
   const [result] = await db
-    .select({ platformRole: users.role, clubRole: clubMemberships.role })
+    .select({
+      platformRole: users.role,
+      clubRole: clubMemberships.role,
+      clubId: clubs.id,
+      clubArchivedAt: clubs.archivedAt,
+    })
     .from(users)
+    .leftJoin(clubs, eq(clubs.id, clubId))
     .leftJoin(
       clubMemberships,
-      and(eq(clubMemberships.userId, users.id), eq(clubMemberships.clubId, clubId)),
+      and(eq(clubMemberships.userId, users.id), eq(clubMemberships.clubId, clubs.id)),
     )
     .where(eq(users.id, userId))
     .limit(1);
@@ -19,7 +25,7 @@ export async function getClubAuthorization(userId: string, clubId: string) {
 
 export async function requireClubAccess(userId: string, clubId: string) {
   const result = await getClubAuthorization(userId, clubId);
-  if (!result || (result.platformRole !== 'platform-admin' && result.clubRole === null)) {
+  if (!result?.clubId || (result.platformRole !== 'platform-admin' && result.clubRole === null)) {
     throw forbidden();
   }
   return result;
@@ -35,11 +41,31 @@ export async function requirePlatformAdmin(userId: string) {
   return result;
 }
 
+export async function requireActiveClubMembership(userId: string, clubId: string) {
+  const [membership] = await db
+    .select({ role: clubMemberships.role })
+    .from(clubMemberships)
+    .innerJoin(clubs, eq(clubs.id, clubMemberships.clubId))
+    .where(
+      and(
+        eq(clubMemberships.userId, userId),
+        eq(clubMemberships.clubId, clubId),
+        isNull(clubs.archivedAt),
+      ),
+    )
+    .limit(1);
+  if (!membership) throw forbidden();
+  return membership;
+}
+
 export async function requireClubAction(userId: string, clubId: string, action: ClubAction) {
   const result = await getClubAuthorization(userId, clubId);
 
-  if (!result || !canPerformClubAction(result.platformRole, result.clubRole, action)) {
+  if (!result?.clubId || !canPerformClubAction(result.platformRole, result.clubRole, action)) {
     throw forbidden();
+  }
+  if (result.clubArchivedAt) {
+    throw new ServiceError('CLUB_ARCHIVED', 'error.invalidRequest', 409);
   }
   return result;
 }

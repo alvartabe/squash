@@ -179,6 +179,21 @@ async function processEvent(event: ClaimedEvent) {
     }
     return;
   }
+  if (event.topic === 'challenge.cancelled' || event.topic === 'challenge.disputed') {
+    const recipientId = event.payload.recipientId;
+    if (typeof recipientId === 'string') {
+      const cancelled = event.topic === 'challenge.cancelled';
+      await sendPush(
+        recipientId,
+        cancelled
+          ? 'notification.challengeCancelled.title'
+          : 'notification.challengeDisputed.title',
+        cancelled ? 'notification.challengeCancelled.body' : 'notification.challengeDisputed.body',
+        { challengeId: event.aggregateId },
+      );
+    }
+    return;
+  }
   if (event.topic === 'statistics.rebuild') {
     const source = event.payload.source;
     if (source === 'challenge' || source === 'tournament') {

@@ -2,6 +2,10 @@
 
 Monorepo for the Squash mobile application, administrative web portal, REST API, and background worker.
 
+## Product documentation
+
+Intended product behavior is defined in [docs/product/README.md](docs/product/README.md). Canonical domain terminology lives in [CONTEXT.md](CONTEXT.md). Existing code may lag behind those definitions; see [current code gaps](docs/product/current-code-gaps.md).
+
 ## Requirements
 
 - Node.js 22+
@@ -28,7 +32,7 @@ The legacy `/admin` URL redirects there.
 1. Run `npm run db:migrate` after pulling schema changes.
 2. Start the API/web app with `npm run dev:web`.
 3. Create an account at `/signup` and verify it using the development URL printed by the web server.
-4. A new account can create a club and becomes its owner automatically.
+4. The current implementation lets a new account create a club and become its owner automatically. The intended product restricts Club creation to Platform Administrators; this is a documented implementation gap.
 5. To grant platform-wide administration to an existing account, run:
 
 ```bash
@@ -53,4 +57,4 @@ development email events are logged by the worker instead of being delivered.
 - Business rules live in `packages/domain` and `packages/server`.
 - Database records never cross the API boundary directly; DTOs come from `packages/contracts`.
 - Web and mobile share contracts, API clients, translations, and design tokens, but not UI components.
-- Open-play scores never contribute to official statistics.
+- Initial Club Play Sessions do not record scores.

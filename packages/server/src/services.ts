@@ -36,10 +36,15 @@ import {
 } from '@squash/db/schema';
 import {
   assignPlayersToGroups,
+  canCancelChallenge,
+  canDisputeChallenge,
+  canRespondToFriendship,
+  canSubmitInitialMatchResult,
   calculateMatchResult,
   calculateStandings,
   createFirstRound,
   createRoundRobinPairs,
+  isAcceptedFriendship,
   nextPowerOfTwo,
   qualifierOrder,
   type GroupMatch,
@@ -48,7 +53,11 @@ import {
 import { and, asc, desc, eq, isNull, or, sql } from 'drizzle-orm';
 import { db } from './database';
 import { forbidden, notFound, ServiceError } from './errors';
-import { requireClubAction } from './authorization';
+import {
+  requireActiveClubMembership,
+  requireClubAction,
+  requirePlatformAdmin,
+} from './authorization';
 
 function ruleRecord(rules: { bestOf: number; pointsToWin: number; winByTwo: boolean }) {
   return { bestOf: rules.bestOf, pointsToWin: rules.pointsToWin, winByTwo: rules.winByTwo };
@@ -172,17 +181,24 @@ export async function respondToFriend(
   friendshipId: string,
   status: 'accepted' | 'declined' | 'blocked',
 ) {
+  const [current] = await db
+    .select({
+      requesterId: friendships.requesterId,
+      addresseeId: friendships.addresseeId,
+      status: friendships.status,
+    })
+    .from(friendships)
+    .where(eq(friendships.id, friendshipId))
+    .limit(1);
+  if (!current) throw notFound('FRIENDSHIP_NOT_FOUND');
+  if (!canRespondToFriendship(actorId, current, status)) throw forbidden();
+
   const [friendship] = await db
     .update(friendships)
     .set({ status, updatedAt: new Date() })
-    .where(
-      and(
-        eq(friendships.id, friendshipId),
-        or(eq(friendships.addresseeId, actorId), eq(friendships.requesterId, actorId)),
-      ),
-    )
+    .where(and(eq(friendships.id, friendshipId), eq(friendships.status, current.status)))
     .returning();
-  if (!friendship) throw notFound('FRIENDSHIP_NOT_FOUND');
+  if (!friendship) throw new ServiceError('FRIENDSHIP_STATE_CONFLICT', 'error.invalidRequest', 409);
   return friendship;
 }
 
@@ -268,7 +284,24 @@ export function listNotifications(actorId: string) {
 export async function createChallenge(actorId: string, input: CreateChallengeInput) {
   if (actorId === input.opponentId)
     throw new ServiceError('SELF_CHALLENGE', 'error.invalidRequest', 400);
-  await requireClubAction(actorId, input.clubId, 'challenge.create');
+  const [friendship] = await db
+    .select({
+      requesterId: friendships.requesterId,
+      addresseeId: friendships.addresseeId,
+      status: friendships.status,
+    })
+    .from(friendships)
+    .where(
+      or(
+        and(eq(friendships.requesterId, actorId), eq(friendships.addresseeId, input.opponentId)),
+        and(eq(friendships.requesterId, input.opponentId), eq(friendships.addresseeId, actorId)),
+      ),
+    )
+    .limit(1);
+  if (!isAcceptedFriendship(friendship ?? null, actorId, input.opponentId)) {
+    throw new ServiceError('ACCEPTED_FRIENDSHIP_REQUIRED', 'error.forbidden', 403);
+  }
+  if (input.clubId) await requireActiveClubMembership(actorId, input.clubId);
 
   return db.transaction(async (tx) => {
     const [rules] = await tx.insert(matchRuleSnapshots).values(ruleRecord(input.rules)).returning();
@@ -276,7 +309,7 @@ export async function createChallenge(actorId: string, input: CreateChallengeInp
     const [match] = await tx
       .insert(matches)
       .values({
-        clubId: input.clubId,
+        clubId: input.clubId ?? null,
         source: 'challenge',
         countsForStatistics: true,
         status: 'scheduled',
@@ -292,7 +325,7 @@ export async function createChallenge(actorId: string, input: CreateChallengeInp
     const [challenge] = await tx
       .insert(challenges)
       .values({
-        clubId: input.clubId,
+        clubId: input.clubId ?? null,
         matchId: match.id,
         creatorId: actorId,
         opponentId: input.opponentId,
@@ -334,6 +367,130 @@ export async function respondToChallenge(actorId: string, challengeId: string, a
       aggregateId: challenge.id,
       payload: { challengeId: challenge.id, recipientId: challenge.creatorId },
     });
+    return challenge;
+  });
+}
+
+export async function cancelChallenge(actorId: string, challengeId: string, reason?: string) {
+  const [current] = await db
+    .select({
+      id: challenges.id,
+      clubId: challenges.clubId,
+      matchId: challenges.matchId,
+      creatorId: challenges.creatorId,
+      opponentId: challenges.opponentId,
+      status: challenges.status,
+      matchStatus: matches.status,
+    })
+    .from(challenges)
+    .innerJoin(matches, eq(matches.id, challenges.matchId))
+    .where(eq(challenges.id, challengeId))
+    .limit(1);
+  if (!current) throw notFound('CHALLENGE_NOT_FOUND');
+  if (!canCancelChallenge(actorId, current)) throw forbidden();
+
+  return db.transaction(async (tx) => {
+    const cancelledAt = new Date();
+    const [challenge] = await tx
+      .update(challenges)
+      .set({ status: 'cancelled', updatedAt: cancelledAt })
+      .where(and(eq(challenges.id, challengeId), eq(challenges.status, current.status)))
+      .returning();
+    if (!challenge) {
+      throw new ServiceError('CHALLENGE_STATE_CONFLICT', 'error.invalidRequest', 409);
+    }
+    const [match] = await tx
+      .update(matches)
+      .set({ status: 'void', updatedAt: cancelledAt })
+      .where(
+        and(
+          eq(matches.id, current.matchId),
+          or(eq(matches.status, 'scheduled'), eq(matches.status, 'in-progress')),
+        ),
+      )
+      .returning({ id: matches.id });
+    if (!match) {
+      throw new ServiceError('MATCH_STATE_CONFLICT', 'error.invalidRequest', 409);
+    }
+    await tx.insert(auditLogs).values({
+      actorId,
+      clubId: current.clubId,
+      action: 'challenge.cancel',
+      entityType: 'challenge',
+      entityId: challengeId,
+      metadata: { from: current.status, reason: reason?.trim() || null },
+    });
+    await tx.insert(outboxEvents).values({
+      topic: 'challenge.cancelled',
+      aggregateId: challengeId,
+      payload: {
+        challengeId,
+        recipientId: actorId === current.creatorId ? current.opponentId : current.creatorId,
+      },
+    });
+    return challenge;
+  });
+}
+
+export async function disputeChallenge(actorId: string, challengeId: string, reason: string) {
+  const [current] = await db
+    .select({
+      id: challenges.id,
+      clubId: challenges.clubId,
+      matchId: challenges.matchId,
+      creatorId: challenges.creatorId,
+      opponentId: challenges.opponentId,
+      status: challenges.status,
+      matchStatus: matches.status,
+    })
+    .from(challenges)
+    .innerJoin(matches, eq(matches.id, challenges.matchId))
+    .where(eq(challenges.id, challengeId))
+    .limit(1);
+  if (!current) throw notFound('CHALLENGE_NOT_FOUND');
+  if (!canDisputeChallenge(actorId, current, current.matchStatus)) throw forbidden();
+
+  return db.transaction(async (tx) => {
+    const disputedAt = new Date();
+    const [challenge] = await tx
+      .update(challenges)
+      .set({ status: 'disputed', updatedAt: disputedAt })
+      .where(and(eq(challenges.id, challengeId), eq(challenges.status, 'completed')))
+      .returning();
+    if (!challenge) {
+      throw new ServiceError('CHALLENGE_STATE_CONFLICT', 'error.invalidRequest', 409);
+    }
+    const [match] = await tx
+      .update(matches)
+      .set({ status: 'disputed', updatedAt: disputedAt })
+      .where(and(eq(matches.id, current.matchId), eq(matches.status, 'completed')))
+      .returning({ id: matches.id });
+    if (!match) {
+      throw new ServiceError('MATCH_STATE_CONFLICT', 'error.invalidRequest', 409);
+    }
+    await tx.insert(auditLogs).values({
+      actorId,
+      clubId: current.clubId,
+      action: 'challenge.dispute',
+      entityType: 'challenge',
+      entityId: challengeId,
+      metadata: { reason: reason.trim() },
+    });
+    await tx.insert(outboxEvents).values([
+      {
+        topic: 'challenge.disputed',
+        aggregateId: challengeId,
+        payload: {
+          challengeId,
+          recipientId: actorId === current.creatorId ? current.opponentId : current.creatorId,
+        },
+      },
+      {
+        topic: 'statistics.rebuild',
+        aggregateId: current.matchId,
+        payload: { matchId: current.matchId, source: 'challenge' },
+      },
+    ]);
     return challenge;
   });
 }
@@ -424,7 +581,7 @@ export async function registerForTournament(actorId: string, tournamentId: strin
     .where(eq(tournaments.id, tournamentId))
     .limit(1);
   if (!tournament) throw notFound('TOURNAMENT_NOT_FOUND');
-  await requireClubAction(actorId, tournament.clubId, 'challenge.create');
+  await requireActiveClubMembership(actorId, tournament.clubId);
   if (!['draft', 'registration'].includes(tournament.status) || tournament.closesAt < new Date()) {
     throw new ServiceError('REGISTRATION_CLOSED', 'error.invalidRequest', 409);
   }
@@ -771,7 +928,9 @@ export async function submitMatchResult(
   const [record] = await db
     .select({
       id: matches.id,
+      clubId: matches.clubId,
       source: matches.source,
+      status: matches.status,
       countsForStatistics: matches.countsForStatistics,
       revision: matches.currentRevision,
       bestOf: matchRuleSnapshots.bestOf,
@@ -789,9 +948,44 @@ export async function submitMatchResult(
     .from(matchParticipants)
     .where(eq(matchParticipants.matchId, matchId))
     .orderBy(matchParticipants.position);
-  if (!participants.some((participant) => participant.userId === actorId)) throw forbidden();
   if (participants.length !== 2)
     throw new ServiceError('INVALID_PARTICIPANTS', 'error.invalidRequest', 409);
+
+  if (record.revision === 0) {
+    if (!participants.some((participant) => participant.userId === actorId)) throw forbidden();
+    let challengeStatus:
+      | 'pending'
+      | 'accepted'
+      | 'declined'
+      | 'cancelled'
+      | 'completed'
+      | 'disputed'
+      | undefined;
+    if (record.source === 'challenge') {
+      const [challenge] = await db
+        .select({ status: challenges.status })
+        .from(challenges)
+        .where(eq(challenges.matchId, matchId))
+        .limit(1);
+      if (!challenge) throw notFound('CHALLENGE_NOT_FOUND');
+      challengeStatus = challenge.status;
+    }
+    if (!canSubmitInitialMatchResult(record.status, challengeStatus)) {
+      throw new ServiceError('MATCH_NOT_READY_FOR_RESULT', 'error.invalidRequest', 409);
+    }
+  } else {
+    if (record.status !== 'completed' && record.status !== 'disputed') {
+      throw new ServiceError('MATCH_NOT_CORRECTABLE', 'error.invalidRequest', 409);
+    }
+    if (!reason?.trim()) {
+      throw new ServiceError('REVISION_REASON_REQUIRED', 'error.invalidRequest', 400);
+    }
+    if (record.clubId) {
+      await requireClubAction(actorId, record.clubId, 'results.correct');
+    } else {
+      await requirePlatformAdmin(actorId);
+    }
+  }
 
   const result = calculateMatchResult(scores, {
     bestOf: record.bestOf as 1 | 3 | 5 | 7,

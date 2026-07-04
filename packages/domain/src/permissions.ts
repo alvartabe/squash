@@ -7,8 +7,7 @@ export type ClubAction =
   | 'availability.view'
   | 'tournament.manage'
   | 'results.correct'
-  | 'session.create'
-  | 'challenge.create';
+  | 'session.create';
 
 const permissions: Record<ClubRole, ReadonlySet<ClubAction>> = {
   owner: new Set([
@@ -19,7 +18,6 @@ const permissions: Record<ClubRole, ReadonlySet<ClubAction>> = {
     'tournament.manage',
     'results.correct',
     'session.create',
-    'challenge.create',
   ]),
   admin: new Set([
     'club.view',
@@ -28,10 +26,9 @@ const permissions: Record<ClubRole, ReadonlySet<ClubAction>> = {
     'tournament.manage',
     'results.correct',
     'session.create',
-    'challenge.create',
   ]),
-  coach: new Set(['club.view', 'availability.view', 'session.create', 'challenge.create']),
-  player: new Set(['club.view', 'session.create', 'challenge.create']),
+  coach: new Set(['club.view', 'availability.view', 'session.create']),
+  player: new Set(['club.view', 'session.create']),
 };
 
 export const clubActions: readonly ClubAction[] = [
@@ -42,7 +39,6 @@ export const clubActions: readonly ClubAction[] = [
   'tournament.manage',
   'results.correct',
   'session.create',
-  'challenge.create',
 ];
 
 export function canPerformClubAction(

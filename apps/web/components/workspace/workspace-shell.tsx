@@ -83,7 +83,6 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
         'tournament.manage',
         'results.correct',
         'session.create',
-        'challenge.create',
       ],
     };
   }, [me?.memberships, me?.platformAdmin, routeClub, routeClubId]);

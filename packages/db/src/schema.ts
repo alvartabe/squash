@@ -346,9 +346,7 @@ export const matches = pgTable(
   'matches',
   {
     id: id(),
-    clubId: uuid('club_id')
-      .notNull()
-      .references(() => clubs.id, { onDelete: 'cascade' }),
+    clubId: uuid('club_id').references(() => clubs.id, { onDelete: 'cascade' }),
     source: matchSource('source').notNull(),
     countsForStatistics: boolean('counts_for_statistics').notNull(),
     status: matchStatus('status').notNull().default('scheduled'),
@@ -428,9 +426,7 @@ export const challenges = pgTable(
   'challenges',
   {
     id: id(),
-    clubId: uuid('club_id')
-      .notNull()
-      .references(() => clubs.id, { onDelete: 'cascade' }),
+    clubId: uuid('club_id').references(() => clubs.id, { onDelete: 'cascade' }),
     matchId: uuid('match_id')
       .notNull()
       .unique()
