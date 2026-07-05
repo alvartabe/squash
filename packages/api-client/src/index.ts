@@ -93,6 +93,11 @@ export function squashApi(client: AxiosInstance) {
       requestId: string,
     ): Promise<{ data: MembershipRequest }> =>
       (await client.post(`/clubs/${clubId}/membership-requests/${requestId}/cancel`)).data,
+    acceptClubInvitation: async (
+      clubId: string,
+      invitationId: string,
+    ): Promise<{ data: { clubId: string; accepted: true } }> =>
+      (await client.post(`/clubs/${clubId}/invitations/${invitationId}/accept`)).data,
     approveMembershipRequest: async (clubId: string, requestId: string) =>
       (await client.post(`/clubs/${clubId}/membership-requests/${requestId}/approve`)).data,
     rejectMembershipRequest: async (clubId: string, requestId: string) =>

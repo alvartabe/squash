@@ -1,7 +1,7 @@
 import type { ClubDiscoveryRelationship } from '@squash/contracts';
 import type { MessageKey } from '@squash/i18n';
 
-export type ClubRelationshipAction = 'submit' | 'cancel' | null;
+export type ClubRelationshipAction = 'submit' | 'cancel' | 'accept' | null;
 
 export type ClubRelationshipPresentation = {
   labelKey: MessageKey;
@@ -35,7 +35,7 @@ export function getClubRelationshipPresentation(
       return {
         labelKey: 'playerClubs.relationship.invited',
         descriptionKey: 'playerClubs.relationship.invitedDescription',
-        action: null,
+        action: 'accept',
       };
     case 'none':
       return {

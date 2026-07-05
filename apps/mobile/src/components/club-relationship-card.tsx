@@ -1,5 +1,6 @@
 import type { ClubDiscoveryRelationship } from '@squash/contracts';
 import { colors, radii, spacing } from '@squash/design-tokens';
+import type { MessageKey } from '@squash/i18n';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { getClubRelationshipPresentation } from '@/src/lib/club-relationships';
 import { t } from '@/src/lib/i18n';
@@ -23,22 +24,32 @@ export function ClubRelationshipBadge({
 export function ClubRelationshipCard({
   relationship,
   pendingMembershipRequestId,
+  pendingClubInvitationId,
   isSubmitting,
   isCancelling,
+  isAccepting,
   hasMutationError,
+  invitationErrorKey,
+  invitationAccepted,
   onSubmit,
   onCancel,
+  onAccept,
 }: {
   relationship: ClubDiscoveryRelationship;
   pendingMembershipRequestId: string | null;
+  pendingClubInvitationId: string | null;
   isSubmitting: boolean;
   isCancelling: boolean;
+  isAccepting: boolean;
   hasMutationError: boolean;
+  invitationErrorKey: MessageKey | null;
+  invitationAccepted: boolean;
   onSubmit: () => void;
   onCancel: (requestId: string) => void;
+  onAccept: (invitationId: string) => void;
 }) {
   const presentation = getClubRelationshipPresentation(relationship);
-  const busy = isSubmitting || isCancelling;
+  const busy = isSubmitting || isCancelling || isAccepting;
 
   return (
     <View style={styles.card}>
@@ -82,9 +93,38 @@ export function ClubRelationshipCard({
           </Text>
         </Pressable>
       ) : null}
+      {presentation.action === 'accept' && pendingClubInvitationId ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ busy: isAccepting, disabled: busy }}
+          disabled={busy}
+          onPress={() => onAccept(pendingClubInvitationId)}
+          style={({ pressed }) => [
+            styles.button,
+            styles.primaryButton,
+            pressed && !busy ? styles.pressed : undefined,
+            busy ? styles.disabled : undefined,
+          ]}
+        >
+          {isAccepting ? <ActivityIndicator color={colors.primaryForeground} /> : null}
+          <Text style={styles.primaryButtonText}>
+            {t(isAccepting ? 'playerClubs.acceptingInvitation' : 'playerClubs.acceptInvitation')}
+          </Text>
+        </Pressable>
+      ) : null}
       {hasMutationError ? (
         <Text accessibilityRole="alert" style={styles.error}>
           {t('playerClubs.mutationError')}
+        </Text>
+      ) : null}
+      {invitationErrorKey ? (
+        <Text accessibilityRole="alert" style={styles.error}>
+          {t(invitationErrorKey)}
+        </Text>
+      ) : null}
+      {invitationAccepted ? (
+        <Text accessibilityLiveRegion="polite" style={styles.success}>
+          {t('playerClubs.invitationAccepted')}
         </Text>
       ) : null}
     </View>
@@ -155,5 +195,10 @@ const styles = StyleSheet.create({
   error: {
     color: colors.destructive,
     lineHeight: 20,
+  },
+  success: {
+    color: colors.primary,
+    lineHeight: 20,
+    fontWeight: '600',
   },
 });

@@ -21,7 +21,12 @@ import {
 import { canPerformClubAction, clubActions } from '@squash/domain';
 import { translate, type Locale } from '@squash/i18n';
 import { and, asc, count, desc, eq, ilike, isNull, ne, or, sql } from 'drizzle-orm';
-import { requireClubAccess, requireClubAction, requirePlatformAdmin } from './authorization';
+import {
+  requireClubAccess,
+  requireClubAction,
+  requirePlatformAdmin,
+  requireRegisteredPlayer,
+} from './authorization';
 import { db } from './database';
 import { forbidden, notFound, ServiceError } from './errors';
 import { renderAuthEmail } from './emails';
@@ -616,9 +621,29 @@ export async function getClubInvitation(token: string) {
   };
 }
 
-export async function acceptClubInvitation(actorId: string, token: string) {
-  const hashed = tokenHash(token);
+type InvitationAcceptanceLocator =
+  | { tokenHash: string; concealUnavailable: false }
+  | { clubId: string; invitationId: string; concealUnavailable: true };
+
+function unavailableInvitation(locator: InvitationAcceptanceLocator) {
+  return locator.concealUnavailable
+    ? new ServiceError('INVITATION_UNAVAILABLE', 'error.invalidRequest', 404)
+    : notFound('INVITATION_NOT_FOUND');
+}
+
+async function acceptClubInvitationTransaction(
+  actorId: string,
+  actorEmail: string,
+  locator: InvitationAcceptanceLocator,
+) {
   return db.transaction(async (tx) => {
+    const invitationCondition =
+      'tokenHash' in locator
+        ? eq(clubInvitations.tokenHash, locator.tokenHash)
+        : and(
+            eq(clubInvitations.id, locator.invitationId),
+            eq(clubInvitations.clubId, locator.clubId),
+          );
     const [record] = await tx
       .select({
         id: clubInvitations.id,
@@ -628,20 +653,23 @@ export async function acceptClubInvitation(actorId: string, token: string) {
         expiresAt: clubInvitations.expiresAt,
         acceptedAt: clubInvitations.acceptedAt,
         revokedAt: clubInvitations.revokedAt,
-        userEmail: users.email,
+        clubArchivedAt: clubs.archivedAt,
       })
       .from(clubInvitations)
-      .innerJoin(users, eq(users.id, actorId))
-      .where(eq(clubInvitations.tokenHash, hashed))
-      .limit(1);
-    if (!record) throw notFound('INVITATION_NOT_FOUND');
+      .innerJoin(clubs, eq(clubs.id, clubInvitations.clubId))
+      .where(invitationCondition)
+      .limit(1)
+      .for('update');
+    if (!record) throw unavailableInvitation(locator);
     const responsibility = invitationResponsibility(record.responsibility);
-    if (record.userEmail.toLowerCase() !== record.email) {
+    if (actorEmail.toLowerCase() !== record.email.toLowerCase()) {
+      if (locator.concealUnavailable) throw unavailableInvitation(locator);
       throw new ServiceError('INVITATION_EMAIL_MISMATCH', 'error.forbidden', 403);
     }
     if (record.revokedAt) throw new ServiceError('INVITATION_REVOKED', 'error.invalidRequest', 409);
     if (record.expiresAt <= new Date())
       throw new ServiceError('INVITATION_EXPIRED', 'error.invalidRequest', 410);
+    if (record.clubArchivedAt) throw new ServiceError('CLUB_ARCHIVED', 'error.invalidRequest', 409);
     if (record.acceptedAt) {
       return { clubId: record.clubId, accepted: true };
     }
@@ -649,13 +677,23 @@ export async function acceptClubInvitation(actorId: string, token: string) {
       .select({ status: clubMemberships.status })
       .from(clubMemberships)
       .where(and(eq(clubMemberships.clubId, record.clubId), eq(clubMemberships.userId, actorId)))
-      .limit(1);
+      .limit(1)
+      .for('update');
     if (existingMembership && existingMembership.status !== 'ended') {
       throw new ServiceError('ALREADY_CLUB_MEMBER', 'error.invalidRequest', 409);
     }
+    const acceptedAt = new Date();
+    const [acceptedInvitation] = await tx
+      .update(clubInvitations)
+      .set({ acceptedAt, updatedAt: acceptedAt })
+      .where(and(eq(clubInvitations.id, record.id), isNull(clubInvitations.acceptedAt)))
+      .returning({ id: clubInvitations.id });
+    if (!acceptedInvitation) {
+      throw new ServiceError('INVITATION_UNAVAILABLE', 'error.invalidRequest', 409);
+    }
     await tx
       .insert(clubMemberships)
-      .values({ clubId: record.clubId, userId: actorId })
+      .values({ clubId: record.clubId, userId: actorId, status: 'active' })
       .onConflictDoUpdate({
         target: [clubMemberships.clubId, clubMemberships.userId],
         set: { status: 'active', joinedAt: new Date(), updatedAt: new Date() },
@@ -680,11 +718,6 @@ export async function acceptClubInvitation(actorId: string, token: string) {
         })
         .onConflictDoNothing();
     }
-    const acceptedAt = new Date();
-    await tx
-      .update(clubInvitations)
-      .set({ acceptedAt, updatedAt: acceptedAt })
-      .where(and(eq(clubInvitations.id, record.id), isNull(clubInvitations.acceptedAt)));
     await tx.insert(auditLogs).values(
       auditValue({
         actorId,
@@ -696,6 +729,27 @@ export async function acceptClubInvitation(actorId: string, token: string) {
       }),
     );
     return { clubId: record.clubId, accepted: true };
+  });
+}
+
+export async function acceptClubInvitation(actorId: string, token: string) {
+  const player = await requireRegisteredPlayer(actorId);
+  return acceptClubInvitationTransaction(actorId, player.email, {
+    tokenHash: tokenHash(token),
+    concealUnavailable: false,
+  });
+}
+
+export async function acceptPlayerClubInvitation(
+  actorId: string,
+  clubId: string,
+  invitationId: string,
+) {
+  const player = await requireRegisteredPlayer(actorId);
+  return acceptClubInvitationTransaction(actorId, player.email, {
+    clubId,
+    invitationId,
+    concealUnavailable: true,
   });
 }
 

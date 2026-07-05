@@ -58,7 +58,7 @@ describe('Player-facing Club Profile', () => {
       timeZone: null,
       membershipStatus: null,
       pendingMembershipRequestId: '91f6704a-c62c-4676-93a1-72d5b3fd6b7a',
-      invited: true,
+      pendingClubInvitationId: 'a1e38c8c-17d9-42f3-9a19-33c45f76eb35',
     });
 
     await expect(
@@ -75,6 +75,7 @@ describe('Player-facing Club Profile', () => {
       timeZone: null,
       relationship: 'request-pending',
       pendingMembershipRequestId: '91f6704a-c62c-4676-93a1-72d5b3fd6b7a',
+      pendingClubInvitationId: 'a1e38c8c-17d9-42f3-9a19-33c45f76eb35',
     });
     expect(mockCreateMediaDownloadUrl).toHaveBeenCalledWith('owner/club-logo/logo.webp');
 
@@ -86,13 +87,19 @@ describe('Player-facing Club Profile', () => {
       sql: expect.stringContaining("mr.status = 'pending'"),
       params: ['player-id'],
     });
-    expect(dialect.sqlToQuery(selected.invited?.sql as SQL)).toMatchObject({
+    expect(dialect.sqlToQuery(selected.pendingClubInvitationId?.sql as SQL)).toMatchObject({
       sql: expect.stringContaining('ci.expires_at > now()'),
       params: ['player@example.com'],
     });
+    const pendingInvitationQuery = dialect.sqlToQuery(
+      selected.pendingClubInvitationId?.sql as SQL,
+    ).sql;
+    expect(pendingInvitationQuery).toContain('ci.club_id = "clubs"."id"');
+    expect(pendingInvitationQuery).toContain('ci.accepted_at is null');
+    expect(pendingInvitationQuery).toContain('ci.revoked_at is null');
   });
 
-  it('does not expose another Player pending request when none belongs to the actor', async () => {
+  it('returns the eligible authenticated Player pending Club Invitation ID', async () => {
     mockProfile({
       id: '2d44fd7a-eac8-4a72-84e8-b3b46812f606',
       name: 'Central Squash Club',
@@ -105,7 +112,32 @@ describe('Player-facing Club Profile', () => {
       timeZone: 'America/Costa_Rica',
       membershipStatus: null,
       pendingMembershipRequestId: null,
-      invited: false,
+      pendingClubInvitationId: 'a1e38c8c-17d9-42f3-9a19-33c45f76eb35',
+    });
+
+    await expect(
+      getPlayerFacingClubProfile('player-id', '2d44fd7a-eac8-4a72-84e8-b3b46812f606'),
+    ).resolves.toMatchObject({
+      relationship: 'invited',
+      pendingMembershipRequestId: null,
+      pendingClubInvitationId: 'a1e38c8c-17d9-42f3-9a19-33c45f76eb35',
+    });
+  });
+
+  it('does not expose another Player request or invitation identifier', async () => {
+    mockProfile({
+      id: '2d44fd7a-eac8-4a72-84e8-b3b46812f606',
+      name: 'Central Squash Club',
+      logoObjectKey: null,
+      description: null,
+      physicalAddress: 'Avenida Central, San José',
+      mapLink: null,
+      contactEmail: null,
+      contactPhone: '2222-2222',
+      timeZone: 'America/Costa_Rica',
+      membershipStatus: null,
+      pendingMembershipRequestId: null,
+      pendingClubInvitationId: null,
     });
 
     await expect(
@@ -113,6 +145,7 @@ describe('Player-facing Club Profile', () => {
     ).resolves.toMatchObject({
       relationship: 'none',
       pendingMembershipRequestId: null,
+      pendingClubInvitationId: null,
     });
   });
 

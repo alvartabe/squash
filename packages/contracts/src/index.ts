@@ -254,6 +254,7 @@ export const clubProfileDetailSchema = z.object({
   timeZone: z.string().nullable(),
   relationship: clubDiscoveryRelationshipSchema,
   pendingMembershipRequestId: idSchema.nullable(),
+  pendingClubInvitationId: idSchema.nullable(),
 });
 
 export const clubMemberSchema = z.object({

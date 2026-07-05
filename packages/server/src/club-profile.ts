@@ -50,15 +50,16 @@ export async function getPlayerFacingClubProfile(
       and mr.status = 'pending'
     limit 1
   )`.as('profile_pending_membership_request_id');
-  const invited = sql<boolean>`exists (
-    select 1
+  const pendingClubInvitationId = sql<string | null>`(
+    select ci.id
     from club_invitations ci
     where ci.club_id = ${clubs.id}
       and lower(ci.email) = lower(${player.email})
       and ci.accepted_at is null
       and ci.revoked_at is null
       and ci.expires_at > now()
-  )`.as('profile_invited');
+    limit 1
+  )`.as('profile_pending_club_invitation_id');
   const [profile] = await db
     .select({
       id: clubs.id,
@@ -72,7 +73,7 @@ export async function getPlayerFacingClubProfile(
       timeZone: clubs.timeZone,
       membershipStatus,
       pendingMembershipRequestId,
-      invited,
+      pendingClubInvitationId,
     })
     .from(clubs)
     .leftJoin(mediaAssets, eq(mediaAssets.id, clubs.logoAssetId))
@@ -80,14 +81,14 @@ export async function getPlayerFacingClubProfile(
     .limit(1);
   if (!profile) throw notFound('CLUB_NOT_FOUND');
 
-  const { logoObjectKey, membershipStatus: status, invited: hasInvitation, ...fields } = profile;
+  const { logoObjectKey, membershipStatus: status, ...fields } = profile;
   return {
     ...fields,
     logoUrl: await createMediaDownloadUrl(logoObjectKey),
     relationship: resolveClubDiscoveryRelationship({
       membershipStatus: status,
       requestPending: fields.pendingMembershipRequestId !== null,
-      invited: hasInvitation,
+      invited: fields.pendingClubInvitationId !== null,
     }),
   };
 }

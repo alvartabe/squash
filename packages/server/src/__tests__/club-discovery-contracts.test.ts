@@ -56,6 +56,7 @@ describe('Club discovery contracts', () => {
         timeZone: 'America/Costa_Rica',
         relationship: 'request-pending',
         pendingMembershipRequestId: '2a9e01c1-f2ca-4f66-88ca-3fdd5349c46c',
+        pendingClubInvitationId: null,
         playerId: 'another-player',
       }),
     ).toEqual({
@@ -70,6 +71,41 @@ describe('Club discovery contracts', () => {
       timeZone: 'America/Costa_Rica',
       relationship: 'request-pending',
       pendingMembershipRequestId: '2a9e01c1-f2ca-4f66-88ca-3fdd5349c46c',
+      pendingClubInvitationId: null,
+    });
+  });
+
+  it('exposes only an eligible authenticated Player pending Club Invitation ID', () => {
+    expect(
+      clubProfileDetailSchema.parse({
+        id: '91f6704a-c62c-4676-93a1-72d5b3fd6b7a',
+        name: 'Central Squash Club',
+        logoUrl: null,
+        description: null,
+        physicalAddress: 'San José',
+        mapLink: null,
+        contactEmail: 'club@example.com',
+        contactPhone: null,
+        timeZone: 'America/Costa_Rica',
+        relationship: 'invited',
+        pendingMembershipRequestId: null,
+        pendingClubInvitationId: 'a1e38c8c-17d9-42f3-9a19-33c45f76eb35',
+        invitedEmail: 'player@example.com',
+        token: 'secret',
+      }),
+    ).toEqual({
+      id: '91f6704a-c62c-4676-93a1-72d5b3fd6b7a',
+      name: 'Central Squash Club',
+      logoUrl: null,
+      description: null,
+      physicalAddress: 'San José',
+      mapLink: null,
+      contactEmail: 'club@example.com',
+      contactPhone: null,
+      timeZone: 'America/Costa_Rica',
+      relationship: 'invited',
+      pendingMembershipRequestId: null,
+      pendingClubInvitationId: 'a1e38c8c-17d9-42f3-9a19-33c45f76eb35',
     });
   });
 });

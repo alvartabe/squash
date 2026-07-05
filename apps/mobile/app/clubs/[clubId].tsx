@@ -19,6 +19,10 @@ import { ClubRelationshipCard } from '@/src/components/club-relationship-card';
 import { api } from '@/src/lib/api';
 import { authClient } from '@/src/lib/auth-client';
 import { t } from '@/src/lib/i18n';
+import {
+  invitationAcceptanceErrorKey,
+  refreshPlayerClubQueries,
+} from '@/src/lib/player-club-mutations';
 
 function DetailRow({
   icon: Icon,
@@ -60,7 +64,6 @@ export default function ClubProfileScreen() {
   const params = useLocalSearchParams<{ clubId: string | string[] }>();
   const clubId = Array.isArray(params.clubId) ? params.clubId[0] : params.clubId;
   const queryClient = useQueryClient();
-  const discoveryKey = [...queryKeys.clubDiscovery(), playerId ?? 'signed-out'] as const;
   const profileKey = [...queryKeys.clubProfile(clubId ?? ''), playerId ?? 'signed-out'] as const;
   const profileQuery = useQuery({
     queryKey: profileKey,
@@ -69,11 +72,8 @@ export default function ClubProfileScreen() {
   });
 
   const refreshClubData = async () => {
-    if (!clubId) return;
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: discoveryKey }),
-      queryClient.invalidateQueries({ queryKey: profileKey }),
-    ]);
+    if (!clubId || !playerId) return;
+    await refreshPlayerClubQueries(queryClient, clubId, playerId);
   };
   const submitRequest = useMutation({
     mutationFn: () => api.submitMembershipRequest(clubId ?? ''),
@@ -81,6 +81,10 @@ export default function ClubProfileScreen() {
   });
   const cancelRequest = useMutation({
     mutationFn: (requestId: string) => api.cancelMembershipRequest(clubId ?? '', requestId),
+    onSuccess: refreshClubData,
+  });
+  const acceptInvitation = useMutation({
+    mutationFn: (invitationId: string) => api.acceptClubInvitation(clubId ?? '', invitationId),
     onSuccess: refreshClubData,
   });
   const profile = profileQuery.data?.data;
@@ -164,18 +168,32 @@ export default function ClubProfileScreen() {
         <Text style={styles.heading}>{profile.name}</Text>
         <ClubRelationshipCard
           hasMutationError={submitRequest.isError || cancelRequest.isError}
+          invitationAccepted={acceptInvitation.isSuccess}
+          invitationErrorKey={
+            acceptInvitation.isError ? invitationAcceptanceErrorKey(acceptInvitation.error) : null
+          }
+          isAccepting={acceptInvitation.isPending}
           isCancelling={cancelRequest.isPending}
           isSubmitting={submitRequest.isPending}
+          onAccept={(invitationId) => {
+            submitRequest.reset();
+            cancelRequest.reset();
+            acceptInvitation.reset();
+            acceptInvitation.mutate(invitationId);
+          }}
           onCancel={(requestId) => {
             submitRequest.reset();
             cancelRequest.reset();
+            acceptInvitation.reset();
             cancelRequest.mutate(requestId);
           }}
           onSubmit={() => {
             submitRequest.reset();
             cancelRequest.reset();
+            acceptInvitation.reset();
             submitRequest.mutate();
           }}
+          pendingClubInvitationId={profile.pendingClubInvitationId}
           pendingMembershipRequestId={profile.pendingMembershipRequestId}
           relationship={profile.relationship}
         />

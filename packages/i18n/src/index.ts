@@ -112,8 +112,7 @@ const en = {
     'Your Club access is suspended. Contact the Club for assistance.',
   'playerClubs.relationship.requestPendingDescription':
     'The Club is reviewing your Membership Request. You can cancel it while it is Pending.',
-  'playerClubs.relationship.invitedDescription':
-    'This Club has invited you. Invitation acceptance is not available in the mobile app yet.',
+  'playerClubs.relationship.invitedDescription': 'This Club has invited you to become a member.',
   'playerClubs.relationship.noneDescription':
     'Submit a Membership Request to ask to join this Club.',
   'playerClubs.requestMembership': 'Request Membership',
@@ -121,6 +120,18 @@ const en = {
   'playerClubs.cancelRequest': 'Cancel Membership Request',
   'playerClubs.cancellingRequest': 'Cancelling request…',
   'playerClubs.mutationError': 'The Membership Request could not be updated. Try again.',
+  'playerClubs.acceptInvitation': 'Accept Invitation',
+  'playerClubs.acceptingInvitation': 'Accepting invitation…',
+  'playerClubs.invitationAccepted': 'Invitation accepted. Your Club Membership is now active.',
+  'playerClubs.invitationUnavailable':
+    'This invitation is no longer available for your account. Refresh the Club Profile.',
+  'playerClubs.invitationExpired':
+    'This invitation has expired. Ask the Club for a new invitation.',
+  'playerClubs.invitationRevoked':
+    'This invitation was revoked. Contact the Club if you still want to join.',
+  'playerClubs.invitationArchived': 'This Club is archived and cannot accept new Memberships.',
+  'playerClubs.invitationAcceptError':
+    'The invitation could not be accepted. Check your connection and try again.',
   'playerClubs.about': 'About',
   'playerClubs.contact': 'Contact',
   'playerClubs.address': 'Physical address',
@@ -378,8 +389,7 @@ const es: Record<MessageKey, string> = {
     'Tu acceso al Club está suspendido. Contacta al Club para obtener ayuda.',
   'playerClubs.relationship.requestPendingDescription':
     'El Club está revisando tu Solicitud de Membresía. Puedes cancelarla mientras esté Pendiente.',
-  'playerClubs.relationship.invitedDescription':
-    'Este Club te invitó. La aceptación de invitaciones aún no está disponible en la aplicación móvil.',
+  'playerClubs.relationship.invitedDescription': 'Este Club te invitó a convertirte en miembro.',
   'playerClubs.relationship.noneDescription':
     'Envía una Solicitud de Membresía para pedir unirte a este Club.',
   'playerClubs.requestMembership': 'Solicitar Membresía',
@@ -388,6 +398,18 @@ const es: Record<MessageKey, string> = {
   'playerClubs.cancellingRequest': 'Cancelando solicitud…',
   'playerClubs.mutationError':
     'No se pudo actualizar la Solicitud de Membresía. Inténtalo de nuevo.',
+  'playerClubs.acceptInvitation': 'Aceptar Invitación',
+  'playerClubs.acceptingInvitation': 'Aceptando invitación…',
+  'playerClubs.invitationAccepted': 'Invitación aceptada. Tu Membresía del Club ahora está activa.',
+  'playerClubs.invitationUnavailable':
+    'Esta invitación ya no está disponible para tu cuenta. Actualiza el Perfil del Club.',
+  'playerClubs.invitationExpired': 'Esta invitación venció. Solicita al Club una invitación nueva.',
+  'playerClubs.invitationRevoked':
+    'Esta invitación fue revocada. Contacta al Club si aún deseas unirte.',
+  'playerClubs.invitationArchived':
+    'Este Club está archivado y no puede aceptar Membresías nuevas.',
+  'playerClubs.invitationAcceptError':
+    'No se pudo aceptar la invitación. Revisa tu conexión e inténtalo de nuevo.',
   'playerClubs.about': 'Acerca del Club',
   'playerClubs.contact': 'Contacto',
   'playerClubs.address': 'Dirección física',
