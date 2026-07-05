@@ -1,7 +1,8 @@
 import type { ClubProfileDetail, UpdateClubInput } from '@squash/contracts';
 import { clubs, mediaAssets } from '@squash/db/schema';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { requireRegisteredPlayer } from './authorization';
+import { resolveClubDiscoveryRelationship } from './club-discovery';
 import { db } from './database';
 import { notFound } from './errors';
 import { createMediaDownloadUrl, requireOwnedClubLogoAsset } from './media';
@@ -32,7 +33,32 @@ export async function getPlayerFacingClubProfile(
   actorId: string,
   clubId: string,
 ): Promise<ClubProfileDetail> {
-  await requireRegisteredPlayer(actorId);
+  const player = await requireRegisteredPlayer(actorId);
+  const membershipStatus = sql<'active' | 'suspended' | null>`(
+    select cm.status::text
+    from club_memberships cm
+    where cm.club_id = ${clubs.id}
+      and cm.user_id = ${actorId}
+      and cm.status in ('active', 'suspended')
+    limit 1
+  )`.as('profile_membership_status');
+  const pendingMembershipRequestId = sql<string | null>`(
+    select mr.id
+    from membership_requests mr
+    where mr.club_id = ${clubs.id}
+      and mr.player_id = ${actorId}
+      and mr.status = 'pending'
+    limit 1
+  )`.as('profile_pending_membership_request_id');
+  const invited = sql<boolean>`exists (
+    select 1
+    from club_invitations ci
+    where ci.club_id = ${clubs.id}
+      and lower(ci.email) = lower(${player.email})
+      and ci.accepted_at is null
+      and ci.revoked_at is null
+      and ci.expires_at > now()
+  )`.as('profile_invited');
   const [profile] = await db
     .select({
       id: clubs.id,
@@ -44,6 +70,9 @@ export async function getPlayerFacingClubProfile(
       contactEmail: clubs.contactEmail,
       contactPhone: clubs.contactPhone,
       timeZone: clubs.timeZone,
+      membershipStatus,
+      pendingMembershipRequestId,
+      invited,
     })
     .from(clubs)
     .leftJoin(mediaAssets, eq(mediaAssets.id, clubs.logoAssetId))
@@ -51,9 +80,14 @@ export async function getPlayerFacingClubProfile(
     .limit(1);
   if (!profile) throw notFound('CLUB_NOT_FOUND');
 
-  const { logoObjectKey, ...fields } = profile;
+  const { logoObjectKey, membershipStatus: status, invited: hasInvitation, ...fields } = profile;
   return {
     ...fields,
     logoUrl: await createMediaDownloadUrl(logoObjectKey),
+    relationship: resolveClubDiscoveryRelationship({
+      membershipStatus: status,
+      requestPending: fields.pendingMembershipRequestId !== null,
+      invited: hasInvitation,
+    }),
   };
 }

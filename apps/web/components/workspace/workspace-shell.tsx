@@ -6,7 +6,6 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   BarChart3,
   Bell,
-  CalendarClock,
   CalendarDays,
   ChevronDown,
   CircleUserRound,
@@ -19,7 +18,6 @@ import {
   Menu,
   Package,
   Shield,
-  Swords,
   Trophy,
   Users,
   X,
@@ -100,9 +98,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
       ...(canManageMembers
         ? [{ href: `${clubBase}/members`, label: t('sidebar.members'), icon: Users }]
         : []),
-      { href: `${clubBase}/availability`, label: t('sidebar.availability'), icon: CalendarClock },
-      { href: `${clubBase}/open-play`, label: t('sidebar.openPlay'), icon: CalendarDays },
-      { href: `${clubBase}/challenges`, label: t('sidebar.challenges'), icon: Swords },
+      { href: `${clubBase}/sessions`, label: t('sidebar.sessions'), icon: CalendarDays },
       { href: `${clubBase}/tournaments`, label: t('sidebar.tournaments'), icon: Trophy },
       { href: `${clubBase}/matches`, label: t('sidebar.matches'), icon: ClipboardCheck },
       { href: `${clubBase}/statistics`, label: t('sidebar.statistics'), icon: BarChart3 },
@@ -236,12 +232,6 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
               <Link href="/workspace/account">
                 <CircleUserRound />
                 {t('userMenu.profile')}
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/workspace/account/equipment">
-                <Package />
-                {t('userMenu.equipment')}
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>

@@ -38,11 +38,14 @@ function mockProfile(result: unknown) {
 describe('Player-facing Club Profile', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockRequireRegisteredPlayer.mockResolvedValue({ id: 'player-id' });
+    mockRequireRegisteredPlayer.mockResolvedValue({
+      id: 'player-id',
+      email: 'player@example.com',
+    });
     mockCreateMediaDownloadUrl.mockResolvedValue('https://media.example/logo');
   });
 
-  it('returns only Player-facing profile fields and preserves a nullable time zone', async () => {
+  it('returns Player-facing fields and only the authenticated Player pending request ID', async () => {
     const builders = mockProfile({
       id: '2d44fd7a-eac8-4a72-84e8-b3b46812f606',
       name: 'Central Squash Club',
@@ -53,6 +56,9 @@ describe('Player-facing Club Profile', () => {
       contactEmail: 'hello@central.example',
       contactPhone: null,
       timeZone: null,
+      membershipStatus: null,
+      pendingMembershipRequestId: '91f6704a-c62c-4676-93a1-72d5b3fd6b7a',
+      invited: true,
     });
 
     await expect(
@@ -67,11 +73,47 @@ describe('Player-facing Club Profile', () => {
       contactEmail: 'hello@central.example',
       contactPhone: null,
       timeZone: null,
+      relationship: 'request-pending',
+      pendingMembershipRequestId: '91f6704a-c62c-4676-93a1-72d5b3fd6b7a',
     });
     expect(mockCreateMediaDownloadUrl).toHaveBeenCalledWith('owner/club-logo/logo.webp');
 
     const condition = builders.where.mock.calls[0]?.[0] as SQL;
     expect(dialect.sqlToQuery(condition).sql).toContain('"clubs"."archived_at" is null');
+
+    const selected = mockDb.select.mock.calls[0]?.[0] as Record<string, { sql?: SQL }>;
+    expect(dialect.sqlToQuery(selected.pendingMembershipRequestId?.sql as SQL)).toMatchObject({
+      sql: expect.stringContaining("mr.status = 'pending'"),
+      params: ['player-id'],
+    });
+    expect(dialect.sqlToQuery(selected.invited?.sql as SQL)).toMatchObject({
+      sql: expect.stringContaining('ci.expires_at > now()'),
+      params: ['player@example.com'],
+    });
+  });
+
+  it('does not expose another Player pending request when none belongs to the actor', async () => {
+    mockProfile({
+      id: '2d44fd7a-eac8-4a72-84e8-b3b46812f606',
+      name: 'Central Squash Club',
+      logoObjectKey: null,
+      description: null,
+      physicalAddress: 'Avenida Central, San José',
+      mapLink: null,
+      contactEmail: null,
+      contactPhone: '2222-2222',
+      timeZone: 'America/Costa_Rica',
+      membershipStatus: null,
+      pendingMembershipRequestId: null,
+      invited: false,
+    });
+
+    await expect(
+      getPlayerFacingClubProfile('player-id', '2d44fd7a-eac8-4a72-84e8-b3b46812f606'),
+    ).resolves.toMatchObject({
+      relationship: 'none',
+      pendingMembershipRequestId: null,
+    });
   });
 
   it('requires an authenticated registered Player before reading a profile', async () => {

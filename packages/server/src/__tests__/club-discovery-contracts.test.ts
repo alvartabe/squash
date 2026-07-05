@@ -1,6 +1,7 @@
 import {
   clubDiscoveryItemSchema,
   clubDiscoveryRelationshipSchema,
+  clubProfileDetailSchema,
   paginationQuerySchema,
 } from '@squash/contracts';
 
@@ -39,5 +40,36 @@ describe('Club discovery contracts', () => {
         search: 'central',
       },
     );
+  });
+
+  it('exposes an authenticated Player relationship and own pending request ID on the profile', () => {
+    expect(
+      clubProfileDetailSchema.parse({
+        id: '91f6704a-c62c-4676-93a1-72d5b3fd6b7a',
+        name: 'Central Squash Club',
+        logoUrl: null,
+        description: null,
+        physicalAddress: 'San José',
+        mapLink: null,
+        contactEmail: 'club@example.com',
+        contactPhone: null,
+        timeZone: 'America/Costa_Rica',
+        relationship: 'request-pending',
+        pendingMembershipRequestId: '2a9e01c1-f2ca-4f66-88ca-3fdd5349c46c',
+        playerId: 'another-player',
+      }),
+    ).toEqual({
+      id: '91f6704a-c62c-4676-93a1-72d5b3fd6b7a',
+      name: 'Central Squash Club',
+      logoUrl: null,
+      description: null,
+      physicalAddress: 'San José',
+      mapLink: null,
+      contactEmail: 'club@example.com',
+      contactPhone: null,
+      timeZone: 'America/Costa_Rica',
+      relationship: 'request-pending',
+      pendingMembershipRequestId: '2a9e01c1-f2ca-4f66-88ca-3fdd5349c46c',
+    });
   });
 });

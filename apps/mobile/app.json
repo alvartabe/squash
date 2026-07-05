@@ -23,7 +23,7 @@
       "expo-notifications",
       [
         "expo-image-picker",
-        { "photosPermission": "Allow Squash to add profile and racket photos." }
+        { "photosPermission": "Allow Squash to add profile photos." }
       ]
     ],
     "experiments": { "typedRoutes": true },

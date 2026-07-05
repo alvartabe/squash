@@ -1,4 +1,4 @@
-import { CalendarClock, Swords, Trophy } from 'lucide-react-native';
+import { CalendarClock, Trophy } from 'lucide-react-native';
 import { StyleSheet, Text } from 'react-native';
 import { DashboardCard } from '@/src/components/dashboard-card';
 import { Screen } from '@/src/components/screen';
@@ -13,13 +13,8 @@ export default function HomeScreen() {
       <Text style={styles.description}>{t('dashboard.description')}</Text>
       <DashboardCard
         icon={CalendarClock}
-        title={t('dashboard.openPlay')}
-        description={t('dashboard.openPlayDescription')}
-      />
-      <DashboardCard
-        icon={Swords}
-        title={t('dashboard.challenges')}
-        description={t('dashboard.challengesDescription')}
+        title={t('dashboard.clubPlaySessions')}
+        description={t('dashboard.clubPlaySessionsDescription')}
       />
       <DashboardCard
         icon={Trophy}

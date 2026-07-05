@@ -112,7 +112,21 @@ const clubProfileFields = {
   logoAssetId: idSchema.nullable().optional(),
   description: z.string().trim().max(2000).nullable().optional(),
   physicalAddress: z.string().trim().min(1).max(500),
-  mapLink: z.string().trim().url().max(2048).nullable().optional(),
+  mapLink: z
+    .string()
+    .trim()
+    .url()
+    .max(2048)
+    .refine((value) => {
+      try {
+        const protocol = new URL(value).protocol;
+        return protocol === 'https:' || protocol === 'http:';
+      } catch {
+        return false;
+      }
+    }, 'Map link must use HTTP or HTTPS')
+    .nullable()
+    .optional(),
   contactEmail: z.string().trim().email().max(320).nullable().optional(),
   contactPhone: z.string().trim().min(1).max(50).nullable().optional(),
   timeZone: z.string().trim().min(1).max(100).nullable().optional(),
@@ -238,6 +252,8 @@ export const clubProfileDetailSchema = z.object({
   contactEmail: z.string().nullable(),
   contactPhone: z.string().nullable(),
   timeZone: z.string().nullable(),
+  relationship: clubDiscoveryRelationshipSchema,
+  pendingMembershipRequestId: idSchema.nullable(),
 });
 
 export const clubMemberSchema = z.object({

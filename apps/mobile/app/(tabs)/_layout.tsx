@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { House, Trophy, UserRound, UsersRound } from 'lucide-react-native';
+import { Building2, House, Trophy, UserRound, UsersRound } from 'lucide-react-native';
 import { colors } from '@squash/design-tokens';
 import { t } from '@/src/lib/i18n';
 
@@ -9,6 +9,13 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{ title: t('nav.home'), tabBarIcon: ({ color }) => <House color={color} /> }}
+      />
+      <Tabs.Screen
+        name="clubs"
+        options={{
+          title: t('nav.clubs'),
+          tabBarIcon: ({ color }) => <Building2 color={color} />,
+        }}
       />
       <Tabs.Screen
         name="play"

@@ -78,6 +78,33 @@ describe('Club creation contract', () => {
       contactEmail: null,
     });
   });
+
+  it('accepts only HTTP or HTTPS Club map links', () => {
+    expect(
+      updateClubSchema.parse({
+        name: input.name,
+        physicalAddress: input.physicalAddress,
+        contactEmail: input.contactEmail,
+        mapLink: 'https://maps.example/central',
+      }).mapLink,
+    ).toBe('https://maps.example/central');
+    expect(() =>
+      updateClubSchema.parse({
+        name: input.name,
+        physicalAddress: input.physicalAddress,
+        contactEmail: input.contactEmail,
+        mapLink: 'javascript:alert(1)',
+      }),
+    ).toThrow();
+    expect(() =>
+      updateClubSchema.parse({
+        name: input.name,
+        physicalAddress: input.physicalAddress,
+        contactEmail: input.contactEmail,
+        mapLink: 'squash://club/central',
+      }),
+    ).toThrow();
+  });
 });
 
 describe('Club creation service', () => {

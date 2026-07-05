@@ -6,9 +6,7 @@ import { ComingSoon } from '@/components/workspace/coming-soon';
 import { useLocale } from '@/src/locale-provider';
 
 const titles: Record<string, MessageKey> = {
-  availability: 'sidebar.availability',
-  'open-play': 'sidebar.openPlay',
-  challenges: 'sidebar.challenges',
+  sessions: 'sidebar.sessions',
   tournaments: 'sidebar.tournaments',
   matches: 'sidebar.matches',
   statistics: 'sidebar.statistics',

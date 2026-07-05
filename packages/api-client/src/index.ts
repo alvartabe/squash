@@ -86,9 +86,12 @@ export function squashApi(client: AxiosInstance) {
       },
     ): Promise<{ data: PaginatedData<MembershipRequest> }> =>
       (await client.get(`/clubs/${clubId}/membership-requests`, { params })).data,
-    submitMembershipRequest: async (clubId: string) =>
+    submitMembershipRequest: async (clubId: string): Promise<{ data: MembershipRequest }> =>
       (await client.post(`/clubs/${clubId}/membership-requests`)).data,
-    cancelMembershipRequest: async (clubId: string, requestId: string) =>
+    cancelMembershipRequest: async (
+      clubId: string,
+      requestId: string,
+    ): Promise<{ data: MembershipRequest }> =>
       (await client.post(`/clubs/${clubId}/membership-requests/${requestId}/cancel`)).data,
     approveMembershipRequest: async (clubId: string, requestId: string) =>
       (await client.post(`/clubs/${clubId}/membership-requests/${requestId}/approve`)).data,
