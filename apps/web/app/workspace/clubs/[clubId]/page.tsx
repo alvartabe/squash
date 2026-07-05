@@ -1,38 +1,32 @@
 'use client';
 
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { ArrowRight, Users } from 'lucide-react';
-import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
 import { ClubDrawer } from '@/components/clubs/club-drawer';
-import { useArchiveClub, useWorkspaceClub, useWorkspaceMe } from '@/src/hooks/workspace';
+import {
+  ClubLifecycleActions,
+  clubLifecycleVisibility,
+} from '@/components/clubs/club-lifecycle-actions';
+import { useWorkspaceClub, useWorkspaceMe } from '@/src/hooks/workspace';
 import { useLocale } from '@/src/locale-provider';
 
 export default function ClubPage() {
   const clubId = useParams<{ clubId: string }>().clubId;
-  const router = useRouter();
   const { data: club, isLoading } = useWorkspaceClub(clubId);
   const { data: me } = useWorkspaceMe();
-  const archive = useArchiveClub(clubId);
   const { t } = useLocale();
   if (isLoading || !club)
     return <main className="p-6 text-sm text-muted-foreground">{t('common.loading')}</main>;
   const canUpdate = club.responsibilities.some((responsibility) =>
     ['owner', 'admin'].includes(responsibility),
   );
-  const canArchive = me?.platformAdmin || club.responsibilities.includes('owner');
+  const { canArchive, canRestore } = clubLifecycleVisibility({
+    ...club,
+    platformAdmin: me?.platformAdmin === true,
+  });
   return (
     <main className="flex flex-col gap-6 px-4 py-6 lg:px-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -45,47 +39,19 @@ export default function ClubPage() {
             {club.timeZone ?? t('clubForm.timeZoneNotConfigured')} · /{club.slug}
           </p>
         </div>
-        {(canUpdate || canArchive) && !club.archivedAt && (
+        {(canUpdate || canArchive || canRestore) && (
           <div className="flex gap-2">
-            {canUpdate && (
+            {canUpdate && !club.archivedAt && (
               <ClubDrawer club={club}>
                 <Button variant="outline">{t('common.edit')}</Button>
               </ClubDrawer>
             )}
-            {canArchive && (
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button variant="outline">{t('common.archive')}</Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>{t('clubs.archiveTitle')}</DialogTitle>
-                    <DialogDescription>{t('clubs.archiveDescription')}</DialogDescription>
-                  </DialogHeader>
-                  <DialogFooter>
-                    <DialogClose asChild>
-                      <Button variant="outline">{t('common.cancel')}</Button>
-                    </DialogClose>
-                    <DialogClose asChild>
-                      <Button
-                        variant="destructive"
-                        onClick={async () => {
-                          try {
-                            await archive.mutateAsync();
-                            toast.success(t('clubs.archivedMessage'));
-                            router.push('/workspace/clubs');
-                          } catch {
-                            toast.error(t('error.invalidRequest'));
-                          }
-                        }}
-                      >
-                        {t('common.archive')}
-                      </Button>
-                    </DialogClose>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            )}
+            <ClubLifecycleActions
+              clubId={clubId}
+              archived={Boolean(club.archivedAt)}
+              canArchive={canArchive}
+              canRestore={canRestore}
+            />
           </div>
         )}
       </div>

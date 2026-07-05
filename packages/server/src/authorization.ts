@@ -5,8 +5,14 @@ import { db } from './database';
 import { forbidden, ServiceError } from './errors';
 import { membershipResponsibilities } from './membership';
 
-export async function getClubAuthorization(userId: string, clubId: string) {
-  const [result] = await db
+type AuthorizationDatabase = Pick<typeof db, 'select'>;
+
+export async function getClubAuthorization(
+  userId: string,
+  clubId: string,
+  database: AuthorizationDatabase = db,
+) {
+  const [result] = await database
     .select({
       platformRole: users.role,
       membershipStatus: clubMemberships.status,
@@ -77,9 +83,62 @@ export async function requireActiveClubMembership(userId: string, clubId: string
   return membership;
 }
 
+export async function requireLockedActiveClubMembership(
+  database: AuthorizationDatabase,
+  userId: string,
+  clubId: string,
+) {
+  const [club] = await database
+    .select({ id: clubs.id, archivedAt: clubs.archivedAt })
+    .from(clubs)
+    .where(eq(clubs.id, clubId))
+    .limit(1)
+    .for('update');
+  if (!club || club.archivedAt) throw forbidden();
+  const [membership] = await database
+    .select({
+      status: clubMemberships.status,
+      responsibilities: membershipResponsibilities,
+    })
+    .from(clubMemberships)
+    .where(
+      and(
+        eq(clubMemberships.userId, userId),
+        eq(clubMemberships.clubId, clubId),
+        eq(clubMemberships.status, 'active'),
+      ),
+    )
+    .limit(1);
+  if (!membership) throw forbidden();
+  return membership;
+}
+
+export async function requireLockedActiveClub(database: AuthorizationDatabase, clubId: string) {
+  const [club] = await database
+    .select({ id: clubs.id, archivedAt: clubs.archivedAt })
+    .from(clubs)
+    .where(eq(clubs.id, clubId))
+    .limit(1)
+    .for('update');
+  if (!club) throw forbidden();
+  if (club.archivedAt) {
+    throw new ServiceError('CLUB_ARCHIVED', 'error.invalidRequest', 409);
+  }
+  return club;
+}
+
 export async function requireClubAction(userId: string, clubId: string, action: ClubAction) {
   const result = await getClubAuthorization(userId, clubId);
 
+  requireAuthorizedClubAction(result, action);
+  requireClubLifecycleState(result, action);
+  return result;
+}
+
+function requireAuthorizedClubAction(
+  result: Awaited<ReturnType<typeof getClubAuthorization>>,
+  action: ClubAction,
+): asserts result is NonNullable<Awaited<ReturnType<typeof getClubAuthorization>>> {
   if (
     !result?.clubId ||
     !canPerformClubAction(
@@ -91,9 +150,37 @@ export async function requireClubAction(userId: string, clubId: string, action: 
   ) {
     throw forbidden();
   }
-  if (result.clubArchivedAt) {
+}
+
+function requireClubLifecycleState(
+  result: NonNullable<Awaited<ReturnType<typeof getClubAuthorization>>>,
+  action: ClubAction,
+) {
+  if (result.clubArchivedAt && action !== 'club.restore') {
     throw new ServiceError('CLUB_ARCHIVED', 'error.invalidRequest', 409);
   }
+  if (!result.clubArchivedAt && action === 'club.restore') {
+    throw new ServiceError('CLUB_NOT_ARCHIVED', 'error.invalidRequest', 409);
+  }
+}
+
+export async function requireLockedClubAction(
+  database: AuthorizationDatabase,
+  userId: string,
+  clubId: string,
+  action: ClubAction,
+) {
+  const [club] = await database
+    .select({ id: clubs.id })
+    .from(clubs)
+    .where(eq(clubs.id, clubId))
+    .limit(1)
+    .for('update');
+  if (!club) throw forbidden();
+
+  const result = await getClubAuthorization(userId, clubId, database);
+  requireAuthorizedClubAction(result, action);
+  requireClubLifecycleState(result, action);
   return result;
 }
 

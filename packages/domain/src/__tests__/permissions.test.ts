@@ -1,8 +1,11 @@
 import { canPerformClubAction } from '../permissions';
 
 describe('club permissions', () => {
-  it('allows Platform Administrators to perform existing oversight actions without a Membership', () => {
-    expect(canPerformClubAction('platform-admin', null, [], 'club.archive')).toBe(true);
+  it('limits routine archival to an active Club Owner while allowing Platform restoration', () => {
+    expect(canPerformClubAction('platform-admin', null, [], 'club.archive')).toBe(false);
+    expect(canPerformClubAction('platform-admin', null, [], 'club.restore')).toBe(true);
+    expect(canPerformClubAction('user', 'active', ['owner'], 'club.restore')).toBe(true);
+    expect(canPerformClubAction('user', 'active', ['admin'], 'club.restore')).toBe(false);
     expect(canPerformClubAction('platform-admin', null, [], 'members.manage')).toBe(true);
   });
 
@@ -15,6 +18,40 @@ describe('club permissions', () => {
     expect(canPerformClubAction('user', 'active', [], 'club.update')).toBe(false);
     expect(canPerformClubAction('platform-admin', null, [], 'club.update')).toBe(false);
   });
+
+  it.each([
+    ['Club Administrator', 'user', 'active', ['admin'], false],
+    ['Coach', 'user', 'active', ['coach'], false],
+    ['ordinary Player', 'user', 'active', [], false],
+    ['suspended Owner', 'user', 'suspended', ['owner'], false],
+    ['ended Owner', 'user', 'ended', ['owner'], false],
+    ['Platform Administrator', 'platform-admin', null, [], false],
+    ['active Club Owner', 'user', 'active', ['owner'], true],
+  ] as const)(
+    'evaluates archive authorization for an %s',
+    (_label, platformRole, membershipStatus, responsibilities, expected) => {
+      expect(
+        canPerformClubAction(platformRole, membershipStatus, responsibilities, 'club.archive'),
+      ).toBe(expected);
+    },
+  );
+
+  it.each([
+    ['Club Owner', 'user', 'active', ['owner'], true],
+    ['Platform Administrator', 'platform-admin', null, [], true],
+    ['Club Administrator', 'user', 'active', ['admin'], false],
+    ['Coach', 'user', 'active', ['coach'], false],
+    ['ordinary Player', 'user', 'active', [], false],
+    ['suspended Owner', 'user', 'suspended', ['owner'], false],
+    ['ended Owner', 'user', 'ended', ['owner'], false],
+  ] as const)(
+    'evaluates restore authorization for an %s',
+    (_label, platformRole, membershipStatus, responsibilities, expected) => {
+      expect(
+        canPerformClubAction(platformRole, membershipStatus, responsibilities, 'club.restore'),
+      ).toBe(expected);
+    },
+  );
 
   it('allows owners and admins to manage members', () => {
     expect(canPerformClubAction('user', 'active', ['owner'], 'members.manage')).toBe(true);

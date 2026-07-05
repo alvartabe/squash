@@ -10,20 +10,9 @@ import {
   useReactTable,
 } from '@tanstack/react-table';
 import { IconPlus } from '@tabler/icons-react';
-import { toast } from 'sonner';
 import type { ClubSummary } from '@squash/contracts';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -40,9 +29,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useArchiveClub, useWorkspaceClubs, useWorkspaceMe } from '@/src/hooks/workspace';
+import { useWorkspaceClubs, useWorkspaceMe } from '@/src/hooks/workspace';
 import { useLocale } from '@/src/locale-provider';
 import { ClubDrawer } from './club-drawer';
+import { ClubLifecycleActions, clubLifecycleVisibility } from './club-lifecycle-actions';
 
 const columnHelper = createColumnHelper<ClubSummary>();
 
@@ -50,12 +40,13 @@ function ClubActions({
   club,
   canUpdate,
   canArchive,
+  canRestore,
 }: {
   club: ClubSummary;
   canUpdate: boolean;
   canArchive: boolean;
+  canRestore: boolean;
 }) {
-  const archive = useArchiveClub(club.id);
   const { t } = useLocale();
   return (
     <div className="flex justify-end gap-2">
@@ -69,42 +60,13 @@ function ClubActions({
           </Button>
         </ClubDrawer>
       )}
-      {canArchive && !club.archivedAt && (
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button variant="outline" size="sm">
-              {t('common.archive')}
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{t('clubs.archiveTitle')}</DialogTitle>
-              <DialogDescription>{t('clubs.archiveDescription')}</DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <DialogClose asChild>
-                <Button variant="outline">{t('common.cancel')}</Button>
-              </DialogClose>
-              <DialogClose asChild>
-                <Button
-                  variant="destructive"
-                  disabled={archive.isPending}
-                  onClick={async () => {
-                    try {
-                      await archive.mutateAsync();
-                      toast.success(t('clubs.archivedMessage'));
-                    } catch {
-                      toast.error(t('error.invalidRequest'));
-                    }
-                  }}
-                >
-                  {t('common.archive')}
-                </Button>
-              </DialogClose>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      <ClubLifecycleActions
+        clubId={club.id}
+        archived={Boolean(club.archivedAt)}
+        canArchive={canArchive}
+        canRestore={canRestore}
+        size="sm"
+      />
     </div>
   );
 }
@@ -148,17 +110,21 @@ export function ClubsTable() {
       columnHelper.display({
         id: 'actions',
         header: () => <span className="block text-right">{t('common.actions')}</span>,
-        cell: (info) => (
-          <ClubActions
-            club={info.row.original}
-            canUpdate={info.row.original.responsibilities.some((responsibility) =>
-              ['owner', 'admin'].includes(responsibility),
-            )}
-            canArchive={
-              me?.platformAdmin === true || info.row.original.responsibilities.includes('owner')
-            }
-          />
-        ),
+        cell: (info) => {
+          const visibility = clubLifecycleVisibility({
+            ...info.row.original,
+            platformAdmin: me?.platformAdmin === true,
+          });
+          return (
+            <ClubActions
+              club={info.row.original}
+              canUpdate={info.row.original.responsibilities.some((responsibility) =>
+                ['owner', 'admin'].includes(responsibility),
+              )}
+              {...visibility}
+            />
+          );
+        },
       }),
     ],
     [me?.platformAdmin, t],

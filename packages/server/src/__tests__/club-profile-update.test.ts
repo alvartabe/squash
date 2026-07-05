@@ -9,12 +9,17 @@ jest.mock('../database', () => ({
     select: jest.fn(),
     update: jest.fn(),
     insert: jest.fn(),
+    transaction: jest.fn(),
   },
 }));
 
 jest.mock('../authorization', () => ({
   requireClubAction: jest.fn(),
   requireClubAccess: jest.fn(),
+  requireLockedClubAction: jest.fn().mockResolvedValue({
+    membershipStatus: 'active',
+    responsibilities: ['owner'],
+  }),
   requirePlatformAdmin: jest.fn(),
 }));
 
@@ -28,6 +33,7 @@ const mockDb = db as unknown as {
   select: jest.Mock;
   update: jest.Mock;
   insert: jest.Mock;
+  transaction: jest.Mock;
 };
 const mockRequireClubAction = requireClubAction as jest.Mock;
 
@@ -82,6 +88,9 @@ describe('Club Profile updates', () => {
         },
       };
     });
+    mockDb.transaction.mockImplementationOnce(
+      async (callback: (transaction: typeof mockDb) => unknown) => callback(mockDb),
+    );
 
     await expect(updateWorkspaceClub('owner-id', 'club-id', input)).resolves.toEqual(updated);
     expect(mockRequireClubAction).toHaveBeenCalledWith('owner-id', 'club-id', 'club.update');

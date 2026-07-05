@@ -43,6 +43,9 @@ const en = {
   'common.create': 'Create',
   'common.edit': 'Edit',
   'common.archive': 'Archive',
+  'common.restore': 'Restore',
+  'common.archiving': 'Archiving…',
+  'common.restoring': 'Restoring…',
   'common.cancel': 'Cancel',
   'common.save': 'Save changes',
   'common.close': 'Close',
@@ -92,7 +95,15 @@ const en = {
   'clubs.archivedMessage': 'Club archived.',
   'clubs.archiveTitle': 'Archive this club?',
   'clubs.archiveDescription':
-    'The club and its historical records remain available to platform administrators.',
+    'Archiving cancels every Pending Membership Request, revokes pending invitations, and cancels future Club Play Sessions plus Draft or Registration Open Official Tournaments. Restoring the Club will not reverse these changes.',
+  'clubs.archiveActiveTournamentError':
+    'The Club cannot be archived while an Official Tournament is in Group Stage or Knockout Stage.',
+  'clubs.archiveError': 'The Club could not be archived. Try again.',
+  'clubs.restoredMessage': 'Club restored.',
+  'clubs.restoreTitle': 'Restore this club?',
+  'clubs.restoreDescription':
+    'The Club will become operational and discoverable again. Cancelled requests, Sessions, and Tournaments and revoked invitations will remain unchanged.',
+  'clubs.restoreError': 'The Club could not be restored. Try again.',
   'playerClubs.heading': 'Clubs',
   'playerClubs.description': 'Find active Clubs and manage your Membership Requests.',
   'playerClubs.searchPlaceholder': 'Search active Clubs…',
@@ -320,6 +331,9 @@ const es: Record<MessageKey, string> = {
   'common.create': 'Crear',
   'common.edit': 'Editar',
   'common.archive': 'Archivar',
+  'common.restore': 'Restaurar',
+  'common.archiving': 'Archivando…',
+  'common.restoring': 'Restaurando…',
   'common.cancel': 'Cancelar',
   'common.save': 'Guardar cambios',
   'common.close': 'Cerrar',
@@ -369,7 +383,15 @@ const es: Record<MessageKey, string> = {
   'clubs.archivedMessage': 'Club archivado.',
   'clubs.archiveTitle': '¿Archivar este club?',
   'clubs.archiveDescription':
-    'El club y su historial seguirán disponibles para administradores de la plataforma.',
+    'Archivar cancela todas las Solicitudes de Membresía Pendientes, revoca las invitaciones pendientes y cancela las Sesiones de Juego futuras y los Torneos Oficiales en Borrador o con Registro Abierto. Restaurar el Club no revierte estos cambios.',
+  'clubs.archiveActiveTournamentError':
+    'El Club no se puede archivar mientras un Torneo Oficial esté en Fase de Grupos o Fase Eliminatoria.',
+  'clubs.archiveError': 'No se pudo archivar el Club. Inténtalo de nuevo.',
+  'clubs.restoredMessage': 'Club restaurado.',
+  'clubs.restoreTitle': '¿Restaurar este club?',
+  'clubs.restoreDescription':
+    'El Club volverá a estar operativo y visible. Las solicitudes, Sesiones y Torneos cancelados y las invitaciones revocadas no cambiarán.',
+  'clubs.restoreError': 'No se pudo restaurar el Club. Inténtalo de nuevo.',
   'playerClubs.heading': 'Clubes',
   'playerClubs.description': 'Encuentra Clubes activos y gestiona tus Solicitudes de Membresía.',
   'playerClubs.searchPlaceholder': 'Buscar Clubes activos…',

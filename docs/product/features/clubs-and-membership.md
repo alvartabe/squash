@@ -93,10 +93,16 @@ A Club cannot be archived while an Official Tournament is in Group or Knockout S
 Archival:
 
 - hides the Club from discovery;
-- closes pending Membership Requests and Club Invitations;
+- automatically transitions Pending Membership Requests to Cancelled, distinct from a
+  Player cancellation or staff rejection;
+- revokes pending Club Invitations;
 - cancels future Club Play Sessions;
 - cancels Draft and Registration Open Official Tournaments;
 - prevents new Club activity;
 - preserves Memberships and completed history.
+
+The archival actor and reason are recorded through the archival audit record and the
+existing resolution fields of affected records where applicable. The entire archival
+cascade is atomic.
 
 The Club Owner or a Platform Administrator may restore the Club. Restoration does not reopen cancelled Sessions, Tournaments, requests, or invitations.

@@ -74,25 +74,32 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
       clubTimeZone: routeClub.timeZone,
       membershipStatus: null,
       responsibilities: [],
-      permissions: [
-        'club.view',
-        'club.archive',
-        'members.manage',
-        'availability.view',
-        'tournament.manage',
-        'results.correct',
-        'session.create',
-      ],
+      permissions: routeClub.archivedAt
+        ? ['club.view', 'club.restore']
+        : [
+            'club.view',
+            'members.manage',
+            'availability.view',
+            'tournament.manage',
+            'results.correct',
+            'session.create',
+          ],
     };
   }, [me?.memberships, me?.platformAdmin, routeClub, routeClubId]);
   const canManageMembers = selected?.permissions.includes('members.manage') ?? false;
+  const canOperateClub =
+    selected?.permissions.some((permission) =>
+      ['members.manage', 'session.create', 'tournament.manage', 'results.correct'].includes(
+        permission,
+      ),
+    ) ?? false;
   const clubBase = selected ? `/workspace/clubs/${selected.clubId}` : '';
   const items = useMemo<NavItem[]>(() => {
     const base: NavItem[] = [
       { href: '/workspace', label: t('sidebar.dashboard'), icon: LayoutDashboard },
       { href: '/workspace/clubs', label: t('sidebar.clubs'), icon: Shield },
     ];
-    if (!selected) return base;
+    if (!selected || !canOperateClub) return base;
     return [
       ...base,
       ...(canManageMembers
@@ -103,7 +110,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
       { href: `${clubBase}/matches`, label: t('sidebar.matches'), icon: ClipboardCheck },
       { href: `${clubBase}/statistics`, label: t('sidebar.statistics'), icon: BarChart3 },
     ];
-  }, [canManageMembers, clubBase, selected, t]);
+  }, [canManageMembers, canOperateClub, clubBase, selected, t]);
 
   const title =
     items.find((item) => pathname === item.href)?.label ??

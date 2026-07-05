@@ -1,6 +1,6 @@
 # Current Code Gaps
 
-Last reviewed: 2026-07-04.
+Last reviewed: 2026-07-05.
 
 This document identifies known differences between intended product behavior and the current repository. It is not an automatic backlog and does not authorize implementing Later features. Agents must verify each gap against current code before acting.
 
@@ -13,12 +13,6 @@ This document identifies known differences between intended product behavior and
 | MFA required for web management                       | Auth configuration in `packages/server/src/auth.ts`         | No documented role-gated MFA enforcement                               |
 | Moderation Reports and Platform Suspension            | Schema and services                                         | No report workflow or account suspension lifecycle                     |
 | Anonymized Account Closure                            | Existing foreign-key deletion behavior                      | No documented closure/anonymization service                            |
-
-## Clubs and membership
-
-| Intended behavior                                   | Current evidence    | Gap                                                            |
-| --------------------------------------------------- | ------------------- | -------------------------------------------------------------- |
-| Club archival cascades documented activity behavior | Club admin services | Archive behavior does not implement the full product lifecycle |
 
 ## Play
 

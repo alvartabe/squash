@@ -1,5 +1,5 @@
 import { db } from '../database';
-import { requireClubAccess, requireClubAction } from '../authorization';
+import { requireClubAccess, requireClubAction, requireLockedClubAction } from '../authorization';
 import {
   inviteClubMember,
   revokeClubInvitation,
@@ -17,6 +17,8 @@ jest.mock('../database', () => ({
 jest.mock('../authorization', () => ({
   requireClubAccess: jest.fn(),
   requireClubAction: jest.fn(),
+  requireLockedActiveClub: jest.fn().mockResolvedValue({ id: 'club-id', archivedAt: null }),
+  requireLockedClubAction: jest.fn(),
 }));
 
 const mockDb = db as unknown as {
@@ -25,6 +27,7 @@ const mockDb = db as unknown as {
 };
 const mockRequireClubAccess = requireClubAccess as jest.Mock;
 const mockRequireClubAction = requireClubAction as jest.Mock;
+const mockRequireLockedClubAction = requireLockedClubAction as jest.Mock;
 
 function mockSelect(rows: unknown[]) {
   const limit = jest.fn().mockResolvedValue(rows);
@@ -41,13 +44,15 @@ function mockMembership(
 }
 
 function authorization(responsibilities: Array<'owner' | 'admin' | 'coach'>) {
-  mockRequireClubAction.mockResolvedValue({
+  const result = {
     platformRole: 'user',
     membershipStatus: 'active',
     responsibilities,
     clubId: 'club-id',
     clubArchivedAt: null,
-  });
+  };
+  mockRequireClubAction.mockResolvedValue(result);
+  mockRequireLockedClubAction.mockResolvedValue(result);
 }
 
 describe('Club Membership management', () => {

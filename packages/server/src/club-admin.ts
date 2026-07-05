@@ -15,15 +15,34 @@ import {
   clubMemberships,
   clubResponsibilities,
   clubs,
+  membershipRequests,
+  openPlaySessions,
   outboxEvents,
+  tournaments,
   users,
 } from '@squash/db/schema';
 import { canPerformClubAction, clubActions } from '@squash/domain';
 import { translate, type Locale } from '@squash/i18n';
-import { and, asc, count, desc, eq, ilike, isNull, ne, or, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gt,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  ne,
+  or,
+  sql,
+} from 'drizzle-orm';
 import {
   requireClubAccess,
   requireClubAction,
+  requireLockedActiveClub,
+  requireLockedClubAction,
   requirePlatformAdmin,
   requireRegisteredPlayer,
 } from './authorization';
@@ -266,44 +285,137 @@ export async function updateWorkspaceClub(actorId: string, clubId: string, input
   if (!existing) throw notFound('CLUB_NOT_FOUND');
   await requireValidClubLogoSelection(actorId, existing.logoAssetId, input.logoAssetId);
   const profile = clubProfileValues(input);
-  const [club] = await db
-    .update(clubs)
-    .set({ ...profile, updatedAt: new Date() })
-    .where(and(eq(clubs.id, clubId), isNull(clubs.archivedAt)))
-    .returning();
-  if (!club) throw notFound('CLUB_NOT_FOUND');
-  await db.insert(auditLogs).values(
-    auditValue({
-      actorId,
-      clubId,
-      action: 'club.update',
-      entityType: 'club',
-      entityId: clubId,
-      metadata: profile,
-    }),
-  );
-  return club;
+  return db.transaction(async (tx) => {
+    await requireLockedClubAction(tx, actorId, clubId, 'club.update');
+    const [club] = await tx
+      .update(clubs)
+      .set({ ...profile, updatedAt: new Date() })
+      .where(and(eq(clubs.id, clubId), isNull(clubs.archivedAt)))
+      .returning();
+    if (!club) throw notFound('CLUB_NOT_FOUND');
+    await tx.insert(auditLogs).values(
+      auditValue({
+        actorId,
+        clubId,
+        action: 'club.update',
+        entityType: 'club',
+        entityId: clubId,
+        metadata: profile,
+      }),
+    );
+    return club;
+  });
 }
 
 export async function archiveWorkspaceClub(actorId: string, clubId: string) {
-  await requireClubAction(actorId, clubId, 'club.archive');
-  const archivedAt = new Date();
-  const [club] = await db
-    .update(clubs)
-    .set({ archivedAt, updatedAt: archivedAt })
-    .where(and(eq(clubs.id, clubId), isNull(clubs.archivedAt)))
-    .returning();
-  if (!club) throw notFound('CLUB_NOT_FOUND');
-  await db.insert(auditLogs).values(
-    auditValue({
-      actorId,
-      clubId,
-      action: 'club.archive',
-      entityType: 'club',
-      entityId: clubId,
-    }),
-  );
-  return { id: club.id, archivedAt: archivedAt.toISOString() };
+  return db.transaction(async (tx) => {
+    await requireLockedClubAction(tx, actorId, clubId, 'club.archive');
+
+    const blockingTournaments = await tx
+      .select({ id: tournaments.id, status: tournaments.status })
+      .from(tournaments)
+      .where(
+        and(
+          eq(tournaments.clubId, clubId),
+          inArray(tournaments.status, ['group-stage', 'knockout']),
+        ),
+      )
+      .for('update');
+    if (blockingTournaments.length > 0) {
+      throw new ServiceError('CLUB_ARCHIVE_ACTIVE_TOURNAMENT', 'error.invalidRequest', 409);
+    }
+
+    const archivedAt = new Date();
+    const cancelledRequests = await tx
+      .update(membershipRequests)
+      .set({
+        status: 'cancelled',
+        resolvedAt: archivedAt,
+        resolvedById: actorId,
+      })
+      .where(and(eq(membershipRequests.clubId, clubId), eq(membershipRequests.status, 'pending')))
+      .returning({ id: membershipRequests.id });
+    const revokedInvitations = await tx
+      .update(clubInvitations)
+      .set({ revokedAt: archivedAt, updatedAt: archivedAt })
+      .where(
+        and(
+          eq(clubInvitations.clubId, clubId),
+          isNull(clubInvitations.acceptedAt),
+          isNull(clubInvitations.revokedAt),
+          gt(clubInvitations.expiresAt, archivedAt),
+        ),
+      )
+      .returning({ id: clubInvitations.id });
+    const cancelledSessions = await tx
+      .update(openPlaySessions)
+      .set({ cancelledAt: archivedAt, updatedAt: archivedAt })
+      .where(
+        and(
+          eq(openPlaySessions.clubId, clubId),
+          gt(openPlaySessions.startsAt, archivedAt),
+          isNull(openPlaySessions.cancelledAt),
+        ),
+      )
+      .returning({ id: openPlaySessions.id });
+    const cancelledTournaments = await tx
+      .update(tournaments)
+      .set({ status: 'cancelled', updatedAt: archivedAt })
+      .where(
+        and(eq(tournaments.clubId, clubId), inArray(tournaments.status, ['draft', 'registration'])),
+      )
+      .returning({ id: tournaments.id });
+    const [club] = await tx
+      .update(clubs)
+      .set({ archivedAt, updatedAt: archivedAt })
+      .where(and(eq(clubs.id, clubId), isNull(clubs.archivedAt)))
+      .returning({ id: clubs.id });
+    if (!club) throw new ServiceError('CLUB_ARCHIVE_STATE_CONFLICT', 'error.invalidRequest', 409);
+
+    await tx.insert(auditLogs).values(
+      auditValue({
+        actorId,
+        clubId,
+        action: 'club.archive',
+        entityType: 'club',
+        entityId: clubId,
+        metadata: {
+          reason: 'club-archived',
+          automaticCascade: {
+            cancelledMembershipRequestIds: cancelledRequests.map(({ id }) => id),
+            revokedClubInvitationIds: revokedInvitations.map(({ id }) => id),
+            cancelledClubPlaySessionIds: cancelledSessions.map(({ id }) => id),
+            cancelledOfficialTournamentIds: cancelledTournaments.map(({ id }) => id),
+          },
+        },
+      }),
+    );
+    return { id: club.id, archivedAt: archivedAt.toISOString() };
+  });
+}
+
+export async function restoreWorkspaceClub(actorId: string, clubId: string) {
+  return db.transaction(async (tx) => {
+    await requireLockedClubAction(tx, actorId, clubId, 'club.restore');
+    const restoredAt = new Date();
+    const [club] = await tx
+      .update(clubs)
+      .set({ archivedAt: null, updatedAt: restoredAt })
+      .where(and(eq(clubs.id, clubId), isNotNull(clubs.archivedAt)))
+      .returning({ id: clubs.id });
+    if (!club) throw new ServiceError('CLUB_RESTORE_STATE_CONFLICT', 'error.invalidRequest', 409);
+    await tx.insert(auditLogs).values(
+      auditValue({
+        actorId,
+        clubId,
+        action: 'club.restore',
+        entityType: 'club',
+        entityId: clubId,
+        metadata: { restoredAt: restoredAt.toISOString() },
+      }),
+    );
+    return { id: club.id, archivedAt: null };
+  });
 }
 
 export async function listClubMembers(
@@ -428,6 +540,12 @@ export async function inviteClubMember(
   const hashed = tokenHash(rawToken);
   const expiresAt = new Date(Date.now() + INVITATION_LIFETIME_MS);
   const invitation = await db.transaction(async (tx) => {
+    const lockedAuthorization = await requireLockedClubAction(
+      tx,
+      actorId,
+      clubId,
+      'members.manage',
+    );
     const [pending] = await tx
       .select({
         id: clubInvitations.id,
@@ -446,8 +564,8 @@ export async function inviteClubMember(
       .for('update');
     if (
       pending?.responsibility === 'admin' &&
-      authorization.platformRole !== 'platform-admin' &&
-      !authorization.responsibilities.includes('owner')
+      lockedAuthorization.platformRole !== 'platform-admin' &&
+      !lockedAuthorization.responsibilities.includes('owner')
     ) {
       throw forbidden();
     }
@@ -534,6 +652,7 @@ export async function resendClubInvitation(
 export async function revokeClubInvitation(actorId: string, clubId: string, invitationId: string) {
   const authorization = await requireClubAction(actorId, clubId, 'members.manage');
   return db.transaction(async (tx) => {
+    await requireLockedClubAction(tx, actorId, clubId, 'members.manage');
     const [invitation] = await tx
       .select({
         id: clubInvitations.id,
@@ -806,6 +925,11 @@ export async function updateClubMembership(
 
   const storedResponsibilities = nextStatus === 'ended' ? [] : [...nextResponsibilities];
   return db.transaction(async (tx) => {
+    if (selfEndingMembership) {
+      await requireLockedActiveClub(tx, clubId);
+    } else {
+      await requireLockedClubAction(tx, actorId, clubId, 'members.manage');
+    }
     const [membership] = await tx
       .update(clubMemberships)
       .set({ status: nextStatus, updatedAt: new Date() })
@@ -881,6 +1005,7 @@ export async function transferClubOwnership(actorId: string, clubId: string, new
     throw new ServiceError('ALREADY_OWNER', 'error.invalidRequest', 409);
   }
   await db.transaction(async (tx) => {
+    await requireLockedClubAction(tx, actorId, clubId, 'members.manage');
     const [currentOwner] = await tx
       .select({ userId: clubResponsibilities.userId })
       .from(clubResponsibilities)

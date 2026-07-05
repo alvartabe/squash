@@ -114,6 +114,45 @@ describe('club action authorization', () => {
     );
   });
 
+  it('does not grant routine archival authority to a Platform Administrator', async () => {
+    mockAuthorization({
+      platformRole: 'platform-admin',
+      membershipStatus: null,
+      responsibilities: [],
+      clubId: 'club-id',
+      clubArchivedAt: null,
+    });
+
+    await expect(
+      requireClubAction('platform-admin-id', 'club-id', 'club.archive'),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN', status: 403 });
+  });
+
+  it.each([
+    {
+      label: 'active Club Owner',
+      platformRole: 'user',
+      membershipStatus: 'active',
+      responsibilities: ['owner'],
+    },
+    {
+      label: 'Platform Administrator',
+      platformRole: 'platform-admin',
+      membershipStatus: null,
+      responsibilities: [],
+    },
+  ] as const)('allows an $label to restore an archived Club', async (authorization) => {
+    mockAuthorization({
+      ...authorization,
+      clubId: 'club-id',
+      clubArchivedAt: new Date(),
+    });
+
+    await expect(requireClubAction('actor-id', 'club-id', 'club.restore')).resolves.toMatchObject({
+      clubId: 'club-id',
+    });
+  });
+
   it.each(['suspended', 'ended'] as const)(
     'denies actions for a %s membership while preserving its responsibilities',
     async (membershipStatus) => {

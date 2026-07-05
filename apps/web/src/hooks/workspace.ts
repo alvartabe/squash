@@ -125,7 +125,28 @@ export function useArchiveClub(clubId: string) {
     mutationFn: async () => (await api.delete(`/clubs/${clubId}`)).data.data,
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ['workspace', 'clubs'] });
+      client.invalidateQueries({ queryKey: ['workspace', 'club', clubId] });
       client.invalidateQueries({ queryKey: workspaceKeys.me });
+      client.invalidateQueries({ queryKey: ['clubs', clubId] });
+      client.invalidateQueries({ queryKey: ['clubs', 'discovery'] });
+      client.invalidateQueries({ queryKey: ['open-play-sessions'] });
+      client.invalidateQueries({ queryKey: ['tournaments'] });
+    },
+  });
+}
+
+export function useRestoreClub(clubId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async () => (await api.post(`/clubs/${clubId}/restore`)).data.data,
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ['workspace', 'clubs'] });
+      client.invalidateQueries({ queryKey: ['workspace', 'club', clubId] });
+      client.invalidateQueries({ queryKey: workspaceKeys.me });
+      client.invalidateQueries({ queryKey: ['clubs', clubId] });
+      client.invalidateQueries({ queryKey: ['clubs', 'discovery'] });
+      client.invalidateQueries({ queryKey: ['open-play-sessions'] });
+      client.invalidateQueries({ queryKey: ['tournaments'] });
     },
   });
 }

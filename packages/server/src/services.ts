@@ -52,12 +52,14 @@ import {
   type GroupMatch,
   type Qualifier,
 } from '@squash/domain';
-import { and, asc, desc, eq, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import { db } from './database';
 import { forbidden, notFound, ServiceError } from './errors';
 import {
   requireActiveClubMembership,
   requireClubAction,
+  requireLockedActiveClubMembership,
+  requireLockedClubAction,
   requirePlatformAdmin,
 } from './authorization';
 import { membershipResponsibilities } from './membership';
@@ -526,12 +528,12 @@ export async function disputeChallenge(actorId: string, challengeId: string, rea
 }
 
 export async function createOpenPlay(actorId: string, input: CreateOpenPlaySessionInput) {
-  await requireClubAction(actorId, input.clubId, 'session.create');
   const start = new Date(input.startsAt);
   const end = new Date(input.endsAt);
   if (end <= start) throw new ServiceError('INVALID_TIME_RANGE', 'error.invalidRequest', 400);
 
   return db.transaction(async (tx) => {
+    await requireLockedClubAction(tx, actorId, input.clubId, 'session.create');
     const [session] = await tx
       .insert(openPlaySessions)
       .values({
@@ -563,21 +565,35 @@ export async function setOpenPlayAttendance(
     .where(eq(openPlaySessions.id, sessionId))
     .limit(1);
   if (!session) throw notFound('SESSION_NOT_FOUND');
-  await requireClubAction(actorId, session.clubId, 'session.create');
-  const [attendance] = await db
-    .insert(openPlayAttendees)
-    .values({ sessionId, userId: actorId, status })
-    .onConflictDoUpdate({
-      target: [openPlayAttendees.sessionId, openPlayAttendees.userId],
-      set: { status, updatedAt: new Date() },
-    })
-    .returning();
-  return attendance;
+  return db.transaction(async (tx) => {
+    await requireLockedClubAction(tx, actorId, session.clubId, 'session.create');
+    const [lockedSession] = await tx
+      .select({ id: openPlaySessions.id, cancelledAt: openPlaySessions.cancelledAt })
+      .from(openPlaySessions)
+      .where(
+        and(eq(openPlaySessions.id, sessionId), eq(openPlaySessions.clubId, session.clubId)),
+      )
+      .limit(1)
+      .for('update');
+    if (!lockedSession) throw notFound('SESSION_NOT_FOUND');
+    if (lockedSession.cancelledAt) {
+      throw new ServiceError('SESSION_CANCELLED', 'error.invalidRequest', 409);
+    }
+    const [attendance] = await tx
+      .insert(openPlayAttendees)
+      .values({ sessionId, userId: actorId, status })
+      .onConflictDoUpdate({
+        target: [openPlayAttendees.sessionId, openPlayAttendees.userId],
+        set: { status, updatedAt: new Date() },
+      })
+      .returning();
+    return attendance;
+  });
 }
 
 export async function createTournament(actorId: string, input: CreateTournamentInput) {
-  await requireClubAction(actorId, input.clubId, 'tournament.manage');
   return db.transaction(async (tx) => {
+    await requireLockedClubAction(tx, actorId, input.clubId, 'tournament.manage');
     const [rules] = await tx.insert(matchRuleSnapshots).values(ruleRecord(input.rules)).returning();
     if (!rules) throw new Error('Failed to create rules.');
     const [tournament] = await tx
@@ -601,26 +617,32 @@ export async function createTournament(actorId: string, input: CreateTournamentI
 }
 
 export async function registerForTournament(actorId: string, tournamentId: string) {
-  const [tournament] = await db
-    .select({
-      clubId: tournaments.clubId,
-      status: tournaments.status,
-      closesAt: tournaments.registrationClosesAt,
-    })
-    .from(tournaments)
-    .where(eq(tournaments.id, tournamentId))
-    .limit(1);
-  if (!tournament) throw notFound('TOURNAMENT_NOT_FOUND');
-  await requireActiveClubMembership(actorId, tournament.clubId);
-  if (!['draft', 'registration'].includes(tournament.status) || tournament.closesAt < new Date()) {
-    throw new ServiceError('REGISTRATION_CLOSED', 'error.invalidRequest', 409);
-  }
-  const [registration] = await db
-    .insert(tournamentRegistrations)
-    .values({ tournamentId, userId: actorId })
-    .onConflictDoNothing()
-    .returning();
-  return registration ?? { tournamentId, userId: actorId };
+  return db.transaction(async (tx) => {
+    const [tournament] = await tx
+      .select({
+        clubId: tournaments.clubId,
+        status: tournaments.status,
+        closesAt: tournaments.registrationClosesAt,
+      })
+      .from(tournaments)
+      .where(eq(tournaments.id, tournamentId))
+      .limit(1)
+      .for('update');
+    if (!tournament) throw notFound('TOURNAMENT_NOT_FOUND');
+    await requireLockedActiveClubMembership(tx, actorId, tournament.clubId);
+    if (
+      !['draft', 'registration'].includes(tournament.status) ||
+      tournament.closesAt < new Date()
+    ) {
+      throw new ServiceError('REGISTRATION_CLOSED', 'error.invalidRequest', 409);
+    }
+    const [registration] = await tx
+      .insert(tournamentRegistrations)
+      .values({ tournamentId, userId: actorId })
+      .onConflictDoNothing()
+      .returning();
+    return registration ?? { tournamentId, userId: actorId };
+  });
 }
 
 function shuffled<T>(items: readonly T[]): T[] {
@@ -634,28 +656,41 @@ function shuffled<T>(items: readonly T[]): T[] {
 }
 
 export async function generateTournamentGroups(actorId: string, tournamentId: string) {
-  const [tournament] = await db
-    .select()
+  const [tournamentLocator] = await db
+    .select({ clubId: tournaments.clubId })
     .from(tournaments)
     .where(eq(tournaments.id, tournamentId))
     .limit(1);
-  if (!tournament) throw notFound('TOURNAMENT_NOT_FOUND');
-  await requireClubAction(actorId, tournament.clubId, 'tournament.manage');
-  if (!['draft', 'registration'].includes(tournament.status)) {
-    throw new ServiceError('TOURNAMENT_ALREADY_STARTED', 'error.invalidRequest', 409);
-  }
-  const registrations = await db
-    .select({ userId: tournamentRegistrations.userId, seed: tournamentRegistrations.seed })
-    .from(tournamentRegistrations)
-    .where(eq(tournamentRegistrations.tournamentId, tournamentId))
-    .orderBy(asc(tournamentRegistrations.seed), asc(tournamentRegistrations.registeredAt));
-  const ordered = tournament.seedingMethod === 'random' ? shuffled(registrations) : registrations;
-  const assignments = assignPlayersToGroups(
-    ordered.map((item) => item.userId),
-    tournament.groupSize,
-  );
+  if (!tournamentLocator) throw notFound('TOURNAMENT_NOT_FOUND');
 
-  await db.transaction(async (tx) => {
+  return db.transaction(async (tx) => {
+    await requireLockedClubAction(tx, actorId, tournamentLocator.clubId, 'tournament.manage');
+    const [tournament] = await tx
+      .select()
+      .from(tournaments)
+      .where(
+        and(
+          eq(tournaments.id, tournamentId),
+          eq(tournaments.clubId, tournamentLocator.clubId),
+        ),
+      )
+      .limit(1)
+      .for('update');
+    if (!tournament) throw notFound('TOURNAMENT_NOT_FOUND');
+    if (!['draft', 'registration'].includes(tournament.status)) {
+      throw new ServiceError('TOURNAMENT_ALREADY_STARTED', 'error.invalidRequest', 409);
+    }
+    const registrations = await tx
+      .select({ userId: tournamentRegistrations.userId, seed: tournamentRegistrations.seed })
+      .from(tournamentRegistrations)
+      .where(eq(tournamentRegistrations.tournamentId, tournamentId))
+      .orderBy(asc(tournamentRegistrations.seed), asc(tournamentRegistrations.registeredAt));
+    const ordered = tournament.seedingMethod === 'random' ? shuffled(registrations) : registrations;
+    const assignments = assignPlayersToGroups(
+      ordered.map((item) => item.userId),
+      tournament.groupSize,
+    );
+
     for (const assignment of assignments) {
       const [group] = await tx
         .insert(tournamentGroups)
@@ -704,9 +739,14 @@ export async function generateTournamentGroups(actorId: string, tournamentId: st
     await tx
       .update(tournaments)
       .set({ status: 'group-stage', updatedAt: new Date() })
-      .where(eq(tournaments.id, tournamentId));
+      .where(
+        and(
+          eq(tournaments.id, tournamentId),
+          inArray(tournaments.status, ['draft', 'registration']),
+        ),
+      );
+    return { tournamentId, groups: assignments.length, players: registrations.length };
   });
-  return { tournamentId, groups: assignments.length, players: registrations.length };
 }
 
 async function groupQualifiers(
