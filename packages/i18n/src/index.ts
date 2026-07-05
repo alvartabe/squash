@@ -166,6 +166,34 @@ const en = {
   'members.active': 'Active',
   'members.suspended': 'Suspended',
   'members.ended': 'Ended',
+  'membershipRequests.heading': 'Pending Membership Requests',
+  'membershipRequests.description':
+    'Review Players who submitted a Membership Request to join this Club.',
+  'membershipRequests.archivedDescription':
+    'This Club is archived. Pending Membership Requests cannot be approved or rejected.',
+  'membershipRequests.searchPlaceholder': 'Search Pending Membership Requests…',
+  'membershipRequests.searchLabel': 'Search Pending Membership Requests',
+  'membershipRequests.player': 'Player',
+  'membershipRequests.submitted': 'Submitted',
+  'membershipRequests.pending': 'Pending',
+  'membershipRequests.approve': 'Approve',
+  'membershipRequests.reject': 'Reject',
+  'membershipRequests.approveTitle': 'Approve this Membership Request?',
+  'membershipRequests.approveDescription':
+    'This creates an Active Membership with no additional Club Responsibilities for',
+  'membershipRequests.rejectTitle': 'Reject this Membership Request?',
+  'membershipRequests.rejectDescription':
+    'This ends the request. The Player must submit a new Membership Request to try again:',
+  'membershipRequests.updating': 'Updating…',
+  'membershipRequests.approvedMessage': 'Membership Request approved.',
+  'membershipRequests.rejectedMessage': 'Membership Request rejected.',
+  'membershipRequests.empty': 'There are no Pending Membership Requests.',
+  'membershipRequests.noSearchResults': 'No Pending Membership Requests match your search.',
+  'membershipRequests.loadError':
+    'Pending Membership Requests could not be loaded. Check your connection and try again.',
+  'membershipRequests.mutationError': 'The Membership Request could not be updated. Try again.',
+  'membershipRequests.noLongerPending':
+    'This Membership Request is no longer Pending. The queue has been refreshed.',
   'invites.heading': 'Pending invitations',
   'invites.description': 'Invitations expire seven days after they are sent.',
   'invites.responsibility': 'Initial responsibility',
@@ -407,6 +435,36 @@ const es: Record<MessageKey, string> = {
   'members.active': 'Activa',
   'members.suspended': 'Suspendida',
   'members.ended': 'Finalizada',
+  'membershipRequests.heading': 'Solicitudes de Membresía Pendientes',
+  'membershipRequests.description':
+    'Revisa a los Jugadores que enviaron una Solicitud de Membresía para unirse a este Club.',
+  'membershipRequests.archivedDescription':
+    'Este Club está archivado. Las Solicitudes de Membresía Pendientes no se pueden aprobar ni rechazar.',
+  'membershipRequests.searchPlaceholder': 'Buscar Solicitudes de Membresía Pendientes…',
+  'membershipRequests.searchLabel': 'Buscar Solicitudes de Membresía Pendientes',
+  'membershipRequests.player': 'Jugador',
+  'membershipRequests.submitted': 'Enviada',
+  'membershipRequests.pending': 'Pendiente',
+  'membershipRequests.approve': 'Aprobar',
+  'membershipRequests.reject': 'Rechazar',
+  'membershipRequests.approveTitle': '¿Aprobar esta Solicitud de Membresía?',
+  'membershipRequests.approveDescription':
+    'Esto crea una Membresía Activa sin Responsabilidades del Club adicionales para',
+  'membershipRequests.rejectTitle': '¿Rechazar esta Solicitud de Membresía?',
+  'membershipRequests.rejectDescription':
+    'Esto finaliza la solicitud. El Jugador deberá enviar una nueva Solicitud de Membresía para volver a intentarlo:',
+  'membershipRequests.updating': 'Actualizando…',
+  'membershipRequests.approvedMessage': 'Solicitud de Membresía aprobada.',
+  'membershipRequests.rejectedMessage': 'Solicitud de Membresía rechazada.',
+  'membershipRequests.empty': 'No hay Solicitudes de Membresía Pendientes.',
+  'membershipRequests.noSearchResults':
+    'Ninguna Solicitud de Membresía Pendiente coincide con tu búsqueda.',
+  'membershipRequests.loadError':
+    'No se pudieron cargar las Solicitudes de Membresía Pendientes. Revisa tu conexión e inténtalo de nuevo.',
+  'membershipRequests.mutationError':
+    'No se pudo actualizar la Solicitud de Membresía. Inténtalo de nuevo.',
+  'membershipRequests.noLongerPending':
+    'Esta Solicitud de Membresía ya no está Pendiente. La cola se actualizó.',
   'invites.heading': 'Invitaciones pendientes',
   'invites.description': 'Las invitaciones vencen siete días después de enviarse.',
   'invites.responsibility': 'Responsabilidad inicial',

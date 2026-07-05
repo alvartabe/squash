@@ -110,8 +110,5 @@ export async function requireMembershipRequestReviewer(userId: string, clubId: s
   ) {
     throw forbidden();
   }
-  if (result.clubArchivedAt) {
-    throw new ServiceError('CLUB_ARCHIVED', 'error.invalidRequest', 409);
-  }
   return result;
 }

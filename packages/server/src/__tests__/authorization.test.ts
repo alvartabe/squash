@@ -152,10 +152,25 @@ describe('Membership Request review authorization', () => {
     ).resolves.toMatchObject({ responsibilities: [responsibility] });
   });
 
+  it('allows a Platform Administrator who also has an authorized Club responsibility', async () => {
+    mockAuthorization({
+      platformRole: 'platform-admin',
+      membershipStatus: 'active',
+      responsibilities: ['admin', 'coach'],
+      clubId: 'club-id',
+      clubArchivedAt: null,
+    });
+
+    await expect(
+      requireMembershipRequestReviewer('platform-admin-id', 'club-id'),
+    ).resolves.toMatchObject({ responsibilities: ['admin', 'coach'] });
+  });
+
   it.each([
     { platformRole: 'user', membershipStatus: 'active', responsibilities: ['coach'] },
     { platformRole: 'user', membershipStatus: 'active', responsibilities: [] },
     { platformRole: 'user', membershipStatus: 'suspended', responsibilities: ['admin'] },
+    { platformRole: 'user', membershipStatus: 'ended', responsibilities: ['owner'] },
     { platformRole: 'platform-admin', membershipStatus: null, responsibilities: [] },
   ] as const)('rejects an unauthorized reviewer', async (authorization) => {
     mockAuthorization({

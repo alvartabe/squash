@@ -36,6 +36,14 @@ describe('club permissions', () => {
     expect(canPerformClubAction('platform-admin', null, [], 'membership-requests.review')).toBe(
       false,
     );
+    expect(
+      canPerformClubAction(
+        'platform-admin',
+        'active',
+        ['coach', 'admin'],
+        'membership-requests.review',
+      ),
+    ).toBe(true);
   });
 
   it('allows coaches to view availability and organize sessions', () => {

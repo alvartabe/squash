@@ -61,6 +61,7 @@ import {
 } from '@/src/hooks/workspace';
 import { useLocale } from '@/src/locale-provider';
 import { InviteMemberDrawer } from './invite-member-drawer';
+import { MembershipRequestsSection } from './membership-requests-section';
 
 const memberHelper = createColumnHelper<ClubMember>();
 const invitationHelper = createColumnHelper<ClubInvitation>();
@@ -95,6 +96,11 @@ export function MembersPage({ clubId }: { clubId: string }) {
   const transfer = useTransferClubOwnership(clubId);
   const resend = useResendClubInvitation(clubId);
   const revoke = useRevokeClubInvitation(clubId);
+  const canReviewMembershipRequests =
+    club?.membershipStatus === 'active' &&
+    club.responsibilities.some(
+      (responsibility) => responsibility === 'owner' || responsibility === 'admin',
+    );
   const responsibilityLabel = useCallback(
     (responsibility: ClubResponsibility | 'player') => t(`members.${responsibility}`),
     [t],
@@ -511,6 +517,9 @@ export function MembersPage({ clubId }: { clubId: string }) {
 
   return (
     <div className="flex flex-col gap-6">
+      {canReviewMembershipRequests && (
+        <MembershipRequestsSection clubId={clubId} archived={Boolean(club.archivedAt)} />
+      )}
       <div className="flex flex-wrap items-center gap-3">
         <Input
           className="min-w-56 flex-1"

@@ -239,6 +239,20 @@ describe('Membership Request review', () => {
     });
   });
 
+  it.each([
+    ['approve', approveMembershipRequest],
+    ['reject', rejectMembershipRequest],
+  ] as const)('does not %s a request for an archived Club', async (_decision, review) => {
+    const { tx } = transactionWith([lockedSelect([{ id: 'club-id', archivedAt: new Date() }])]);
+
+    await expect(review('owner-id', 'club-id', 'request-id')).rejects.toMatchObject({
+      code: 'CLUB_ARCHIVED',
+      status: 409,
+    });
+    expect(tx.update).not.toHaveBeenCalled();
+    expect(tx.insert).not.toHaveBeenCalled();
+  });
+
   it('approves a request by creating an Active Membership with no responsibilities', async () => {
     const { inserts } = transactionWith(
       [
