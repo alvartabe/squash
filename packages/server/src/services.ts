@@ -61,6 +61,8 @@ import {
   requirePlatformAdmin,
 } from './authorization';
 import { membershipResponsibilities } from './membership';
+import { clubProfileValues } from './club-profile';
+import { requireOwnedClubLogoAsset } from './media';
 
 function ruleRecord(rules: { bestOf: number; pointsToWin: number; winByTwo: boolean }) {
   return { bestOf: rules.bestOf, pointsToWin: rules.pointsToWin, winByTwo: rules.winByTwo };
@@ -68,7 +70,11 @@ function ruleRecord(rules: { bestOf: number; pointsToWin: number; winByTwo: bool
 
 export async function createClub(actorId: string, input: CreateClubInput) {
   await requirePlatformAdmin(actorId);
-  const { initialOwnerId, ...clubInput } = input;
+  const { initialOwnerId, slug } = input;
+  if (input.logoAssetId) {
+    await requireOwnedClubLogoAsset(actorId, input.logoAssetId);
+  }
+  const clubInput = { ...clubProfileValues(input), slug };
 
   return db.transaction(async (tx) => {
     const [initialOwner] = await tx
@@ -91,9 +97,7 @@ export async function createClub(actorId: string, input: CreateClubInput) {
       entityType: 'club',
       entityId: club.id,
       metadata: {
-        name: club.name,
-        slug: club.slug,
-        timeZone: club.timeZone,
+        ...clubInput,
         initialOwnerId,
       },
     });

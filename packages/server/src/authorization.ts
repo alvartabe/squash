@@ -46,6 +46,16 @@ export async function requirePlatformAdmin(userId: string) {
   return result;
 }
 
+export async function requireRegisteredPlayer(userId: string) {
+  const [player] = await db
+    .select({ id: users.id, email: users.email })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  if (!player) throw forbidden();
+  return player;
+}
+
 export async function requireActiveClubMembership(userId: string, clubId: string) {
   const [membership] = await db
     .select({

@@ -57,7 +57,7 @@ export function canPerformClubAction(
   responsibilities: readonly ClubResponsibility[],
   action: ClubAction,
 ): boolean {
-  if (action === 'membership-requests.review') {
+  if (action === 'club.update' || action === 'membership-requests.review') {
     return (
       membershipStatus === 'active' &&
       responsibilities.some(

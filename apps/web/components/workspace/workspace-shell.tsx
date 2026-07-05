@@ -78,7 +78,6 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
       responsibilities: [],
       permissions: [
         'club.view',
-        'club.update',
         'club.archive',
         'members.manage',
         'availability.view',

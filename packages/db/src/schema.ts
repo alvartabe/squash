@@ -68,7 +68,7 @@ export const tournamentStatus = pgEnum('tournament_status', [
 ]);
 export const tournamentStage = pgEnum('tournament_stage', ['group', 'knockout']);
 export const seedingMethod = pgEnum('seeding_method', ['random', 'ranking', 'manual']);
-export const mediaPurpose = pgEnum('media_purpose', ['avatar', 'racket']);
+export const mediaPurpose = pgEnum('media_purpose', ['avatar', 'racket', 'club-logo']);
 export const outboxStatus = pgEnum('outbox_status', [
   'pending',
   'processing',
@@ -155,15 +155,31 @@ export const playerProfiles = pgTable('player_profiles', {
   updatedAt: updatedAt(),
 });
 
-export const clubs = pgTable('clubs', {
-  id: id(),
-  name: text('name').notNull(),
-  slug: text('slug').notNull().unique(),
-  timeZone: text('time_zone').notNull(),
-  archivedAt: timestamp('archived_at', { withTimezone: true }),
-  createdAt: createdAt(),
-  updatedAt: updatedAt(),
-});
+export const clubs = pgTable(
+  'clubs',
+  {
+    id: id(),
+    name: text('name').notNull(),
+    slug: text('slug').notNull().unique(),
+    logoAssetId: uuid('logo_asset_id'),
+    description: text('description'),
+    physicalAddress: text('physical_address'),
+    mapLink: text('map_link'),
+    contactEmail: text('contact_email'),
+    contactPhone: text('contact_phone'),
+    timeZone: text('time_zone'),
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.logoAssetId],
+      foreignColumns: [mediaAssets.id],
+      name: 'clubs_logo_asset_id_media_assets_id_fk',
+    }).onDelete('set null'),
+  ],
+);
 
 export const clubInvitations = pgTable(
   'club_invitations',

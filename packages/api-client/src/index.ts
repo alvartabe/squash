@@ -3,14 +3,17 @@ import type {
   CreateClubInput,
   CreateOpenPlaySessionInput,
   CreateTournamentInput,
+  ClubDiscoveryItem,
   ClubInvitation,
   ClubMember,
+  ClubProfileDetail,
   ClubSummary,
   InviteClubResponsibility,
   MembershipRequest,
   MembershipRequestStatus,
   PaginatedData,
   PlayerStatistics,
+  UpdateClubInput,
 } from '@squash/contracts';
 import Axios, { type AxiosInstance } from 'axios';
 
@@ -44,6 +47,14 @@ export function createApiClient(options: ApiClientOptions): AxiosInstance {
 export function squashApi(client: AxiosInstance) {
   return {
     getMe: async () => (await client.get('/me')).data,
+    discoverClubs: async (params: {
+      page?: number;
+      pageSize?: number;
+      search?: string;
+    }): Promise<{ data: PaginatedData<ClubDiscoveryItem> }> =>
+      (await client.get('/clubs/discovery', { params })).data,
+    getClubProfile: async (clubId: string): Promise<{ data: ClubProfileDetail }> =>
+      (await client.get(`/clubs/${clubId}/profile`)).data,
     getClubs: async (params: {
       page?: number;
       pageSize?: number;
@@ -52,7 +63,7 @@ export function squashApi(client: AxiosInstance) {
     }): Promise<{ data: PaginatedData<ClubSummary> }> =>
       (await client.get('/clubs', { params })).data,
     createClub: async (input: CreateClubInput) => (await client.post('/clubs', input)).data,
-    updateClub: async (clubId: string, input: { name: string; timeZone: string }) =>
+    updateClub: async (clubId: string, input: UpdateClubInput) =>
       (await client.patch(`/clubs/${clubId}`, input)).data,
     archiveClub: async (clubId: string) => (await client.delete(`/clubs/${clubId}`)).data,
     getClubMembers: async (
@@ -103,7 +114,7 @@ export function squashApi(client: AxiosInstance) {
       fileName: string;
       contentType: 'image/jpeg' | 'image/png' | 'image/webp';
       contentLength: number;
-      purpose: 'avatar' | 'racket';
+      purpose: 'avatar' | 'racket' | 'club-logo';
     }) => (await client.post('/media/uploads', input)).data,
   };
 }
@@ -111,6 +122,8 @@ export function squashApi(client: AxiosInstance) {
 export const queryKeys = {
   profile: (userId: string) => ['profile', userId] as const,
   friends: () => ['friends'] as const,
+  clubDiscovery: () => ['clubs', 'discovery'] as const,
+  clubProfile: (clubId: string) => ['clubs', clubId, 'profile'] as const,
   clubs: () => ['clubs'] as const,
   club: (clubId: string) => ['clubs', clubId] as const,
   clubMembers: (clubId: string) => ['clubs', clubId, 'members'] as const,

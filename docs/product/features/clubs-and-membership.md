@@ -10,12 +10,28 @@ Only a Platform Administrator creates a Club and assigns its initial Club Owner.
 
 Every active Club is discoverable by registered Players in mobile. Archived Clubs are hidden. Search results show the viewing Player's relationship: none, request pending, invited, Active, or Suspended.
 
-A Club Profile contains:
+When more than one relationship exists, search results use this precedence: Active or Suspended Membership, then Pending Membership Request, then Club Invitation, then none.
 
-- name, logo, and description;
-- physical address and map link;
-- contact email or phone;
+A Club Profile requires:
+
+- name;
+- physical address;
+- at least one contact method: contact email or contact phone.
+
+Both contact methods may be provided. A Club Profile may also contain:
+
+- logo;
+- description;
+- map link;
 - time zone.
+
+Time zone is optional. Existing configured values are preserved, and the platform does not invent a default. Future recurring Club Play Sessions and time-based notifications must require a configured Club time zone before they are implemented.
+
+New Club creation and every explicit Club Profile save enforce the required fields and contact-method rule. Existing Clubs may temporarily retain null migrated values until their Profile is saved.
+
+Club Owners and Club Administrators may update the Club Profile through web management. Coaches and ordinary Players cannot update it.
+
+Every registered Player may view an active Club's Player-facing Profile. Archived Clubs remain hidden from Player discovery and Player-facing Profile access. The Player-facing Profile does not expose management-only data.
 
 Club hours, court inventory, pricing, booking, and payments are excluded.
 

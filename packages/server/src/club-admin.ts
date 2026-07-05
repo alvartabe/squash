@@ -7,6 +7,7 @@ import type {
   InviteClubResponsibility,
   MembershipStatus,
   PaginatedData,
+  UpdateClubInput,
 } from '@squash/contracts';
 import {
   auditLogs,
@@ -25,6 +26,8 @@ import { db } from './database';
 import { forbidden, notFound, ServiceError } from './errors';
 import { renderAuthEmail } from './emails';
 import { membershipResponsibilities } from './membership';
+import { clubProfileValues, requireValidClubLogoSelection } from './club-profile';
+import { createMediaDownloadUrl, getMediaObjectKey } from './media';
 
 const INVITATION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -233,11 +236,12 @@ export async function getWorkspaceClub(actorId: string, clubId: string) {
   const [members] = await db
     .select({ value: count() })
     .from(clubMemberships)
-    .where(
-      and(eq(clubMemberships.clubId, clubId), ne(clubMemberships.status, 'ended')),
-    );
+    .where(and(eq(clubMemberships.clubId, clubId), ne(clubMemberships.status, 'ended')));
   return {
     ...club,
+    logoUrl: club.logoAssetId
+      ? await createMediaDownloadUrl(await getMediaObjectKey(club.logoAssetId))
+      : null,
     membershipStatus: authorization.membershipStatus,
     responsibilities: authorization.responsibilities,
     memberCount: members?.value ?? 0,
@@ -247,15 +251,19 @@ export async function getWorkspaceClub(actorId: string, clubId: string) {
   };
 }
 
-export async function updateWorkspaceClub(
-  actorId: string,
-  clubId: string,
-  input: { name: string; timeZone: string },
-) {
+export async function updateWorkspaceClub(actorId: string, clubId: string, input: UpdateClubInput) {
   await requireClubAction(actorId, clubId, 'club.update');
+  const [existing] = await db
+    .select({ logoAssetId: clubs.logoAssetId })
+    .from(clubs)
+    .where(and(eq(clubs.id, clubId), isNull(clubs.archivedAt)))
+    .limit(1);
+  if (!existing) throw notFound('CLUB_NOT_FOUND');
+  await requireValidClubLogoSelection(actorId, existing.logoAssetId, input.logoAssetId);
+  const profile = clubProfileValues(input);
   const [club] = await db
     .update(clubs)
-    .set({ name: input.name, timeZone: input.timeZone, updatedAt: new Date() })
+    .set({ ...profile, updatedAt: new Date() })
     .where(and(eq(clubs.id, clubId), isNull(clubs.archivedAt)))
     .returning();
   if (!club) throw notFound('CLUB_NOT_FOUND');
@@ -266,7 +274,7 @@ export async function updateWorkspaceClub(
       action: 'club.update',
       entityType: 'club',
       entityId: clubId,
-      metadata: input,
+      metadata: profile,
     }),
   );
   return club;

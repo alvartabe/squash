@@ -107,21 +107,58 @@ export const equipmentSchema = z.object({
   notes: z.string().trim().max(1000).optional(),
 });
 
-export const createClubSchema = z.object({
+const clubProfileFields = {
   name: z.string().trim().min(2).max(120),
-  slug: z
-    .string()
-    .trim()
-    .min(2)
-    .max(80)
-    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
-  timeZone: z.string().trim().min(1).max(100),
-  initialOwnerId: userIdSchema,
-});
+  logoAssetId: idSchema.nullable().optional(),
+  description: z.string().trim().max(2000).nullable().optional(),
+  physicalAddress: z.string().trim().min(1).max(500),
+  mapLink: z.string().trim().url().max(2048).nullable().optional(),
+  contactEmail: z.string().trim().email().max(320).nullable().optional(),
+  contactPhone: z.string().trim().min(1).max(50).nullable().optional(),
+  timeZone: z.string().trim().min(1).max(100).nullable().optional(),
+};
 
-export const updateClubSchema = createClubSchema.pick({ name: true, timeZone: true });
+function requireClubContact(
+  value: {
+    contactEmail?: string | null | undefined;
+    contactPhone?: string | null | undefined;
+  },
+  context: z.RefinementCtx,
+) {
+  if (!value.contactEmail && !value.contactPhone) {
+    context.addIssue({
+      code: 'custom',
+      path: ['contactEmail'],
+      message: 'A contact email or contact phone is required',
+    });
+  }
+}
+
+export const clubProfileInputSchema = z.object(clubProfileFields).superRefine(requireClubContact);
+
+export const createClubSchema = z
+  .object({
+    ...clubProfileFields,
+    slug: z
+      .string()
+      .trim()
+      .min(2)
+      .max(80)
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+    initialOwnerId: userIdSchema,
+  })
+  .superRefine(requireClubContact);
+
+export const updateClubSchema = clubProfileInputSchema;
 
 export const membershipStatusSchema = z.enum(['active', 'suspended', 'ended']);
+export const clubDiscoveryRelationshipSchema = z.enum([
+  'active',
+  'suspended',
+  'request-pending',
+  'invited',
+  'none',
+]);
 export const membershipRequestStatusSchema = z.enum([
   'pending',
   'approved',
@@ -177,11 +214,30 @@ export const clubSummarySchema = z.object({
   id: idSchema,
   name: z.string(),
   slug: z.string(),
-  timeZone: z.string(),
+  timeZone: z.string().nullable(),
   membershipStatus: membershipStatusSchema.nullable(),
   responsibilities: clubResponsibilitiesSchema,
   memberCount: z.number().int().nonnegative(),
   archivedAt: z.string().nullable(),
+});
+
+export const clubDiscoveryItemSchema = z.object({
+  id: idSchema,
+  name: z.string(),
+  timeZone: z.string().nullable(),
+  relationship: clubDiscoveryRelationshipSchema,
+});
+
+export const clubProfileDetailSchema = z.object({
+  id: idSchema,
+  name: z.string(),
+  logoUrl: z.string().url().nullable(),
+  description: z.string().nullable(),
+  physicalAddress: z.string().nullable(),
+  mapLink: z.string().nullable(),
+  contactEmail: z.string().nullable(),
+  contactPhone: z.string().nullable(),
+  timeZone: z.string().nullable(),
 });
 
 export const clubMemberSchema = z.object({
@@ -226,6 +282,9 @@ export type PaginatedData<T> = {
 };
 
 export type ClubSummary = z.infer<typeof clubSummarySchema>;
+export type ClubDiscoveryItem = z.infer<typeof clubDiscoveryItemSchema>;
+export type ClubDiscoveryRelationship = z.infer<typeof clubDiscoveryRelationshipSchema>;
+export type ClubProfileDetail = z.infer<typeof clubProfileDetailSchema>;
 export type ClubMember = z.infer<typeof clubMemberSchema>;
 export type ClubInvitation = z.infer<typeof clubInvitationSchema>;
 export type MembershipStatus = z.infer<typeof membershipStatusSchema>;
@@ -277,7 +336,7 @@ export const presignUploadSchema = z.object({
     .int()
     .positive()
     .max(10 * 1024 * 1024),
-  purpose: z.enum(['avatar', 'racket']),
+  purpose: z.enum(['avatar', 'racket', 'club-logo']),
 });
 
 export const apiErrorSchema = z.object({
@@ -295,6 +354,7 @@ export type MatchRulesInput = z.infer<typeof matchRulesSchema>;
 export type SetScoreInput = z.infer<typeof setScoreSchema>;
 export type CreateChallengeInput = z.infer<typeof createChallengeSchema>;
 export type CreateClubInput = z.infer<typeof createClubSchema>;
+export type UpdateClubInput = z.infer<typeof updateClubSchema>;
 export type CreateOpenPlaySessionInput = z.infer<typeof createOpenPlaySessionSchema>;
 export type CreateTournamentInput = z.infer<typeof createTournamentSchema>;
 export type RecurringAvailabilityInput = z.infer<typeof recurringAvailabilitySchema>;

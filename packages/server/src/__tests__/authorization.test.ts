@@ -3,6 +3,7 @@ import {
   requireClubAction,
   requireMembershipRequestReviewer,
   requirePlatformAdmin,
+  requireRegisteredPlayer,
 } from '../authorization';
 
 jest.mock('../database', () => ({
@@ -44,6 +45,36 @@ describe('platform authorization', () => {
     mockPlatformRole(role);
 
     await expect(requirePlatformAdmin('actor-id')).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      status: 403,
+    });
+  });
+});
+
+describe('Player authorization', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('allows any registered Player without requiring a Club relationship', async () => {
+    const player = { id: 'player-id', email: 'player@example.com' };
+    const limit = jest.fn().mockResolvedValue([player]);
+    mockDb.select.mockReturnValueOnce({
+      from: () => ({
+        where: () => ({ limit }),
+      }),
+    });
+
+    await expect(requireRegisteredPlayer('player-id')).resolves.toEqual(player);
+  });
+
+  it('rejects an actor who is not a registered Player', async () => {
+    const limit = jest.fn().mockResolvedValue([]);
+    mockDb.select.mockReturnValueOnce({
+      from: () => ({
+        where: () => ({ limit }),
+      }),
+    });
+
+    await expect(requireRegisteredPlayer('missing-player-id')).rejects.toMatchObject({
       code: 'FORBIDDEN',
       status: 403,
     });

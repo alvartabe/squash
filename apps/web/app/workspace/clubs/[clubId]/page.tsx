@@ -29,9 +29,9 @@ export default function ClubPage() {
   const { t } = useLocale();
   if (isLoading || !club)
     return <main className="p-6 text-sm text-muted-foreground">{t('common.loading')}</main>;
-  const canUpdate =
-    me?.platformAdmin ||
-    club.responsibilities.some((responsibility) => ['owner', 'admin'].includes(responsibility));
+  const canUpdate = club.responsibilities.some((responsibility) =>
+    ['owner', 'admin'].includes(responsibility),
+  );
   const canArchive = me?.platformAdmin || club.responsibilities.includes('owner');
   return (
     <main className="flex flex-col gap-6 px-4 py-6 lg:px-6">
@@ -42,7 +42,7 @@ export default function ClubPage() {
             <BadgeStatus archived={Boolean(club.archivedAt)} />
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            {club.timeZone} · /{club.slug}
+            {club.timeZone ?? t('clubForm.timeZoneNotConfigured')} · /{club.slug}
           </p>
         </div>
         {(canUpdate || canArchive) && !club.archivedAt && (

@@ -11,6 +11,9 @@ describe('club permissions', () => {
     expect(canPerformClubAction('user', 'active', ['admin'], 'club.update')).toBe(true);
     expect(canPerformClubAction('user', 'active', ['owner'], 'club.archive')).toBe(true);
     expect(canPerformClubAction('user', 'active', ['admin'], 'club.archive')).toBe(false);
+    expect(canPerformClubAction('user', 'active', ['coach'], 'club.update')).toBe(false);
+    expect(canPerformClubAction('user', 'active', [], 'club.update')).toBe(false);
+    expect(canPerformClubAction('platform-admin', null, [], 'club.update')).toBe(false);
   });
 
   it('allows owners and admins to manage members', () => {

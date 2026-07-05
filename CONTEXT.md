@@ -79,7 +79,7 @@ A squash organization that manages its own members, activities, and Official Tou
 _Avoid_: Organization, tenant
 
 **Club Profile**:
-A Club's discoverable name, logo, description, physical address, map link, contact information, and time zone.
+A Club's discoverable identity and contact record, requiring a name, physical address, and at least one of contact email or contact phone. It may also include a logo, description, map link, and time zone.
 _Avoid_: Club hours, court inventory, pricing
 
 **Archived Club**:

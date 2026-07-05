@@ -1,4 +1,4 @@
-import { createClubSchema } from '@squash/contracts';
+import { createClubSchema, updateClubSchema } from '@squash/contracts';
 import { auditLogs, clubMemberships, clubResponsibilities, clubs, users } from '@squash/db/schema';
 import { requirePlatformAdmin } from '../authorization';
 import { db } from '../database';
@@ -23,7 +23,9 @@ const mockRequirePlatformAdmin = requirePlatformAdmin as jest.Mock;
 const input = {
   name: 'Central Squash Club',
   slug: 'central-squash-club',
-  timeZone: 'America/Costa_Rica',
+  physicalAddress: 'Avenida Central, San José',
+  contactEmail: 'hello@central.example',
+  timeZone: null,
   initialOwnerId: 'initial-owner-id',
 };
 
@@ -33,10 +35,48 @@ describe('Club creation contract', () => {
       createClubSchema.parse({
         name: input.name,
         slug: input.slug,
+        physicalAddress: input.physicalAddress,
+        contactEmail: input.contactEmail,
         timeZone: input.timeZone,
       }),
     ).toThrow();
     expect(createClubSchema.parse(input)).toEqual(input);
+  });
+
+  it('requires a physical address and at least one contact method', () => {
+    expect(() =>
+      createClubSchema.parse({
+        ...input,
+        physicalAddress: '',
+      }),
+    ).toThrow();
+    expect(() =>
+      createClubSchema.parse({
+        ...input,
+        contactEmail: null,
+        contactPhone: null,
+      }),
+    ).toThrow();
+  });
+
+  it('accepts either or both contact methods and a nullable time zone on explicit saves', () => {
+    const profile = {
+      name: input.name,
+      physicalAddress: input.physicalAddress,
+      contactEmail: input.contactEmail,
+      contactPhone: '+506 2222-2222',
+      timeZone: null,
+    };
+    expect(updateClubSchema.parse(profile)).toEqual(profile);
+    expect(
+      updateClubSchema.parse({
+        ...profile,
+        contactEmail: null,
+      }),
+    ).toEqual({
+      ...profile,
+      contactEmail: null,
+    });
   });
 });
 
@@ -59,6 +99,12 @@ describe('Club creation service', () => {
       id: 'club-id',
       name: input.name,
       slug: input.slug,
+      logoAssetId: null,
+      description: null,
+      physicalAddress: input.physicalAddress,
+      mapLink: null,
+      contactEmail: input.contactEmail,
+      contactPhone: null,
       timeZone: input.timeZone,
     };
     const inserts: Array<{ table: unknown; values: unknown }> = [];
@@ -93,6 +139,12 @@ describe('Club creation service', () => {
     expect(inserts.find((entry) => entry.table === clubs)?.values).toEqual({
       name: input.name,
       slug: input.slug,
+      logoAssetId: null,
+      description: null,
+      physicalAddress: input.physicalAddress,
+      mapLink: null,
+      contactEmail: input.contactEmail,
+      contactPhone: null,
       timeZone: input.timeZone,
     });
     expect(inserts.find((entry) => entry.table === clubMemberships)?.values).toEqual({
@@ -113,6 +165,12 @@ describe('Club creation service', () => {
       metadata: {
         name: input.name,
         slug: input.slug,
+        logoAssetId: null,
+        description: null,
+        physicalAddress: input.physicalAddress,
+        mapLink: null,
+        contactEmail: input.contactEmail,
+        contactPhone: null,
         timeZone: input.timeZone,
         initialOwnerId: input.initialOwnerId,
       },

@@ -10,6 +10,7 @@ import type {
   InviteClubResponsibility,
   MembershipStatus,
   PaginatedData,
+  UpdateClubInput,
 } from '@squash/contracts';
 import { api } from '@/src/lib/api';
 
@@ -29,7 +30,7 @@ export type WorkspaceMe = {
     clubId: string;
     clubName: string;
     clubSlug: string;
-    clubTimeZone: string;
+    clubTimeZone: string | null;
     membershipStatus: MembershipStatus;
     responsibilities: ClubResponsibility[];
     permissions: string[];
@@ -40,7 +41,14 @@ export type ClubDetails = {
   id: string;
   name: string;
   slug: string;
-  timeZone: string;
+  logoAssetId: string | null;
+  logoUrl: string | null;
+  description: string | null;
+  physicalAddress: string | null;
+  mapLink: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  timeZone: string | null;
   archivedAt: string | null;
   memberCount: number;
   membershipStatus: MembershipStatus | null;
@@ -101,7 +109,7 @@ export function useCreateClub() {
 export function useUpdateClub(clubId: string) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { name: string; timeZone: string }) =>
+    mutationFn: async (input: UpdateClubInput) =>
       (await api.patch(`/clubs/${clubId}`, input)).data.data,
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ['workspace', 'clubs'] });

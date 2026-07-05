@@ -151,12 +151,9 @@ export function ClubsTable() {
         cell: (info) => (
           <ClubActions
             club={info.row.original}
-            canUpdate={
-              me?.platformAdmin === true ||
-              info.row.original.responsibilities.some((responsibility) =>
-                ['owner', 'admin'].includes(responsibility),
-              )
-            }
+            canUpdate={info.row.original.responsibilities.some((responsibility) =>
+              ['owner', 'admin'].includes(responsibility),
+            )}
             canArchive={
               me?.platformAdmin === true || info.row.original.responsibilities.includes('owner')
             }
