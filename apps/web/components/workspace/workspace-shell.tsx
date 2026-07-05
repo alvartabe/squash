@@ -82,11 +82,11 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
             'availability.view',
             'tournament.manage',
             'results.correct',
-            'session.create',
           ],
     };
   }, [me?.memberships, me?.platformAdmin, routeClub, routeClubId]);
   const canManageMembers = selected?.permissions.includes('members.manage') ?? false;
+  const canManageSessions = selected?.permissions.includes('session.create') ?? false;
   const canOperateClub =
     selected?.permissions.some((permission) =>
       ['members.manage', 'session.create', 'tournament.manage', 'results.correct'].includes(
@@ -105,12 +105,14 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
       ...(canManageMembers
         ? [{ href: `${clubBase}/members`, label: t('sidebar.members'), icon: Users }]
         : []),
-      { href: `${clubBase}/sessions`, label: t('sidebar.sessions'), icon: CalendarDays },
+      ...(canManageSessions
+        ? [{ href: `${clubBase}/sessions`, label: t('sidebar.sessions'), icon: CalendarDays }]
+        : []),
       { href: `${clubBase}/tournaments`, label: t('sidebar.tournaments'), icon: Trophy },
       { href: `${clubBase}/matches`, label: t('sidebar.matches'), icon: ClipboardCheck },
       { href: `${clubBase}/statistics`, label: t('sidebar.statistics'), icon: BarChart3 },
     ];
-  }, [canManageMembers, canOperateClub, clubBase, selected, t]);
+  }, [canManageMembers, canManageSessions, canOperateClub, clubBase, selected, t]);
 
   const title =
     items.find((item) => pathname === item.href)?.label ??

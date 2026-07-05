@@ -16,15 +16,19 @@ This document identifies known differences between intended product behavior and
 
 ## Play
 
-| Intended behavior                                                  | Current evidence                              | Gap                                                                                         |
-| ------------------------------------------------------------------ | --------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Generic Player-, Group-, or Club-hosted Play Sessions              | `openPlaySessions` and `createOpenPlay`       | Current model is Club-only `open-play`                                                      |
-| Only Owners, Administrators, and Coaches create Club Play Sessions | `packages/domain/src/permissions.ts`          | Ordinary `player` currently has `session.create`                                            |
-| Session Series and independent Occurrences                         | Session schema                                | No recurrence series/occurrence model                                                       |
-| Three-state Attendance Response per occurrence                     | `attendanceStatus` and `openPlayAttendees`    | Existing invitation states do not match the agreed RSVP model                               |
-| Initial Club Play Sessions are scoreless                           | `openPlayMatches` schema exists               | Schema anticipates Session Match linkage that Initial scope does not use                    |
-| Availability is global, relationship-visible, advisory, and Later  | `recurringAvailability` has optional `clubId` | Current model permits Club-specific windows and lacks agreed visibility/suggestion behavior |
-| Persistent, equally owned Play Groups are Later                    | No corresponding model                        | Not implemented                                                                             |
+One-time Club Play Sessions are implemented through `clubPlaySessions` and
+`clubPlaySessionParticipants`. They use fixed Costa Rica scheduling, nullable
+Going/Not going Attendance Responses, coordinator-only management, Active Membership
+guards, optimistic versions, cancellation history, and no Match linkage. Recurrence,
+Private Play Sessions, Group Play Sessions, Play Groups, and Player Availability remain
+outside this delivered slice.
+
+| Intended behavior                                                 | Current evidence                              | Gap                                                                                         |
+| ----------------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Session Series and independent Occurrences                        | One-time Club Play Session schema             | No recurrence series/occurrence model                                                       |
+| Coordinator transfer to a consenting eligible Player              | Coordinator is fixed at Session creation      | No documented consent workflow or transfer implementation                                   |
+| Availability is global, relationship-visible, advisory, and Later | `recurringAvailability` has optional `clubId` | Current model permits Club-specific windows and lacks agreed visibility/suggestion behavior |
+| Persistent, equally owned Play Groups are Later                   | No corresponding model                        | Not implemented                                                                             |
 
 ## Challenges and social results
 
@@ -60,12 +64,12 @@ Social Tournaments remain Later.
 
 ## Applications
 
-| Intended behavior                                | Current evidence                                        | Gap                                                                              |
-| ------------------------------------------------ | ------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| Mobile contains complete Player journeys         | `apps/mobile/app/(tabs)/play.tsx` and `tournaments.tsx` | Major screens are placeholders                                                   |
-| Web contains only management capabilities        | Workspace routes                                        | Direction aligns, but most management features remain placeholders               |
-| Spanish default for Costa Rica, English optional | `packages/i18n`                                         | Both languages exist; default and complete feature coverage require verification |
-| Product terminology and Initial scope            | README and UI copy                                      | Some copy still uses Open Play, roles, sets, and legacy scope                    |
+| Intended behavior                                | Current evidence                                                                  | Gap                                                                              |
+| ------------------------------------------------ | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Mobile contains complete Player journeys         | Club Sessions and Club Membership are functional; Tournaments remain placeholders | Several Initial Player journeys remain incomplete                                |
+| Web contains only management capabilities        | Club Session and Membership management are functional workspace routes            | Other management features remain placeholders                                    |
+| Spanish default for Costa Rica, English optional | `packages/i18n`                                                                   | Both languages exist; default and complete feature coverage require verification |
+| Product terminology and Initial scope            | Match and Later-feature code                                                      | Some dormant legacy Match terminology still uses sets                            |
 
 ## Operational gaps
 

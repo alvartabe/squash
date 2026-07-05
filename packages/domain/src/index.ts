@@ -1,5 +1,6 @@
 export * from './availability';
 export * from './bracket';
+export * from './club-play-session';
 export * from './permissions';
 export * from './scoring';
 export * from './social';

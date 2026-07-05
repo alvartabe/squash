@@ -16,11 +16,15 @@ These require Costa Rican legal or operational review before launch.
 
 - Minimum and maximum configurable target points per Game
 - Allowed recurrence patterns and maximum horizon for Play Session Series
+- Session Coordinator transfer request, consent, and expiry workflow
 - Club Invitation expiration and resend limits
 - Maximum Tournament roster, Group count, and Group size
 - Maximum media file sizes and allowed image formats
 
 Validation must be conservative, but a code task cannot establish these as product policy without updating this document.
+
+The recurrence-pattern decision does not block one-time Club Play Sessions. The Costa
+Rica-only one-time slice uses `America/Costa_Rica` and exposes no recurrence input.
 
 ## Exceptional recovery
 

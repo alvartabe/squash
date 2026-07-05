@@ -87,6 +87,7 @@ describe('club permissions', () => {
     expect(canPerformClubAction('user', 'active', ['coach'], 'availability.view')).toBe(true);
     expect(canPerformClubAction('user', 'active', ['coach'], 'session.create')).toBe(true);
     expect(canPerformClubAction('user', 'active', ['coach'], 'tournament.manage')).toBe(false);
+    expect(canPerformClubAction('platform-admin', null, [], 'session.create')).toBe(false);
   });
 
   it('unions permissions from independently assigned responsibilities', () => {

@@ -2,7 +2,8 @@
 
 ## Status
 
-- Club Play Sessions: **Initial**
+- One-time Club Play Sessions: **Initial**
+- Club Play Session recurrence: **Initial, later delivery slice**
 - Friendships, Availability, Play Groups, Private and Group Play Sessions, and Challenges: **Later**
 
 ## Friendships
@@ -53,6 +54,25 @@ Initial Club Play Sessions are scoreless. Recording Matches inside Play Sessions
 
 The Session Coordinator creates, edits, and cancels the Session. Participants manage only their own Attendance Responses.
 
+The current Initial-release slice supports one-time Club Play Sessions only. Scheduling
+is entered and presented in `America/Costa_Rica`; timestamps are persisted as absolute
+instants. This slice does not read or configure a Club Profile time zone.
+
+A one-time Club Play Session is Scheduled or Cancelled. Creation requires a future start
+and an end after the start. Only its active Session Coordinator may edit, cancel, or
+invite participants, and only before the scheduled start. Cancellation preserves the
+Session, participants, and Attendance Responses as history. A Cancelled or started
+Session cannot be edited, cancelled again, receive invitations, or accept Attendance
+Response changes.
+
+For a Club Play Session, the Coordinator may invite any Active Club Member before the
+start. An invitation records participation with **No response**; it is not an Attendance
+Response. Invitation does not prevent other Active Club Members from discovering the
+Session and responding. Participant removal is not part of this slice.
+
+Changing a one-time Session's start or end clears every other participant's prior
+Attendance Response to No response. The Session Coordinator remains Going.
+
 ## Attendance Responses
 
 For each occurrence:
@@ -61,11 +81,17 @@ For each occurrence:
 - **Going** means expected to attend.
 - **Not going** means explicitly declined.
 
-The Session Coordinator starts as Going. A Player may change response before the occurrence starts. There is no Maybe state, capacity, waitlist, or court reservation.
+The Session Coordinator starts as Going. An Active Club Member may set or change only
+their own response before the occurrence starts, whether or not they were invited. A
+Suspended or Ended Club Member cannot view the Session or change a response, but prior
+participation remains in history. There is no Maybe state, capacity, waitlist, participant
+removal, or court reservation.
 
 ## Recurrence
 
 A Play Session Series defines recurrence. Each Play Session Occurrence has independent date, attendance, changes, and cancellation.
+
+Recurrence is not implemented in the one-time Club Play Session delivery slice.
 
 Editing or cancelling supports:
 

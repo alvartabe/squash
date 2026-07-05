@@ -84,7 +84,18 @@ Junior Membership actions require Junior Club Participation Permission, not per-
 
 Club Owners, Club Administrators, and Coaches may create and coordinate Club Play Sessions through web. Only active Club Members may discover and join them in mobile.
 
-Club Play Sessions follow the shared recurrence and Attendance Response rules in [play and player network](play-and-player-network.md). They are scoreless in the Initial release and do not affect Competition Records.
+The current delivery slice supports one-time Club Play Sessions. It uses
+`America/Costa_Rica` for scheduling independently of the optional Club Profile time
+zone; configurable per-Club scheduling time zones and recurrence are not part of this
+slice.
+
+The Session Coordinator may invite Active Club Members through web. Invitations carry
+No response until the invited Player sets Going or Not going in mobile. Active Club
+Members may also discover the Session and respond without an invitation. Management
+actions are coordinator-only; being a Club Owner or Club Administrator does not grant
+authority over a Session coordinated by someone else.
+
+Club Play Sessions follow the shared lifecycle and Attendance Response rules in [play and player network](play-and-player-network.md). They are scoreless in the Initial release and do not affect Competition Records.
 
 ## Club archival
 

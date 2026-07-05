@@ -16,7 +16,7 @@ import {
   clubResponsibilities,
   clubs,
   membershipRequests,
-  openPlaySessions,
+  clubPlaySessions,
   outboxEvents,
   tournaments,
   users,
@@ -348,16 +348,21 @@ export async function archiveWorkspaceClub(actorId: string, clubId: string) {
       )
       .returning({ id: clubInvitations.id });
     const cancelledSessions = await tx
-      .update(openPlaySessions)
-      .set({ cancelledAt: archivedAt, updatedAt: archivedAt })
+      .update(clubPlaySessions)
+      .set({
+        cancelledAt: archivedAt,
+        cancelledById: actorId,
+        version: sql`${clubPlaySessions.version} + 1`,
+        updatedAt: archivedAt,
+      })
       .where(
         and(
-          eq(openPlaySessions.clubId, clubId),
-          gt(openPlaySessions.startsAt, archivedAt),
-          isNull(openPlaySessions.cancelledAt),
+          eq(clubPlaySessions.clubId, clubId),
+          gt(clubPlaySessions.startsAt, archivedAt),
+          isNull(clubPlaySessions.cancelledAt),
         ),
       )
-      .returning({ id: openPlaySessions.id });
+      .returning({ id: clubPlaySessions.id });
     const cancelledTournaments = await tx
       .update(tournaments)
       .set({ status: 'cancelled', updatedAt: archivedAt })

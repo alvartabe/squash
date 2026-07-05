@@ -46,18 +46,54 @@ export const disputeChallengeSchema = z.object({
   reason: z.string().trim().min(1).max(500),
 });
 
-export const attendanceStatusSchema = z.enum(['invited', 'accepted', 'declined', 'withdrawn']);
-export const updateAttendanceSchema = z.object({
-  status: z.enum(['accepted', 'declined', 'withdrawn']),
+export const attendanceResponseSchema = z.enum(['going', 'not-going']);
+const costaRicaLocalDateTimeSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, 'Use a Costa Rica local date and time');
+const versionSchema = z.number().int().nonnegative();
+
+export const createClubPlaySessionSchema = z.object({
+  clubId: idSchema,
+  startsAtLocal: costaRicaLocalDateTimeSchema,
+  endsAtLocal: costaRicaLocalDateTimeSchema,
+  title: z.string().trim().min(1).max(120),
+  notes: z.string().trim().max(1000).nullable().optional(),
 });
 
-export const createOpenPlaySessionSchema = z.object({
-  clubId: idSchema,
-  startsAt: isoDateTimeSchema,
-  endsAt: isoDateTimeSchema,
-  timeZone: z.string().trim().min(1).max(100),
-  title: z.string().trim().min(1).max(120),
-  notes: z.string().trim().max(1000).optional(),
+export const updateClubPlaySessionSchema = z
+  .object({
+    expectedVersion: versionSchema.positive(),
+    startsAtLocal: costaRicaLocalDateTimeSchema.optional(),
+    endsAtLocal: costaRicaLocalDateTimeSchema.optional(),
+    title: z.string().trim().min(1).max(120).optional(),
+    notes: z.string().trim().max(1000).nullable().optional(),
+  })
+  .refine(
+    (input) =>
+      input.startsAtLocal !== undefined ||
+      input.endsAtLocal !== undefined ||
+      input.title !== undefined ||
+      input.notes !== undefined,
+    { message: 'A Session change is required' },
+  );
+
+export const cancelClubPlaySessionSchema = z.object({
+  expectedVersion: versionSchema.positive(),
+});
+
+export const inviteClubPlaySessionParticipantsSchema = z.object({
+  playerIds: z.array(userIdSchema).min(1).max(100),
+  expectedVersion: versionSchema.positive(),
+});
+
+export const updateAttendanceResponseSchema = z.object({
+  response: attendanceResponseSchema,
+  expectedVersion: versionSchema,
+});
+
+export const clubPlaySessionListQuerySchema = z.object({
+  scope: z.enum(['upcoming', 'past', 'all']).default('upcoming'),
 });
 
 export const seedingMethodSchema = z.enum(['random', 'ranking', 'manual']);
@@ -298,6 +334,34 @@ export type PaginatedData<T> = {
   totalPages: number;
 };
 
+export type ClubPlaySessionParticipant = {
+  sessionId: string;
+  playerId: string;
+  playerName: string;
+  playerImage: string | null;
+  response: AttendanceResponse | null;
+  version: number;
+  invitedById: string | null;
+};
+
+export type ClubPlaySession = {
+  id: string;
+  clubId: string;
+  clubName: string;
+  coordinatorId: string;
+  title: string;
+  notes: string | null;
+  startsAt: string;
+  endsAt: string;
+  timeZone: 'America/Costa_Rica';
+  cancelledAt: string | null;
+  cancelledById: string | null;
+  version: number;
+  participants: ClubPlaySessionParticipant[];
+  myAttendanceResponse: AttendanceResponse | null;
+  myAttendanceVersion: number;
+};
+
 export type ClubSummary = z.infer<typeof clubSummarySchema>;
 export type ClubDiscoveryItem = z.infer<typeof clubDiscoveryItemSchema>;
 export type ClubDiscoveryRelationship = z.infer<typeof clubDiscoveryRelationshipSchema>;
@@ -372,7 +436,14 @@ export type SetScoreInput = z.infer<typeof setScoreSchema>;
 export type CreateChallengeInput = z.infer<typeof createChallengeSchema>;
 export type CreateClubInput = z.infer<typeof createClubSchema>;
 export type UpdateClubInput = z.infer<typeof updateClubSchema>;
-export type CreateOpenPlaySessionInput = z.infer<typeof createOpenPlaySessionSchema>;
+export type AttendanceResponse = z.infer<typeof attendanceResponseSchema>;
+export type CreateClubPlaySessionInput = z.infer<typeof createClubPlaySessionSchema>;
+export type UpdateClubPlaySessionInput = z.infer<typeof updateClubPlaySessionSchema>;
+export type CancelClubPlaySessionInput = z.infer<typeof cancelClubPlaySessionSchema>;
+export type InviteClubPlaySessionParticipantsInput = z.infer<
+  typeof inviteClubPlaySessionParticipantsSchema
+>;
+export type UpdateAttendanceResponseInput = z.infer<typeof updateAttendanceResponseSchema>;
 export type CreateTournamentInput = z.infer<typeof createTournamentSchema>;
 export type RecurringAvailabilityInput = z.infer<typeof recurringAvailabilitySchema>;
 export type PlayerStatistics = z.infer<typeof playerStatisticsSchema>;

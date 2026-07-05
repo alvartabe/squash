@@ -36,12 +36,7 @@ export const friendshipStatus = pgEnum('friendship_status', [
   'declined',
   'blocked',
 ]);
-export const attendanceStatus = pgEnum('attendance_status', [
-  'invited',
-  'accepted',
-  'declined',
-  'withdrawn',
-]);
+export const attendanceResponse = pgEnum('attendance_response', ['going', 'not-going']);
 export const challengeStatus = pgEnum('challenge_status', [
   'pending',
   'accepted',
@@ -50,7 +45,7 @@ export const challengeStatus = pgEnum('challenge_status', [
   'completed',
   'disputed',
 ]);
-export const matchSource = pgEnum('match_source', ['open-play', 'challenge', 'tournament']);
+export const matchSource = pgEnum('match_source', ['challenge', 'tournament']);
 export const matchStatus = pgEnum('match_status', [
   'scheduled',
   'in-progress',
@@ -383,38 +378,42 @@ export const availabilityExceptions = pgTable(
   ],
 );
 
-export const openPlaySessions = pgTable(
-  'open_play_sessions',
+export const clubPlaySessions = pgTable(
+  'club_play_sessions',
   {
     id: id(),
     clubId: uuid('club_id')
       .notNull()
       .references(() => clubs.id, { onDelete: 'cascade' }),
-    organizerId: text('organizer_id')
+    coordinatorId: text('coordinator_id')
       .notNull()
       .references(() => users.id),
     title: text('title').notNull(),
     notes: text('notes'),
     startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
     endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
-    timeZone: text('time_zone').notNull(),
     cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    cancelledById: text('cancelled_by_id').references(() => users.id),
+    version: integer('version').notNull().default(1),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (table) => [index('open_play_club_date_idx').on(table.clubId, table.startsAt)],
+  (table) => [index('club_play_sessions_club_date_idx').on(table.clubId, table.startsAt)],
 );
 
-export const openPlayAttendees = pgTable(
-  'open_play_attendees',
+export const clubPlaySessionParticipants = pgTable(
+  'club_play_session_participants',
   {
     sessionId: uuid('session_id')
       .notNull()
-      .references(() => openPlaySessions.id, { onDelete: 'cascade' }),
+      .references(() => clubPlaySessions.id, { onDelete: 'cascade' }),
     userId: text('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    status: attendanceStatus('status').notNull(),
+    response: attendanceResponse('response'),
+    invitedById: text('invited_by_id').references(() => users.id),
+    version: integer('version').notNull().default(1),
+    createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (table) => [primaryKey({ columns: [table.sessionId, table.userId] })],
@@ -498,15 +497,6 @@ export const matchResultRevisions = pgTable(
   },
   (table) => [uniqueIndex('match_revision_idx').on(table.matchId, table.revision)],
 );
-
-export const openPlayMatches = pgTable('open_play_matches', {
-  sessionId: uuid('session_id')
-    .notNull()
-    .references(() => openPlaySessions.id, { onDelete: 'cascade' }),
-  matchId: uuid('match_id')
-    .primaryKey()
-    .references(() => matches.id, { onDelete: 'cascade' }),
-});
 
 export const challenges = pgTable(
   'challenges',

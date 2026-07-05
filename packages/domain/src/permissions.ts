@@ -69,11 +69,18 @@ export function canPerformClubAction(
       (membershipStatus === 'active' && responsibilities.includes('owner'))
     );
   }
-  if (action === 'club.update' || action === 'membership-requests.review') {
+  if (
+    action === 'club.update' ||
+    action === 'membership-requests.review' ||
+    action === 'session.create'
+  ) {
     return (
       membershipStatus === 'active' &&
       responsibilities.some(
-        (responsibility) => responsibility === 'owner' || responsibility === 'admin',
+        (responsibility) =>
+          responsibility === 'owner' ||
+          responsibility === 'admin' ||
+          (action === 'session.create' && responsibility === 'coach'),
       )
     );
   }

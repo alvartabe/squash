@@ -1,7 +1,7 @@
 import type {
   CreateChallengeInput,
   CreateClubInput,
-  CreateOpenPlaySessionInput,
+  ClubPlaySession,
   CreateTournamentInput,
   ClubDiscoveryItem,
   ClubInvitation,
@@ -112,8 +112,16 @@ export function squashApi(client: AxiosInstance) {
     ) => (await client.post(`/clubs/${clubId}/invitations`, input)).data,
     createChallenge: async (input: CreateChallengeInput) =>
       (await client.post('/challenges', input)).data,
-    createOpenPlay: async (input: CreateOpenPlaySessionInput) =>
-      (await client.post('/open-play-sessions', input)).data,
+    getMyClubPlaySessions: async (
+      scope: 'upcoming' | 'past' | 'all' = 'upcoming',
+    ): Promise<{ data: ClubPlaySession[] }> =>
+      (await client.get('/club-play-sessions', { params: { scope } })).data,
+    getClubPlaySession: async (sessionId: string): Promise<{ data: ClubPlaySession }> =>
+      (await client.get(`/club-play-sessions/${sessionId}`)).data,
+    setClubPlaySessionAttendance: async (
+      sessionId: string,
+      input: { response: 'going' | 'not-going'; expectedVersion: number },
+    ) => (await client.put(`/club-play-sessions/${sessionId}/attendance`, input)).data,
     createTournament: async (input: CreateTournamentInput) =>
       (await client.post('/tournaments', input)).data,
     getStatistics: async (playerId: string): Promise<{ data: PlayerStatistics }> =>
@@ -137,7 +145,8 @@ export const queryKeys = {
   clubMembers: (clubId: string) => ['clubs', clubId, 'members'] as const,
   clubInvitations: (clubId: string) => ['clubs', clubId, 'invitations'] as const,
   membershipRequests: (clubId: string) => ['clubs', clubId, 'membership-requests'] as const,
-  openPlay: (clubId: string) => ['open-play', clubId] as const,
+  clubPlaySessions: () => ['club-play-sessions'] as const,
+  clubPlaySession: (sessionId: string) => ['club-play-sessions', sessionId] as const,
   challenges: () => ['challenges'] as const,
   tournaments: (clubId: string) => ['tournaments', clubId] as const,
   statistics: (playerId: string) => ['statistics', playerId] as const,

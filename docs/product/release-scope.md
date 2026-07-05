@@ -12,7 +12,7 @@ The Initial release proves the governed Club workflow:
 - Club discovery and Club Profiles
 - Membership Requests, Club Invitations, Membership lifecycle, and composable Club Responsibilities
 - Web management for Platform Administrators, Club Owners, Club Administrators, and Coaches
-- Club Play Sessions, recurrence, and Attendance Responses
+- one-time Club Play Sessions and Attendance Responses
 - Official Tournaments using the Group-to-Knockout format
 - Official Tournament registration, invitations, visibility, draws, standings, results, and Competition Records
 - In-app, push, and required email notifications
@@ -34,6 +34,10 @@ These capabilities are accepted parts of the product but are not Initial scope:
 - Challenge and Social Tournament Competition Records
 
 Later features remain documented so their boundaries are known. They must not be implemented incidentally while building Initial features.
+
+Play Session recurrence remains accepted Initial-release behavior, but it is not part of
+the one-time Club Play Session delivery slice. Moving recurrence into a later delivery
+slice does not move Private or Group Play Sessions into the Initial release.
 
 ## Excluded
 

@@ -1,7 +1,6 @@
 import type {
   CreateChallengeInput,
   CreateClubInput,
-  CreateOpenPlaySessionInput,
   CreateTournamentInput,
   PlayerStatistics,
   SetScoreInput,
@@ -20,8 +19,6 @@ import {
   matchRuleSnapshots,
   matches,
   matchSets,
-  openPlayAttendees,
-  openPlaySessions,
   outboxEvents,
   playerProfiles,
   playerRackets,
@@ -527,70 +524,6 @@ export async function disputeChallenge(actorId: string, challengeId: string, rea
   });
 }
 
-export async function createOpenPlay(actorId: string, input: CreateOpenPlaySessionInput) {
-  const start = new Date(input.startsAt);
-  const end = new Date(input.endsAt);
-  if (end <= start) throw new ServiceError('INVALID_TIME_RANGE', 'error.invalidRequest', 400);
-
-  return db.transaction(async (tx) => {
-    await requireLockedClubAction(tx, actorId, input.clubId, 'session.create');
-    const [session] = await tx
-      .insert(openPlaySessions)
-      .values({
-        clubId: input.clubId,
-        organizerId: actorId,
-        title: input.title,
-        notes: input.notes,
-        startsAt: start,
-        endsAt: end,
-        timeZone: input.timeZone,
-      })
-      .returning();
-    if (!session) throw new Error('Failed to create open play.');
-    await tx
-      .insert(openPlayAttendees)
-      .values({ sessionId: session.id, userId: actorId, status: 'accepted' });
-    return session;
-  });
-}
-
-export async function setOpenPlayAttendance(
-  actorId: string,
-  sessionId: string,
-  status: 'accepted' | 'declined' | 'withdrawn',
-) {
-  const [session] = await db
-    .select({ clubId: openPlaySessions.clubId })
-    .from(openPlaySessions)
-    .where(eq(openPlaySessions.id, sessionId))
-    .limit(1);
-  if (!session) throw notFound('SESSION_NOT_FOUND');
-  return db.transaction(async (tx) => {
-    await requireLockedClubAction(tx, actorId, session.clubId, 'session.create');
-    const [lockedSession] = await tx
-      .select({ id: openPlaySessions.id, cancelledAt: openPlaySessions.cancelledAt })
-      .from(openPlaySessions)
-      .where(
-        and(eq(openPlaySessions.id, sessionId), eq(openPlaySessions.clubId, session.clubId)),
-      )
-      .limit(1)
-      .for('update');
-    if (!lockedSession) throw notFound('SESSION_NOT_FOUND');
-    if (lockedSession.cancelledAt) {
-      throw new ServiceError('SESSION_CANCELLED', 'error.invalidRequest', 409);
-    }
-    const [attendance] = await tx
-      .insert(openPlayAttendees)
-      .values({ sessionId, userId: actorId, status })
-      .onConflictDoUpdate({
-        target: [openPlayAttendees.sessionId, openPlayAttendees.userId],
-        set: { status, updatedAt: new Date() },
-      })
-      .returning();
-    return attendance;
-  });
-}
-
 export async function createTournament(actorId: string, input: CreateTournamentInput) {
   return db.transaction(async (tx) => {
     await requireLockedClubAction(tx, actorId, input.clubId, 'tournament.manage');
@@ -669,10 +602,7 @@ export async function generateTournamentGroups(actorId: string, tournamentId: st
       .select()
       .from(tournaments)
       .where(
-        and(
-          eq(tournaments.id, tournamentId),
-          eq(tournaments.clubId, tournamentLocator.clubId),
-        ),
+        and(eq(tournaments.id, tournamentId), eq(tournaments.clubId, tournamentLocator.clubId)),
       )
       .limit(1)
       .for('update');

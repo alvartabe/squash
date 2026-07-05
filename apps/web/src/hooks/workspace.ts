@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   ClubInvitation,
   ClubMember,
+  ClubPlaySession,
   ClubResponsibility,
   ClubSummary,
   CreateClubInput,
@@ -66,6 +67,9 @@ export const workspaceKeys = {
     ['workspace', 'club', clubId, 'members', page, pageSize, search] as const,
   invitations: (clubId: string, page: number, pageSize: number, search: string) =>
     ['workspace', 'club', clubId, 'invitations', page, pageSize, search] as const,
+  sessions: (clubId: string) => ['workspace', 'club', clubId, 'sessions'] as const,
+  sessionCandidates: (sessionId: string) =>
+    ['workspace', 'club-play-session', sessionId, 'candidates'] as const,
 };
 
 export function useWorkspaceMe() {
@@ -129,7 +133,7 @@ export function useArchiveClub(clubId: string) {
       client.invalidateQueries({ queryKey: workspaceKeys.me });
       client.invalidateQueries({ queryKey: ['clubs', clubId] });
       client.invalidateQueries({ queryKey: ['clubs', 'discovery'] });
-      client.invalidateQueries({ queryKey: ['open-play-sessions'] });
+      client.invalidateQueries({ queryKey: ['club-play-sessions'] });
       client.invalidateQueries({ queryKey: ['tournaments'] });
     },
   });
@@ -145,7 +149,7 @@ export function useRestoreClub(clubId: string) {
       client.invalidateQueries({ queryKey: workspaceKeys.me });
       client.invalidateQueries({ queryKey: ['clubs', clubId] });
       client.invalidateQueries({ queryKey: ['clubs', 'discovery'] });
-      client.invalidateQueries({ queryKey: ['open-play-sessions'] });
+      client.invalidateQueries({ queryKey: ['club-play-sessions'] });
       client.invalidateQueries({ queryKey: ['tournaments'] });
     },
   });
@@ -244,5 +248,94 @@ export function useRevokeClubInvitation(clubId: string) {
     mutationFn: async (invitationId: string) =>
       (await api.delete(`/clubs/${clubId}/invitations/${invitationId}`)).data.data,
     onSuccess: invalidate,
+  });
+}
+
+function useInvalidateClubPlaySessions(clubId: string) {
+  const client = useQueryClient();
+  return () => {
+    client.invalidateQueries({ queryKey: workspaceKeys.sessions(clubId) });
+    client.invalidateQueries({ queryKey: ['workspace', 'club-play-session'] });
+    client.invalidateQueries({ queryKey: ['club-play-sessions'] });
+  };
+}
+
+export function useClubPlaySessions(clubId: string) {
+  return useQuery<ClubPlaySession[]>({
+    queryKey: workspaceKeys.sessions(clubId),
+    enabled: Boolean(clubId),
+    queryFn: async () =>
+      (await api.get(`/clubs/${clubId}/play-sessions`, { params: { scope: 'all' } })).data.data,
+  });
+}
+
+export function useCreateClubPlaySession(clubId: string) {
+  const invalidate = useInvalidateClubPlaySessions(clubId);
+  return useMutation({
+    mutationFn: async (input: {
+      title: string;
+      notes?: string | null;
+      startsAtLocal: string;
+      endsAtLocal: string;
+    }) => (await api.post(`/clubs/${clubId}/play-sessions`, input)).data.data,
+    onSuccess: invalidate,
+  });
+}
+
+export function useUpdateClubPlaySession(clubId: string) {
+  const invalidate = useInvalidateClubPlaySessions(clubId);
+  return useMutation({
+    mutationFn: async ({
+      sessionId,
+      ...input
+    }: {
+      sessionId: string;
+      expectedVersion: number;
+      title: string;
+      notes: string | null;
+      startsAtLocal: string;
+      endsAtLocal: string;
+    }) => (await api.patch(`/club-play-sessions/${sessionId}`, input)).data.data,
+    onSettled: invalidate,
+  });
+}
+
+export function useCancelClubPlaySession(clubId: string) {
+  const invalidate = useInvalidateClubPlaySessions(clubId);
+  return useMutation({
+    mutationFn: async ({
+      sessionId,
+      expectedVersion,
+    }: {
+      sessionId: string;
+      expectedVersion: number;
+    }) =>
+      (
+        await api.delete(`/club-play-sessions/${sessionId}`, {
+          data: { expectedVersion },
+        })
+      ).data.data,
+    onSettled: invalidate,
+  });
+}
+
+export function useClubPlaySessionInviteCandidates(sessionId: string, enabled: boolean) {
+  return useQuery<Array<{ playerId: string; playerName: string; playerImage: string | null }>>({
+    queryKey: workspaceKeys.sessionCandidates(sessionId),
+    enabled: Boolean(sessionId && enabled),
+    queryFn: async () => (await api.get(`/club-play-sessions/${sessionId}/participants`)).data.data,
+  });
+}
+
+export function useInviteClubPlaySessionParticipants(clubId: string, sessionId: string) {
+  const invalidate = useInvalidateClubPlaySessions(clubId);
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { playerIds: string[]; expectedVersion: number }) =>
+      (await api.post(`/club-play-sessions/${sessionId}/participants`, input)).data.data,
+    onSettled: () => {
+      invalidate();
+      client.invalidateQueries({ queryKey: workspaceKeys.sessionCandidates(sessionId) });
+    },
   });
 }

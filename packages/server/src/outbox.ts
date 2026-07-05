@@ -135,6 +135,18 @@ async function rebuildMatchStatistics(matchId: string, source: 'challenge' | 'to
 }
 
 async function processEvent(event: ClaimedEvent) {
+  if (event.topic === 'club-play-session.invited') {
+    const recipientId = event.payload.recipientId;
+    if (typeof recipientId === 'string') {
+      await sendPush(
+        recipientId,
+        'notification.sessionInvited.title',
+        'notification.sessionInvited.body',
+        { sessionId: event.aggregateId },
+      );
+    }
+    return;
+  }
   if (event.topic === 'challenge.invited') {
     const recipientId = event.payload.recipientId;
     if (typeof recipientId === 'string') {

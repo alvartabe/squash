@@ -5,7 +5,7 @@ import {
   clubResponsibilities,
   clubs,
   membershipRequests,
-  openPlaySessions,
+  clubPlaySessions,
   tournaments,
 } from '@squash/db/schema';
 import type { SQLWrapper } from 'drizzle-orm';
@@ -48,7 +48,7 @@ function lifecycleTransaction(input?: {
   const rows = new Map<unknown, Array<{ id: string }>>([
     [membershipRequests, [{ id: 'pending-request-id' }]],
     [clubInvitations, [{ id: 'pending-invitation-id' }]],
-    [openPlaySessions, [{ id: 'future-session-id' }]],
+    [clubPlaySessions, [{ id: 'future-session-id' }]],
     [tournaments, [{ id: 'draft-tournament-id' }, { id: 'registration-tournament-id' }]],
     [clubs, [{ id: 'club-id' }]],
   ]);
@@ -116,7 +116,7 @@ describe('Club archival lifecycle', () => {
     expect(updates.map(({ table }) => table)).toEqual([
       membershipRequests,
       clubInvitations,
-      openPlaySessions,
+      clubPlaySessions,
       tournaments,
       clubs,
     ]);
@@ -128,8 +128,10 @@ describe('Club archival lifecycle', () => {
     expect(updates.find(({ table }) => table === clubInvitations)?.values).toMatchObject({
       revokedAt: expect.any(Date),
     });
-    expect(updates.find(({ table }) => table === openPlaySessions)?.values).toMatchObject({
+    expect(updates.find(({ table }) => table === clubPlaySessions)?.values).toMatchObject({
       cancelledAt: expect.any(Date),
+      cancelledById: 'owner-id',
+      version: expect.anything(),
     });
     expect(updates.find(({ table }) => table === tournaments)?.values).toMatchObject({
       status: 'cancelled',
@@ -147,9 +149,9 @@ describe('Club archival lifecycle', () => {
     expect(invitationQuery.sql).toContain('"club_invitations"."accepted_at" is null');
     expect(invitationQuery.sql).toContain('"club_invitations"."revoked_at" is null');
     expect(invitationQuery.sql).toContain('"club_invitations"."expires_at" >');
-    const sessionQuery = updateQuery(updates.find(({ table }) => table === openPlaySessions));
-    expect(sessionQuery.sql).toContain('"open_play_sessions"."starts_at" > $2');
-    expect(sessionQuery.sql).toContain('"open_play_sessions"."cancelled_at" is null');
+    const sessionQuery = updateQuery(updates.find(({ table }) => table === clubPlaySessions));
+    expect(sessionQuery.sql).toContain('"club_play_sessions"."starts_at" > $2');
+    expect(sessionQuery.sql).toContain('"club_play_sessions"."cancelled_at" is null');
     const tournamentQuery = updateQuery(updates.find(({ table }) => table === tournaments));
     expect(tournamentQuery.sql).toContain('"tournaments"."status" in ($2, $3)');
     expect(tournamentQuery.params).toEqual(['club-id', 'draft', 'registration']);
@@ -193,7 +195,7 @@ describe('Club archival lifecycle', () => {
   );
 
   it('does not mark or audit the Club when a cascade operation fails', async () => {
-    const { updates, inserts } = lifecycleTransaction({ failTable: openPlaySessions });
+    const { updates, inserts } = lifecycleTransaction({ failTable: clubPlaySessions });
 
     await expect(archiveWorkspaceClub('owner-id', 'club-id')).rejects.toThrow('cascade failed');
     expect(mockDb.transaction).toHaveBeenCalledTimes(1);
