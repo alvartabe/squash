@@ -77,8 +77,29 @@ Equipment is not an inventory, marketplace, recommendation, or commerce feature.
 
 ## Account security
 
-- Web management requires MFA for Platform Administrators, Club Owners, Club Administrators, and Coaches.
-- Player-only mobile use may offer optional MFA.
+- Web management requires credential authentication plus TOTP for Platform Administrators and
+  active Club Owners, Club Administrators, and Coaches. A signed-in session is authorized for
+  management only when it was created through the credential-only management authentication
+  boundary after TOTP or valid trusted-device verification.
+- Google and Apple authentication remain available for mobile Player access. A session created by
+  either provider is a Player session and cannot authorize web-management operations, including
+  when the Player has enabled MFA.
+- A social-only Player who gains a management responsibility must use a fresh authenticated
+  security-onboarding flow to establish a credential account, then sign in with that credential to
+  enroll TOTP. Completing enrollment invalidates the enrollment session; management requires a new
+  email/password and TOTP sign-in.
+- Enrollment uses an authenticator application and does not enable MFA until a valid TOTP code is
+  verified. Generated single-use backup codes are shown once for recovery. Regenerating codes
+  invalidates every previously generated backup code.
+- After successful TOTP or backup-code verification, the person may choose “Trust this device for
+  30 days.” It is off by default and warns against shared or public devices. Better Auth's signed
+  trusted-device cookie uses a rolling 30-day period; invalid, expired, or revoked trust does not
+  authorize management.
+- Disabling MFA or gaining management authority without completed enrollment immediately blocks
+  management. Disabling MFA and resetting the Account password revoke every management session
+  and trusted-device grant for that Player. Re-enrollment cannot restore a prior trusted-device
+  grant. Removing all management authority does not automatically disable MFA.
+- Optional mobile MFA, email OTP, and SMS MFA are not part of the Initial release.
 - Security and account-recovery communications cannot be disabled.
 - User impersonation is prohibited.
 

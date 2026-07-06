@@ -1,4 +1,8 @@
 import { AuthCard } from '@/components/auth/auth-card';
+import {
+  authenticationBoundaryForCallback,
+  internalCallbackPath,
+} from '@/src/lib/internal-redirect';
 
 export default async function LoginPage({
   searchParams,
@@ -6,10 +10,12 @@ export default async function LoginPage({
   searchParams: Promise<{ callbackURL?: string }>;
 }) {
   const { callbackURL } = await searchParams;
+  const safeCallback = internalCallbackPath(callbackURL);
   return (
     <AuthCard
       mode="login"
-      callbackURL={callbackURL?.startsWith('/') ? callbackURL : '/workspace'}
+      callbackURL={safeCallback}
+      authenticationBoundary={authenticationBoundaryForCallback(safeCallback)}
     />
   );
 }

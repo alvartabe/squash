@@ -1,12 +1,12 @@
 import { idSchema, inviteClubMemberSchema, paginationQuerySchema } from '@squash/contracts';
 import { inviteClubMember, listClubInvitations } from '@squash/server';
-import { dataResponse, errorResponse, requireUserId } from '@/src/http';
+import { dataResponse, errorResponse, requireManagementUserId } from '@/src/http';
 
 type Context = { params: Promise<{ clubId: string }> };
 
 export async function GET(request: Request, { params }: Context) {
   try {
-    const actorId = await requireUserId();
+    const actorId = await requireManagementUserId();
     const { clubId } = await params;
     const query = paginationQuerySchema.parse(
       Object.fromEntries(new URL(request.url).searchParams.entries()),
@@ -19,7 +19,7 @@ export async function GET(request: Request, { params }: Context) {
 
 export async function POST(request: Request, { params }: Context) {
   try {
-    const actorId = await requireUserId();
+    const actorId = await requireManagementUserId();
     const { clubId } = await params;
     return dataResponse(
       await inviteClubMember(

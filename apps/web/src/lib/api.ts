@@ -15,6 +15,24 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+api.interceptors.response.use(
+  (response) => response,
+  (error: unknown) => {
+    const code = (error as { response?: { data?: { error?: { code?: string } } } }).response?.data
+      ?.error?.code;
+    if (typeof window !== 'undefined') {
+      if (code === 'MANAGEMENT_CREDENTIAL_REQUIRED' || code === 'MFA_ENROLLMENT_REQUIRED') {
+        window.location.assign('/security');
+      }
+      if (code === 'MFA_VERIFICATION_REQUIRED') {
+        const callbackURL = `${window.location.pathname}${window.location.search}`;
+        window.location.assign(`/login?callbackURL=${encodeURIComponent(callbackURL)}`);
+      }
+    }
+    return Promise.reject(error);
+  },
+);
+
 export function apiErrorMessage(error: unknown, fallback: string) {
   const key = (error as { response?: { data?: { error?: { messageKey?: string } } } })?.response
     ?.data?.error?.messageKey;

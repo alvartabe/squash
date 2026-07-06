@@ -6,6 +6,7 @@ export * from './club-profile';
 export * from './club-play-sessions';
 export * from './errors';
 export * from './media';
+export * from './management-authentication';
 export * from './membership';
 export * from './membership-requests';
 export * from './outbox';

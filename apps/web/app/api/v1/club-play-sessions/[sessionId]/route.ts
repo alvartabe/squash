@@ -4,7 +4,7 @@ import {
   updateClubPlaySessionSchema,
 } from '@squash/contracts';
 import { cancelClubPlaySession, getClubPlaySession, updateClubPlaySession } from '@squash/server';
-import { dataResponse, errorResponse, requireUserId } from '@/src/http';
+import { dataResponse, errorResponse, requireManagementUserId, requireUserId } from '@/src/http';
 
 type Context = { params: Promise<{ sessionId: string }> };
 
@@ -20,7 +20,7 @@ export async function GET(_request: Request, { params }: Context) {
 
 export async function PATCH(request: Request, { params }: Context) {
   try {
-    const actorId = await requireUserId();
+    const actorId = await requireManagementUserId();
     const { sessionId } = await params;
     return dataResponse(
       await updateClubPlaySession(
@@ -36,7 +36,7 @@ export async function PATCH(request: Request, { params }: Context) {
 
 export async function DELETE(request: Request, { params }: Context) {
   try {
-    const actorId = await requireUserId();
+    const actorId = await requireManagementUserId();
     const { sessionId } = await params;
     const { expectedVersion } = cancelClubPlaySessionSchema.parse(await request.json());
     return dataResponse(

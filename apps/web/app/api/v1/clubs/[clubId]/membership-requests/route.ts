@@ -1,12 +1,12 @@
 import { idSchema, membershipRequestListQuerySchema } from '@squash/contracts';
 import { listMembershipRequests, submitMembershipRequest } from '@squash/server';
-import { dataResponse, errorResponse, requireUserId } from '@/src/http';
+import { dataResponse, errorResponse, requireManagementUserId, requireUserId } from '@/src/http';
 
 type Context = { params: Promise<{ clubId: string }> };
 
 export async function GET(request: Request, { params }: Context) {
   try {
-    const actorId = await requireUserId();
+    const actorId = await requireManagementUserId();
     const { clubId } = await params;
     const query = membershipRequestListQuerySchema.parse(
       Object.fromEntries(new URL(request.url).searchParams.entries()),

@@ -6,13 +6,13 @@ This document identifies known differences between intended product behavior and
 
 ## Identity and safety
 
-| Intended behavior                                     | Current evidence                                            | Gap                                                                    |
-| ----------------------------------------------------- | ----------------------------------------------------------- | ---------------------------------------------------------------------- |
-| Unique Username and relationship-based discovery      | `users` and `playerProfiles` in `packages/db/src/schema.ts` | No Username or discovery model                                         |
-| Guardian-supervised Junior Players and age transition | Auth and profile tables in `packages/db/src/schema.ts`      | No date of birth, Guardian, consent, Junior permissions, or transition |
-| MFA required for web management                       | Auth configuration in `packages/server/src/auth.ts`         | No documented role-gated MFA enforcement                               |
-| Moderation Reports and Platform Suspension            | Schema and services                                         | No report workflow or account suspension lifecycle                     |
-| Anonymized Account Closure                            | Existing foreign-key deletion behavior                      | No documented closure/anonymization service                            |
+| Intended behavior                                     | Current evidence                                                                  | Gap                                                                    |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Unique Username and relationship-based discovery      | `users` and `playerProfiles` in `packages/db/src/schema.ts`                       | No Username or discovery model                                         |
+| Guardian-supervised Junior Players and age transition | Auth and profile tables in `packages/db/src/schema.ts`                            | No date of birth, Guardian, consent, Junior permissions, or transition |
+| MFA required for web management                       | Isolated management auth sessions, Better Auth TOTP, and centralized route guards | Implemented; Google and Apple sessions remain Player-only              |
+| Moderation Reports and Platform Suspension            | Schema and services                                                               | No report workflow or account suspension lifecycle                     |
+| Anonymized Account Closure                            | Existing foreign-key deletion behavior                                            | No documented closure/anonymization service                            |
 
 ## Play
 

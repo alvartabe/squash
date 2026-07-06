@@ -12,18 +12,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useLocale } from '@/src/locale-provider';
-import { authClient } from '@/src/lib/auth-client';
+import { managementAuthClient, playerAuthClient } from '@/src/lib/auth-client';
 import { TurnstileWidget } from './turnstile-widget';
 
 type Mode = 'login' | 'signup' | 'forgot' | 'reset';
+type AuthenticationBoundary = 'management' | 'player';
 
 export function AuthCard({
   mode,
   callbackURL = '/workspace',
+  authenticationBoundary = 'management',
   token,
 }: {
   mode: Mode;
   callbackURL?: string;
+  authenticationBoundary?: AuthenticationBoundary;
   token?: string | undefined;
 }) {
   const { t } = useLocale();
@@ -61,21 +64,31 @@ export function AuthCard({
       ? { headers: { 'x-turnstile-token': turnstileToken } }
       : undefined;
     if (mode === 'login') {
-      const result = await authClient.signIn.email(
-        {
-          email: values.email ?? '',
-          password: values.password ?? '',
-          callbackURL,
-        },
-        requestOptions,
-      );
+      const credentials = {
+        email: values.email ?? '',
+        password: values.password ?? '',
+      };
+      if (authenticationBoundary === 'management') {
+        sessionStorage.setItem('squash.management.callback', callbackURL);
+      }
+      const result =
+        authenticationBoundary === 'management'
+          ? await managementAuthClient.signIn.email(credentials, requestOptions)
+          : await playerAuthClient.signIn.email({ ...credentials, callbackURL }, requestOptions);
       if (result.error) return toast.error(t('auth.error'));
+      if (
+        authenticationBoundary === 'management' &&
+        result.data &&
+        'twoFactorRedirect' in result.data
+      ) {
+        return;
+      }
       router.push(callbackURL);
       router.refresh();
       return;
     }
     if (mode === 'signup') {
-      const result = await authClient.signUp.email(
+      const result = await playerAuthClient.signUp.email(
         {
           name: values.name ?? '',
           email: values.email ?? '',
@@ -91,7 +104,7 @@ export function AuthCard({
       return;
     }
     if (mode === 'forgot') {
-      const result = await authClient.requestPasswordReset({
+      const result = await playerAuthClient.requestPasswordReset({
         email: values.email ?? '',
         redirectTo: '/reset-password',
       });
@@ -99,7 +112,10 @@ export function AuthCard({
       setComplete(true);
       return;
     }
-    const result = await authClient.resetPassword({ newPassword: values.password ?? '', token });
+    const result = await playerAuthClient.resetPassword({
+      newPassword: values.password ?? '',
+      token,
+    });
     if (result.error) return toast.error(t('auth.error'));
     toast.success(t('email.reset.subject'));
     router.push('/login');
@@ -113,7 +129,7 @@ export function AuthCard({
     }
     setResending(true);
     try {
-      const result = await authClient.sendVerificationEmail({ email, callbackURL });
+      const result = await playerAuthClient.sendVerificationEmail({ email, callbackURL });
       if (result.error) throw new Error(result.error.message);
       toast.success(t('auth.verificationResent'));
     } catch {
@@ -222,26 +238,6 @@ export function AuthCard({
                   onClick={resendVerification}
                 >
                   {t('auth.resendVerification')}
-                </Button>
-              )}
-              {mode === 'login' && process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED === 'true' && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => authClient.signIn.social({ provider: 'google', callbackURL })}
-                >
-                  {t('auth.google')}
-                </Button>
-              )}
-              {mode === 'login' && process.env.NEXT_PUBLIC_APPLE_AUTH_ENABLED === 'true' && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => authClient.signIn.social({ provider: 'apple', callbackURL })}
-                >
-                  {t('auth.apple')}
                 </Button>
               )}
               {(mode === 'login' || mode === 'signup') && (

@@ -1,10 +1,10 @@
 import { clubListQuerySchema, createClubSchema } from '@squash/contracts';
 import { createClub, listWorkspaceClubs } from '@squash/server';
-import { dataResponse, errorResponse, requireUserId } from '@/src/http';
+import { dataResponse, errorResponse, requireManagementUserId } from '@/src/http';
 
 export async function GET(request: Request) {
   try {
-    const actorId = await requireUserId();
+    const actorId = await requireManagementUserId();
     const query = clubListQuerySchema.parse(
       Object.fromEntries(new URL(request.url).searchParams.entries()),
     );
@@ -16,7 +16,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const actorId = await requireUserId();
+    const actorId = await requireManagementUserId();
     return dataResponse(
       await createClub(actorId, createClubSchema.parse(await request.json())),
       201,

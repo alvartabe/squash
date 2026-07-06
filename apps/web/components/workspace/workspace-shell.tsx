@@ -17,6 +17,7 @@ import {
   LogOut,
   Menu,
   Package,
+  ShieldCheck,
   Shield,
   Trophy,
   Users,
@@ -40,7 +41,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useLocale } from '@/src/locale-provider';
-import { authClient } from '@/src/lib/auth-client';
+import { managementAuthClient } from '@/src/lib/auth-client';
 import { cn } from '@/src/lib/utils';
 import { useWorkspaceClub, useWorkspaceMe } from '@/src/hooks/workspace';
 
@@ -249,6 +250,12 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
                 {t('userMenu.notifications')}
               </Link>
             </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/security">
+                <ShieldCheck />
+                {t('userMenu.security')}
+              </Link>
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setLocale(locale === 'en-US' ? 'es-419' : 'en-US')}>
               <Languages />
               {t('userMenu.language')}: {locale === 'en-US' ? 'Español' : 'English'}
@@ -256,7 +263,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={async () => {
-                await authClient.signOut();
+                await managementAuthClient.signOut();
                 router.push('/login');
                 router.refresh();
               }}

@@ -77,6 +77,7 @@ export const users = pgTable('users', {
   name: text('name').notNull(),
   email: text('email').notNull().unique(),
   emailVerified: boolean('email_verified').notNull().default(false),
+  twoFactorEnabled: boolean('two_factor_enabled').default(false),
   image: text('image'),
   role: platformRole('role').notNull().default('user'),
   locale: text('locale').notNull().default('en-US'),
@@ -100,6 +101,23 @@ export const sessions = pgTable(
     updatedAt: updatedAt(),
   },
   (table) => [index('sessions_user_idx').on(table.userId)],
+);
+
+export const managementSessions = pgTable(
+  'management_sessions',
+  {
+    id: text('id').primaryKey(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    token: text('token').notNull().unique(),
+    ipAddress: text('ip_address'),
+    userAgent: text('user_agent'),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [index('management_sessions_user_idx').on(table.userId)],
 );
 
 export const accounts = pgTable(
@@ -135,6 +153,23 @@ export const verifications = pgTable(
     updatedAt: updatedAt(),
   },
   (table) => [index('verifications_identifier_idx').on(table.identifier)],
+);
+
+export const twoFactors = pgTable(
+  'two_factor',
+  {
+    id: text('id').primaryKey(),
+    secret: text('secret').notNull(),
+    backupCodes: text('backup_codes').notNull(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    verified: boolean('verified').default(true),
+  },
+  (table) => [
+    index('two_factor_secret_idx').on(table.secret),
+    index('two_factor_user_id_idx').on(table.userId),
+  ],
 );
 
 export const playerProfiles = pgTable('player_profiles', {

@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const guardedAuthPaths = new Set(['/api/auth/sign-in/email', '/api/auth/sign-up/email']);
+const guardedAuthPaths = new Set([
+  '/api/auth/sign-in/email',
+  '/api/auth/sign-up/email',
+  '/api/management-auth/sign-in/email',
+]);
 
 type TurnstileResponse = { success: boolean };
 
 export const config = {
-  matcher: ['/api/auth/sign-in/email', '/api/auth/sign-up/email'],
+  matcher: [
+    '/api/auth/sign-in/email',
+    '/api/auth/sign-up/email',
+    '/api/management-auth/sign-in/email',
+  ],
 };
 
 export async function middleware(request: NextRequest) {

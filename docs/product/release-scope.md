@@ -18,7 +18,8 @@ The Initial release proves the governed Club workflow:
 - In-app, push, and required email notifications
 - Moderation Reports, Platform Suspension, blocking, and audit records
 - Spanish and English
-- Mandatory MFA for web management
+- Credential-only web management with mandatory TOTP, single-use backup-code recovery, and
+  optional rolling 30-day trusted devices; Google and Apple remain Player-only authentication
 
 ## Later
 

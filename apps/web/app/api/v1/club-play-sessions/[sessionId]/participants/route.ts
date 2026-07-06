@@ -3,11 +3,11 @@ import {
   inviteClubPlaySessionParticipants,
   listClubPlaySessionInviteCandidates,
 } from '@squash/server';
-import { dataResponse, errorResponse, requireUserId } from '@/src/http';
+import { dataResponse, errorResponse, requireManagementUserId } from '@/src/http';
 
 export async function POST(request: Request, context: { params: Promise<{ sessionId: string }> }) {
   try {
-    const actorId = await requireUserId();
+    const actorId = await requireManagementUserId();
     const { sessionId } = await context.params;
     return dataResponse(
       await inviteClubPlaySessionParticipants(
@@ -24,7 +24,7 @@ export async function POST(request: Request, context: { params: Promise<{ sessio
 
 export async function GET(_request: Request, context: { params: Promise<{ sessionId: string }> }) {
   try {
-    const actorId = await requireUserId();
+    const actorId = await requireManagementUserId();
     const { sessionId } = await context.params;
     return dataResponse(
       await listClubPlaySessionInviteCandidates(actorId, idSchema.parse(sessionId)),

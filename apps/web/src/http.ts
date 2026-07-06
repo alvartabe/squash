@@ -1,5 +1,6 @@
-import { auth } from '@squash/server/auth';
-import { ServiceError } from '@squash/server';
+import { auth, managementAuth } from '@squash/server/auth';
+import { requireManagementAuthentication, ServiceError } from '@squash/server';
+import { isAPIError } from 'better-auth/api';
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { ZodError } from 'zod';
@@ -8,6 +9,19 @@ export async function requireUserId(): Promise<string> {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) throw new ServiceError('UNAUTHORIZED', 'error.unauthorized', 401);
   return session.user.id;
+}
+
+export async function requireManagementUserId(): Promise<string> {
+  const requestHeaders = await headers();
+  const managementSession = await managementAuth.api.getSession({ headers: requestHeaders });
+  const playerSession = managementSession
+    ? null
+    : await auth.api.getSession({ headers: requestHeaders });
+  const state = await requireManagementAuthentication(
+    managementSession?.user.id ?? null,
+    playerSession?.user.id ?? null,
+  );
+  return state.userId;
 }
 
 export function dataResponse<T>(data: T, status = 200) {
@@ -33,6 +47,18 @@ export function errorResponse(error: unknown) {
         },
       },
       { status: 400 },
+    );
+  }
+  if (isAPIError(error)) {
+    return NextResponse.json(
+      {
+        error: {
+          code: error.body?.code ?? 'AUTHENTICATION_ERROR',
+          messageKey: 'error.invalidRequest',
+          requestId,
+        },
+      },
+      { status: error.statusCode },
     );
   }
   console.error({ requestId, error });

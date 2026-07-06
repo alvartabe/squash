@@ -32,6 +32,7 @@ Decision index:
 - [Guardian-supervised Junior accounts](../adr/0004-supervise-junior-player-accounts.md)
 - [Anonymized history after Account Closure](../adr/0005-anonymize-history-on-account-closure.md)
 - [Least-privilege Platform administration](../adr/0006-limit-platform-administrator-data-access.md)
+- [Isolated credential-only management sessions](../adr/0007-isolate-management-authentication-sessions.md)
 
 ## Document conventions
 
