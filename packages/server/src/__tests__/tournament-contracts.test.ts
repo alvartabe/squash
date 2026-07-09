@@ -25,6 +25,12 @@ describe('Official Tournament contracts', () => {
       }),
     ).not.toHaveProperty('registrationClosesAt');
     expect(
+      createTournamentSchema.parse({
+        ...input,
+        visibility: 'public',
+      }).wildcardQualifiers,
+    ).toBe(0);
+    expect(
       createTournamentSchema.safeParse({
         ...input,
         visibility: 'public',
@@ -68,6 +74,9 @@ describe('Official Tournament contracts', () => {
       status: 'group-stage',
       startsAt: '2026-08-01T15:00:00.000Z',
       timeZone: 'America/Costa_Rica',
+      groupSize: 4,
+      qualifiersPerGroup: 2,
+      wildcardQualifiers: 1,
       draftDrawGeneratedAt: '2026-08-01T14:00:00.000Z',
       entryRequests: [],
       invitations: [],

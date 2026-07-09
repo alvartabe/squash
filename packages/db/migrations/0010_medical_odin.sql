@@ -1,0 +1,1 @@
+ALTER TABLE "tournaments" ADD COLUMN "wildcard_qualifiers" integer DEFAULT 0 NOT NULL;

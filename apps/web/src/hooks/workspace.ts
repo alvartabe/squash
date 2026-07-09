@@ -111,6 +111,7 @@ export function useCreateTournament(clubId: string) {
       timeZone: string;
       groupSize: number;
       qualifiersPerGroup: number;
+      wildcardQualifiers: number;
       seedingMethod: 'random' | 'manual';
       rules: { bestOf: 1 | 3 | 5; pointsToWin: number; winByTwo: boolean };
     }) => (await api.post('/tournaments', { clubId, ...input })).data.data,

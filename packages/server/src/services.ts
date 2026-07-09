@@ -41,7 +41,8 @@ import {
   createFirstRound,
   isAcceptedFriendship,
   nextPowerOfTwo,
-  qualifierOrder,
+  OrganizerTiebreakRequiredError,
+  selectTournamentQualifiers,
   type GroupMatch,
   type Qualifier,
 } from '@squash/domain';
@@ -518,15 +519,24 @@ export async function disputeChallenge(actorId: string, challengeId: string, rea
   });
 }
 
-async function groupQualifiers(
-  tournamentId: string,
-  qualifiersPerGroup: number,
-): Promise<Qualifier[]> {
+type GroupQualifiersResult =
+  | { status: 'pending' }
+  | { status: 'manual-tiebreak-required'; groupId: string; playerIds: readonly string[] }
+  | { status: 'ready'; qualifiers: Qualifier[] };
+
+async function groupQualifiers(input: {
+  tournamentId: string;
+  qualifiersPerGroup: number;
+  wildcardQualifiers: number;
+}): Promise<GroupQualifiersResult> {
   const groups = await db
     .select()
     .from(tournamentGroups)
-    .where(eq(tournamentGroups.tournamentId, tournamentId));
-  const qualifiers: Qualifier[] = [];
+    .where(eq(tournamentGroups.tournamentId, input.tournamentId));
+  const groupStandings: Array<{
+    groupId: string;
+    standings: ReturnType<typeof calculateStandings>;
+  }> = [];
   for (const group of groups) {
     const members = await db
       .select({ userId: tournamentGroupMembers.userId })
@@ -542,7 +552,7 @@ async function groupQualifiers(
       .from(tournamentFixtures)
       .innerJoin(matches, eq(matches.id, tournamentFixtures.matchId))
       .where(and(eq(tournamentFixtures.groupId, group.id), eq(tournamentFixtures.stage, 'group')));
-    if (fixtures.some((fixture) => fixture.status !== 'completed')) return [];
+    if (fixtures.some((fixture) => fixture.status !== 'completed')) return { status: 'pending' };
     const groupMatches: GroupMatch[] = [];
     for (const fixture of fixtures) {
       if (!fixture.matchId || !fixture.playerOneId || !fixture.playerTwoId) continue;
@@ -556,10 +566,22 @@ async function groupQualifiers(
         playerTwoPoints: sets.reduce((total, set) => total + set.playerTwoPoints, 0),
       });
     }
-    const standings = calculateStandings(
-      members.map((member) => member.userId),
-      groupMatches,
-    );
+    let standings: ReturnType<typeof calculateStandings>;
+    try {
+      standings = calculateStandings(
+        members.map((member) => member.userId),
+        groupMatches,
+      );
+    } catch (error) {
+      if (error instanceof OrganizerTiebreakRequiredError) {
+        return {
+          status: 'manual-tiebreak-required',
+          groupId: group.id,
+          playerIds: error.playerIds,
+        };
+      }
+      throw error;
+    }
     await db.transaction(async (tx) => {
       for (const standing of standings) {
         await tx
@@ -573,18 +595,26 @@ async function groupQualifiers(
           );
       }
     });
-    qualifiers.push(
-      ...standings.slice(0, qualifiersPerGroup).map((standing) => ({
-        playerId: standing.playerId,
-        groupId: group.id,
-        groupRank: standing.rank,
-        wins: standing.wins,
-        setDifferential: standing.setDifferential,
-        pointDifferential: standing.pointDifferential,
-      })),
-    );
+    groupStandings.push({ groupId: group.id, standings });
   }
-  return qualifiers;
+  try {
+    return {
+      status: 'ready',
+      qualifiers: selectTournamentQualifiers(groupStandings, {
+        automaticQualifiersPerGroup: input.qualifiersPerGroup,
+        wildcardQualifiers: input.wildcardQualifiers,
+      }),
+    };
+  } catch (error) {
+    if (error instanceof OrganizerTiebreakRequiredError) {
+      return {
+        status: 'manual-tiebreak-required',
+        groupId: '',
+        playerIds: error.playerIds,
+      };
+    }
+    throw error;
+  }
 }
 
 export async function progressTournament(tournamentId: string) {
@@ -594,9 +624,18 @@ export async function progressTournament(tournamentId: string) {
     .where(eq(tournaments.id, tournamentId))
     .limit(1);
   if (!tournament || tournament.status !== 'group-stage') return { progressed: false };
-  const qualifiers = await groupQualifiers(tournamentId, tournament.qualifiersPerGroup);
-  if (qualifiers.length === 0) return { progressed: false };
-  const seeded = [...qualifiers].sort(qualifierOrder);
+  const qualifierResult = await groupQualifiers({
+    tournamentId,
+    qualifiersPerGroup: tournament.qualifiersPerGroup,
+    wildcardQualifiers: tournament.wildcardQualifiers ?? 0,
+  });
+  if (qualifierResult.status !== 'ready') {
+    return { progressed: false, reason: qualifierResult.status };
+  }
+  if (qualifierResult.qualifiers.length < 2) {
+    return { progressed: false, reason: 'not-enough-qualifiers' };
+  }
+  const seeded = qualifierResult.qualifiers;
   const firstRound = createFirstRound(seeded);
   const bracketSize = nextPowerOfTwo(seeded.length);
   const totalRounds = Math.log2(bracketSize);
@@ -692,7 +731,7 @@ export async function progressTournament(tournamentId: string) {
       .set({ status: 'knockout', updatedAt: new Date() })
       .where(eq(tournaments.id, tournamentId));
   });
-  return { progressed: true, qualifiers: qualifiers.length, rounds: totalRounds };
+  return { progressed: true, qualifiers: seeded.length, rounds: totalRounds };
 }
 
 export async function advanceKnockoutWinner(matchId: string) {

@@ -60,12 +60,20 @@ function assertRegistrationOpen(status: string) {
   }
 }
 
-function assertAutomaticQualifiersFitGroupSize(
-  qualifiersPerGroup: number,
-  groupSizes: readonly number[],
-) {
+function assertQualifierConfiguration(input: {
+  qualifiersPerGroup: number;
+  wildcardQualifiers: number;
+  groupSizes: readonly number[];
+}) {
+  const { groupSizes, qualifiersPerGroup, wildcardQualifiers } = input;
   const smallestGroupSize = Math.min(...groupSizes);
   if (qualifiersPerGroup >= smallestGroupSize) {
+    throw new ServiceError('TOURNAMENT_QUALIFIERS_INVALID', 'error.invalidRequest', 409);
+  }
+  if (wildcardQualifiers > groupSizes.length) {
+    throw new ServiceError('TOURNAMENT_WILDCARDS_INVALID', 'error.invalidRequest', 409);
+  }
+  if (groupSizes.length * qualifiersPerGroup + wildcardQualifiers < 2) {
     throw new ServiceError('TOURNAMENT_QUALIFIERS_INVALID', 'error.invalidRequest', 409);
   }
 }
@@ -236,6 +244,7 @@ export async function createTournament(actorId: string, input: CreateTournamentI
         timeZone: input.timeZone,
         groupSize: input.groupSize,
         qualifiersPerGroup: input.qualifiersPerGroup,
+        wildcardQualifiers: input.wildcardQualifiers,
         seedingMethod: input.seedingMethod,
         rulesId: rules.id,
       })
@@ -639,10 +648,11 @@ export async function generateTournamentDraftDraw(actorId: string, tournamentId:
     } catch {
       throw new ServiceError('TOURNAMENT_DRAW_REQUIRES_PLAYERS', 'error.invalidRequest', 409);
     }
-    assertAutomaticQualifiersFitGroupSize(
-      tournament.qualifiersPerGroup,
-      assignments.map((assignment) => assignment.playerIds.length),
-    );
+    assertQualifierConfiguration({
+      qualifiersPerGroup: tournament.qualifiersPerGroup,
+      wildcardQualifiers: tournament.wildcardQualifiers ?? 0,
+      groupSizes: assignments.map((assignment) => assignment.playerIds.length),
+    });
     await tx.delete(tournamentGroups).where(eq(tournamentGroups.tournamentId, tournamentId));
     for (const assignment of assignments) {
       const [group] = await tx
@@ -741,7 +751,11 @@ export async function startTournament(actorId: string, tournamentId: string) {
     if (Math.max(...groupSizes) - Math.min(...groupSizes) > 1) {
       throw new ServiceError('TOURNAMENT_DRAFT_DRAW_INVALID', 'error.invalidRequest', 409);
     }
-    assertAutomaticQualifiersFitGroupSize(tournament.qualifiersPerGroup, groupSizes);
+    assertQualifierConfiguration({
+      qualifiersPerGroup: tournament.qualifiersPerGroup,
+      wildcardQualifiers: tournament.wildcardQualifiers ?? 0,
+      groupSizes,
+    });
 
     let fixtureCount = 0;
     const nextFixturePositionByRound = new Map<number, number>();
@@ -982,6 +996,9 @@ export async function getTournamentManagement(
     status: tournament.status,
     startsAt: tournament.startsAt.toISOString(),
     timeZone: tournament.timeZone,
+    groupSize: tournament.groupSize,
+    qualifiersPerGroup: tournament.qualifiersPerGroup,
+    wildcardQualifiers: tournament.wildcardQualifiers,
     draftDrawGeneratedAt: tournament.draftDrawGeneratedAt?.toISOString() ?? null,
     entryRequests: entryRequests.map(serializeEntryRequest),
     invitations: invitations.map(serializeInvitation),

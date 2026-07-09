@@ -52,6 +52,7 @@ function CreateTournamentForm({ clubId }: { clubId: string }) {
       timeZone: String(data.get('timeZone')),
       groupSize: Number(data.get('groupSize')),
       qualifiersPerGroup: Number(data.get('qualifiersPerGroup')),
+      wildcardQualifiers: Number(data.get('wildcardQualifiers')),
       seedingMethod: data.get('seedingMethod') === 'random' ? 'random' : 'manual',
       rules: {
         bestOf: Number(data.get('bestOf')) as 1 | 3 | 5,
@@ -105,6 +106,13 @@ function CreateTournamentForm({ clubId }: { clubId: string }) {
             defaultValue="2"
             label={t('tournaments.qualifiers')}
             name="qualifiersPerGroup"
+            required
+            type="number"
+          />
+          <Field
+            defaultValue="0"
+            label={t('tournaments.wildcards')}
+            name="wildcardQualifiers"
             required
             type="number"
           />

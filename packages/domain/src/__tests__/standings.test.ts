@@ -1,164 +1,77 @@
-import { calculateStandings } from '../standings';
+import { calculateStandings, OrganizerTiebreakRequiredError } from '../standings';
+import type { GroupMatch } from '../types';
 
-test('uses head-to-head before set differential for a two-player tie', () => {
+const match = (
+  playerOneId: string,
+  playerTwoId: string,
+  playerOneSets: number,
+  playerTwoSets: number,
+  playerOnePoints: number,
+  playerTwoPoints: number,
+): GroupMatch => ({
+  playerOneId,
+  playerTwoId,
+  playerOneSets,
+  playerTwoSets,
+  playerOnePoints,
+  playerTwoPoints,
+});
+
+test('uses head-to-head before game differential for a two-player tie', () => {
   const standings = calculateStandings(
     ['a', 'b', 'c'],
-    [
-      {
-        playerOneId: 'a',
-        playerTwoId: 'b',
-        playerOneSets: 3,
-        playerTwoSets: 2,
-        playerOnePoints: 50,
-        playerTwoPoints: 52,
-      },
-      {
-        playerOneId: 'b',
-        playerTwoId: 'c',
-        playerOneSets: 3,
-        playerTwoSets: 0,
-        playerOnePoints: 33,
-        playerTwoPoints: 10,
-      },
-      {
-        playerOneId: 'c',
-        playerTwoId: 'a',
-        playerOneSets: 0,
-        playerTwoSets: 3,
-        playerOnePoints: 8,
-        playerTwoPoints: 33,
-      },
-    ],
+    [match('a', 'b', 3, 2, 50, 52), match('b', 'c', 3, 0, 33, 10), match('c', 'a', 0, 3, 8, 33)],
   );
   expect(standings.map((row) => row.playerId)).toEqual(['a', 'b', 'c']);
 });
 
-test('uses set differential for a circular three-player tie', () => {
+test('uses only matches among tied Players for three-player tiebreak metrics', () => {
   const standings = calculateStandings(
-    ['a', 'b', 'c'],
+    ['a', 'b', 'c', 'd'],
     [
-      {
-        playerOneId: 'a',
-        playerTwoId: 'b',
-        playerOneSets: 3,
-        playerTwoSets: 0,
-        playerOnePoints: 33,
-        playerTwoPoints: 20,
-      },
-      {
-        playerOneId: 'b',
-        playerTwoId: 'c',
-        playerOneSets: 3,
-        playerTwoSets: 2,
-        playerOnePoints: 50,
-        playerTwoPoints: 45,
-      },
-      {
-        playerOneId: 'c',
-        playerTwoId: 'a',
-        playerOneSets: 3,
-        playerTwoSets: 2,
-        playerOnePoints: 50,
-        playerTwoPoints: 45,
-      },
+      match('a', 'b', 3, 0, 33, 20),
+      match('b', 'c', 3, 2, 50, 45),
+      match('c', 'a', 3, 2, 50, 45),
+      match('a', 'd', 3, 0, 33, 0),
+      match('b', 'd', 3, 0, 33, 0),
+      match('c', 'd', 3, 0, 33, 30),
     ],
   );
-  expect(standings.map((row) => row.playerId)).toEqual(['a', 'c', 'b']);
+
+  expect(standings.map((row) => row.playerId)).toEqual(['c', 'a', 'b', 'd']);
 });
 
-test('uses point differential and then points scored for circular ties', () => {
-  const byDifferential = calculateStandings(
-    ['a', 'b', 'c'],
+test('returns to head-to-head whenever a larger tie is reduced to two Players', () => {
+  const standings = calculateStandings(
+    ['a', 'b', 'c', 'd'],
     [
-      {
-        playerOneId: 'a',
-        playerTwoId: 'b',
-        playerOneSets: 3,
-        playerTwoSets: 2,
-        playerOnePoints: 50,
-        playerTwoPoints: 40,
-      },
-      {
-        playerOneId: 'b',
-        playerTwoId: 'c',
-        playerOneSets: 3,
-        playerTwoSets: 2,
-        playerOnePoints: 50,
-        playerTwoPoints: 45,
-      },
-      {
-        playerOneId: 'c',
-        playerTwoId: 'a',
-        playerOneSets: 3,
-        playerTwoSets: 2,
-        playerOnePoints: 60,
-        playerTwoPoints: 55,
-      },
+      match('a', 'b', 3, 2, 55, 50),
+      match('b', 'c', 3, 0, 33, 20),
+      match('c', 'a', 3, 2, 55, 50),
+      match('a', 'd', 3, 0, 33, 8),
+      match('b', 'd', 3, 0, 33, 8),
+      match('c', 'd', 3, 0, 33, 8),
     ],
   );
-  expect(byDifferential.map((row) => row.playerId)).toEqual(['a', 'c', 'b']);
 
-  const byPointsScored = calculateStandings(
-    ['a', 'b', 'c'],
-    [
-      {
-        playerOneId: 'a',
-        playerTwoId: 'b',
-        playerOneSets: 3,
-        playerTwoSets: 2,
-        playerOnePoints: 50,
-        playerTwoPoints: 40,
-      },
-      {
-        playerOneId: 'b',
-        playerTwoId: 'c',
-        playerOneSets: 3,
-        playerTwoSets: 2,
-        playerOnePoints: 60,
-        playerTwoPoints: 50,
-      },
-      {
-        playerOneId: 'c',
-        playerTwoId: 'a',
-        playerOneSets: 3,
-        playerTwoSets: 2,
-        playerOnePoints: 70,
-        playerTwoPoints: 60,
-      },
-    ],
-  );
-  expect(byPointsScored.map((row) => row.playerId)).toEqual(['c', 'a', 'b']);
+  expect(standings.map((row) => row.playerId)).toEqual(['a', 'b', 'c', 'd']);
 });
 
-test('uses player id as the deterministic final draw', () => {
+test('requires an Organizer Tiebreak Decision when statistics cannot separate Players', () => {
+  expect(() =>
+    calculateStandings(
+      ['c', 'b', 'a'],
+      [match('a', 'b', 3, 2, 11, 10), match('b', 'c', 3, 2, 11, 10), match('c', 'a', 3, 2, 11, 10)],
+    ),
+  ).toThrow(OrganizerTiebreakRequiredError);
+});
+
+test('uses the Organizer Tiebreak Decision without requiring a written reason', () => {
   const standings = calculateStandings(
     ['c', 'b', 'a'],
-    [
-      {
-        playerOneId: 'a',
-        playerTwoId: 'b',
-        playerOneSets: 3,
-        playerTwoSets: 2,
-        playerOnePoints: 11,
-        playerTwoPoints: 10,
-      },
-      {
-        playerOneId: 'b',
-        playerTwoId: 'c',
-        playerOneSets: 3,
-        playerTwoSets: 2,
-        playerOnePoints: 11,
-        playerTwoPoints: 10,
-      },
-      {
-        playerOneId: 'c',
-        playerTwoId: 'a',
-        playerOneSets: 3,
-        playerTwoSets: 2,
-        playerOnePoints: 11,
-        playerTwoPoints: 10,
-      },
-    ],
+    [match('a', 'b', 3, 2, 11, 10), match('b', 'c', 3, 2, 11, 10), match('c', 'a', 3, 2, 11, 10)],
+    { organizerTiebreakOrder: ['b', 'c', 'a'] },
   );
-  expect(standings.map((row) => row.playerId)).toEqual(['a', 'b', 'c']);
+
+  expect(standings.map((row) => row.playerId)).toEqual(['b', 'c', 'a']);
 });

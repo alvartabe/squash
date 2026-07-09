@@ -1,6 +1,6 @@
 # Current Code Gaps
 
-Last reviewed: 2026-07-05.
+Last reviewed: 2026-07-09.
 
 This document identifies known differences between intended product behavior and the current repository. It is not an automatic backlog and does not authorize implementing Later features. Agents must verify each gap against current code before acting.
 
@@ -62,16 +62,13 @@ The Junior Club Participation Permission cannot yet be enforced for Tournament e
 because the repository has no Guardian, Junior age, consent, or permission model. This
 slice does not invent a bypass, denial rule, or consent mechanism.
 
-| Intended behavior                                | Current evidence                   | Gap                                                                                   |
-| ------------------------------------------------ | ---------------------------------- | ------------------------------------------------------------------------------------- |
-| Official and Social Tournament ownership models  | `tournaments.clubId` is required   | Current schema supports Official Club ownership only; Social Tournaments remain Later |
-| Automatic plus Wildcard qualifiers               | `qualifiersPerGroup`               | Fixed qualifiers per Group only                                                       |
-| Fixed Squash Canada-style tiebreak procedure     | `packages/domain/src/standings.ts` | Current ordering uses a simpler whole-Group comparison and internal ID fallback       |
-| Normalized Wildcard comparison                   | Tournament domain                  | Not implemented                                                                       |
-| Automatic tiered Knockout Draw                   | `packages/domain/src/bracket.ts`   | Existing ordering compares raw wins/differentials and does not model Wildcards        |
-| Organizer-controlled Official Results            | `submitMatchResult`                | Participants currently submit initial Tournament results                              |
-| Dependency-based Result Locks                    | Revision logic                     | Current corrections do not model agreed phase/dependency locks                        |
-| Separate Official and Social Competition Records | `tournamentStats`                  | All Tournament statistics share one category                                          |
+| Intended behavior                                | Current evidence                 | Gap                                                                                                                                   |
+| ------------------------------------------------ | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Official and Social Tournament ownership models  | `tournaments.clubId` is required | Current schema supports Official Club ownership only; Social Tournaments remain Later                                                 |
+| Organizer Tiebreak Decision workflow             | Tournament progression service   | Domain detects inseparable standings, Wildcard, and bracket-seed ties, but no web workflow records the audited organizer decision yet |
+| Organizer-controlled Official Results            | `submitMatchResult`              | Participants currently submit initial Tournament results                                                                              |
+| Dependency-based Result Locks                    | Revision logic                   | Current corrections do not model agreed phase/dependency locks                                                                        |
+| Separate Official and Social Competition Records | `tournamentStats`                | All Tournament statistics share one category                                                                                          |
 
 Social Tournaments remain Later.
 

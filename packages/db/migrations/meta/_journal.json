@@ -71,6 +71,13 @@
       "when": 1783309312971,
       "tag": "0009_narrow_mephisto",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1783573558104,
+      "tag": "0010_medical_odin",
+      "breakpoints": true
     }
   ]
 }

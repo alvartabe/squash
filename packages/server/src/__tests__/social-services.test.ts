@@ -10,6 +10,7 @@ import {
   cancelChallenge,
   createChallenge,
   disputeChallenge,
+  progressTournament,
   respondToFriend,
   submitMatchResult,
 } from '../services';
@@ -50,6 +51,19 @@ function mockOrderedSelect(rows: unknown[]) {
   const orderBy = jest.fn().mockResolvedValue(rows);
   const where = jest.fn(() => ({ orderBy }));
   const from = jest.fn(() => ({ where }));
+  mockDb.select.mockReturnValueOnce({ from });
+}
+
+function mockWhereSelect(rows: unknown[]) {
+  const where = jest.fn().mockResolvedValue(rows);
+  const from = jest.fn(() => ({ where }));
+  mockDb.select.mockReturnValueOnce({ from });
+}
+
+function mockJoinedWhereSelect(rows: unknown[]) {
+  const where = jest.fn().mockResolvedValue(rows);
+  const innerJoin = jest.fn(() => ({ where }));
+  const from = jest.fn(() => ({ innerJoin }));
   mockDb.select.mockReturnValueOnce({ from });
 }
 
@@ -289,5 +303,51 @@ describe('challenge service authorization', () => {
         }),
       ]),
     );
+  });
+});
+
+describe('tournament progression', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('waits for an Organizer Tiebreak Decision instead of using an arbitrary bracket seed', async () => {
+    mockSelect([
+      {
+        id: 'tournament-id',
+        status: 'group-stage',
+        qualifiersPerGroup: 1,
+        wildcardQualifiers: 0,
+      },
+    ]);
+    mockWhereSelect([{ id: 'group-id' }]);
+    mockWhereSelect([{ userId: 'a' }, { userId: 'b' }, { userId: 'c' }]);
+    mockJoinedWhereSelect([
+      {
+        matchId: 'match-ab',
+        playerOneId: 'a',
+        playerTwoId: 'b',
+        status: 'completed',
+      },
+      {
+        matchId: 'match-bc',
+        playerOneId: 'b',
+        playerTwoId: 'c',
+        status: 'completed',
+      },
+      {
+        matchId: 'match-ca',
+        playerOneId: 'c',
+        playerTwoId: 'a',
+        status: 'completed',
+      },
+    ]);
+    mockWhereSelect([{ playerOnePoints: 11, playerTwoPoints: 10 }]);
+    mockWhereSelect([{ playerOnePoints: 11, playerTwoPoints: 10 }]);
+    mockWhereSelect([{ playerOnePoints: 11, playerTwoPoints: 10 }]);
+
+    await expect(progressTournament('tournament-id')).resolves.toMatchObject({
+      progressed: false,
+      reason: 'manual-tiebreak-required',
+    });
+    expect(mockDb.transaction).not.toHaveBeenCalled();
   });
 });

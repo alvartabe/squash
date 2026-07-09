@@ -1,55 +1,281 @@
-import { createFirstRound } from '../bracket';
+import { createFirstRound, seedQualifiers, selectTournamentQualifiers } from '../bracket';
+import { OrganizerTiebreakRequiredError } from '../standings';
+import type { Qualifier, Standing } from '../types';
+
+function qualifier(input: {
+  playerId: string;
+  groupId: string;
+  groupRank: number;
+  qualification?: Qualifier['qualification'];
+  matchWinPercentage: number;
+  gameWinPercentage: number;
+  pointWinPercentage: number;
+}): Qualifier {
+  return {
+    qualification: 'automatic',
+    wins: 0,
+    matchesPlayed: 0,
+    setsWon: 0,
+    setsLost: 0,
+    setDifferential: 0,
+    pointsFor: 0,
+    pointsAgainst: 0,
+    pointDifferential: 0,
+    ...input,
+  };
+}
+
+function standing(input: {
+  playerId: string;
+  rank: number;
+  wins: number;
+  played: number;
+  setsWon: number;
+  setsLost: number;
+  pointsFor: number;
+  pointsAgainst: number;
+}): Standing {
+  return {
+    losses: input.played - input.wins,
+    setDifferential: input.setsWon - input.setsLost,
+    pointDifferential: input.pointsFor - input.pointsAgainst,
+    matchWinPercentage: input.played === 0 ? 0 : input.wins / input.played,
+    gameWinPercentage:
+      input.setsWon + input.setsLost === 0 ? 0 : input.setsWon / (input.setsWon + input.setsLost),
+    pointWinPercentage:
+      input.pointsFor + input.pointsAgainst === 0
+        ? 0
+        : input.pointsFor / (input.pointsFor + input.pointsAgainst),
+    ...input,
+  };
+}
+
+test('selects Automatic Qualifiers plus Wildcards by normalized percentages', () => {
+  const qualifiers = selectTournamentQualifiers(
+    [
+      {
+        groupId: 'a',
+        standings: [
+          standing({
+            playerId: 'a1',
+            rank: 1,
+            wins: 3,
+            played: 3,
+            setsWon: 9,
+            setsLost: 0,
+            pointsFor: 99,
+            pointsAgainst: 60,
+          }),
+          standing({
+            playerId: 'a2',
+            rank: 2,
+            wins: 1,
+            played: 3,
+            setsWon: 4,
+            setsLost: 6,
+            pointsFor: 120,
+            pointsAgainst: 90,
+          }),
+        ],
+      },
+      {
+        groupId: 'b',
+        standings: [
+          standing({
+            playerId: 'b1',
+            rank: 1,
+            wins: 2,
+            played: 2,
+            setsWon: 6,
+            setsLost: 0,
+            pointsFor: 66,
+            pointsAgainst: 30,
+          }),
+          standing({
+            playerId: 'b2',
+            rank: 2,
+            wins: 1,
+            played: 2,
+            setsWon: 3,
+            setsLost: 3,
+            pointsFor: 66,
+            pointsAgainst: 60,
+          }),
+        ],
+      },
+    ],
+    { automaticQualifiersPerGroup: 1, wildcardQualifiers: 1 },
+  );
+
+  expect(qualifiers.map((item) => item.playerId)).toEqual(['b1', 'a1', 'b2']);
+  expect(qualifiers.find((item) => item.playerId === 'b2')?.qualification).toBe('wildcard');
+});
+
+test('requires an Organizer Tiebreak Decision when a Wildcard cutoff is inseparable', () => {
+  expect(() =>
+    selectTournamentQualifiers(
+      [
+        {
+          groupId: 'a',
+          standings: [
+            standing({
+              playerId: 'a1',
+              rank: 1,
+              wins: 2,
+              played: 2,
+              setsWon: 6,
+              setsLost: 0,
+              pointsFor: 66,
+              pointsAgainst: 20,
+            }),
+            standing({
+              playerId: 'a2',
+              rank: 2,
+              wins: 1,
+              played: 2,
+              setsWon: 3,
+              setsLost: 3,
+              pointsFor: 50,
+              pointsAgainst: 50,
+            }),
+          ],
+        },
+        {
+          groupId: 'b',
+          standings: [
+            standing({
+              playerId: 'b1',
+              rank: 1,
+              wins: 2,
+              played: 2,
+              setsWon: 6,
+              setsLost: 0,
+              pointsFor: 66,
+              pointsAgainst: 20,
+            }),
+            standing({
+              playerId: 'b2',
+              rank: 2,
+              wins: 1,
+              played: 2,
+              setsWon: 3,
+              setsLost: 3,
+              pointsFor: 50,
+              pointsAgainst: 50,
+            }),
+          ],
+        },
+      ],
+      { automaticQualifiersPerGroup: 1, wildcardQualifiers: 1 },
+    ),
+  ).toThrow(OrganizerTiebreakRequiredError);
+});
+
+test('seeds group winners before other Automatic Qualifiers and Wildcards', () => {
+  const seeded = seedQualifiers([
+    qualifier({
+      playerId: 'second',
+      groupId: 'a',
+      groupRank: 2,
+      matchWinPercentage: 1,
+      gameWinPercentage: 1,
+      pointWinPercentage: 1,
+    }),
+    qualifier({
+      playerId: 'wildcard',
+      groupId: 'b',
+      groupRank: 3,
+      qualification: 'wildcard',
+      matchWinPercentage: 1,
+      gameWinPercentage: 1,
+      pointWinPercentage: 1,
+    }),
+    qualifier({
+      playerId: 'winner',
+      groupId: 'c',
+      groupRank: 1,
+      matchWinPercentage: 0.5,
+      gameWinPercentage: 0.5,
+      pointWinPercentage: 0.5,
+    }),
+  ]);
+
+  expect(seeded.map((item) => item.playerId)).toEqual(['winner', 'second', 'wildcard']);
+});
+
+test('requires an Organizer Tiebreak Decision for inseparable bracket seeds', () => {
+  expect(() =>
+    seedQualifiers([
+      qualifier({
+        playerId: 'a1',
+        groupId: 'a',
+        groupRank: 1,
+        matchWinPercentage: 1,
+        gameWinPercentage: 1,
+        pointWinPercentage: 1,
+      }),
+      qualifier({
+        playerId: 'b1',
+        groupId: 'b',
+        groupRank: 1,
+        matchWinPercentage: 1,
+        gameWinPercentage: 1,
+        pointWinPercentage: 1,
+      }),
+    ]),
+  ).toThrow(OrganizerTiebreakRequiredError);
+});
 
 test('adds byes and avoids same-group first-round matches when possible', () => {
   const fixtures = createFirstRound([
-    {
+    qualifier({
       playerId: 'a1',
       groupId: 'a',
       groupRank: 1,
-      wins: 3,
-      setDifferential: 8,
-      pointDifferential: 30,
-    },
-    {
+      matchWinPercentage: 1,
+      gameWinPercentage: 0.9,
+      pointWinPercentage: 0.8,
+    }),
+    qualifier({
       playerId: 'b1',
       groupId: 'b',
       groupRank: 1,
-      wins: 3,
-      setDifferential: 7,
-      pointDifferential: 25,
-    },
-    {
+      matchWinPercentage: 0.9,
+      gameWinPercentage: 0.8,
+      pointWinPercentage: 0.7,
+    }),
+    qualifier({
       playerId: 'c1',
       groupId: 'c',
       groupRank: 1,
-      wins: 2,
-      setDifferential: 4,
-      pointDifferential: 15,
-    },
-    {
+      matchWinPercentage: 0.8,
+      gameWinPercentage: 0.7,
+      pointWinPercentage: 0.6,
+    }),
+    qualifier({
       playerId: 'a2',
       groupId: 'a',
       groupRank: 2,
-      wins: 2,
-      setDifferential: 2,
-      pointDifferential: 5,
-    },
-    {
+      matchWinPercentage: 0.7,
+      gameWinPercentage: 0.6,
+      pointWinPercentage: 0.5,
+    }),
+    qualifier({
       playerId: 'b2',
       groupId: 'b',
       groupRank: 2,
-      wins: 1,
-      setDifferential: -1,
-      pointDifferential: -3,
-    },
-    {
+      matchWinPercentage: 0.6,
+      gameWinPercentage: 0.5,
+      pointWinPercentage: 0.4,
+    }),
+    qualifier({
       playerId: 'c2',
       groupId: 'c',
       groupRank: 2,
-      wins: 1,
-      setDifferential: -2,
-      pointDifferential: -8,
-    },
+      matchWinPercentage: 0.5,
+      gameWinPercentage: 0.4,
+      pointWinPercentage: 0.3,
+    }),
   ]);
 
   expect(fixtures).toHaveLength(4);

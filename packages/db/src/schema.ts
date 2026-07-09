@@ -589,6 +589,7 @@ export const tournaments = pgTable(
     timeZone: text('time_zone').notNull(),
     groupSize: integer('group_size').notNull(),
     qualifiersPerGroup: integer('qualifiers_per_group').notNull(),
+    wildcardQualifiers: integer('wildcard_qualifiers').notNull().default(0),
     seedingMethod: seedingMethod('seeding_method').notNull(),
     rulesId: uuid('rules_id')
       .notNull()

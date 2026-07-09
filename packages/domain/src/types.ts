@@ -40,6 +40,9 @@ export type Standing = {
   pointsFor: number;
   pointsAgainst: number;
   pointDifferential: number;
+  matchWinPercentage: number;
+  gameWinPercentage: number;
+  pointWinPercentage: number;
   rank: number;
 };
 
@@ -47,9 +50,18 @@ export type Qualifier = {
   playerId: string;
   groupId: string;
   groupRank: number;
+  qualification: 'automatic' | 'wildcard';
   wins: number;
+  matchesPlayed: number;
+  setsWon: number;
+  setsLost: number;
   setDifferential: number;
+  pointsFor: number;
+  pointsAgainst: number;
   pointDifferential: number;
+  matchWinPercentage: number;
+  gameWinPercentage: number;
+  pointWinPercentage: number;
 };
 
 export type FirstRoundFixture = {

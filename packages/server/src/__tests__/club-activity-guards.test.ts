@@ -144,6 +144,7 @@ describe('archived Club activity guards', () => {
         timeZone: 'America/Costa_Rica',
         groupSize: 4,
         qualifiersPerGroup: 2,
+        wildcardQualifiers: 0,
         seedingMethod: 'manual',
         rules: { bestOf: 5, pointsToWin: 11, winByTwo: true },
       }),

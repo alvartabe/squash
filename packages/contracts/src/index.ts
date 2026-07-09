@@ -130,6 +130,7 @@ export const createTournamentSchema = z
     timeZone: z.string().trim().min(1).max(100),
     groupSize: z.number().int().min(2),
     qualifiersPerGroup: z.number().int().min(1),
+    wildcardQualifiers: z.number().int().nonnegative().default(0),
     seedingMethod: seedingMethodSchema,
     rules: matchRulesSchema,
   })
@@ -223,6 +224,9 @@ export const tournamentManagementSchema = z.object({
   status: tournamentStatusSchema,
   startsAt: z.string(),
   timeZone: z.string(),
+  groupSize: z.number().int().min(2),
+  qualifiersPerGroup: z.number().int().min(1),
+  wildcardQualifiers: z.number().int().nonnegative(),
   draftDrawGeneratedAt: z.string().nullable(),
   entryRequests: z.array(tournamentEntryRequestSchema),
   invitations: z.array(tournamentInvitationSchema),
