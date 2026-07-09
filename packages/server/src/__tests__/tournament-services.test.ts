@@ -493,6 +493,7 @@ describe('Official Tournament management fixture read', () => {
     {
       id: 'fixture-3',
       matchId: 'match-3',
+      matchStatus: 'completed' as const,
       groupId: 'group-2',
       groupName: 'B',
       groupPosition: 2,
@@ -500,12 +501,15 @@ describe('Official Tournament management fixture read', () => {
       position: 2,
       playerOneId: 'player-4',
       playerOneName: 'Diego Arias',
+      playerOneImage: 'https://example.test/diego.png',
       playerTwoId: 'player-5',
       playerTwoName: 'Elena Mora',
+      playerTwoImage: null,
     },
     {
       id: 'fixture-2',
       matchId: 'match-2',
+      matchStatus: 'in-progress' as const,
       groupId: 'group-1',
       groupName: 'A',
       groupPosition: 1,
@@ -513,12 +517,15 @@ describe('Official Tournament management fixture read', () => {
       position: 3,
       playerOneId: 'player-1',
       playerOneName: 'Ana Vega',
+      playerOneImage: null,
       playerTwoId: 'player-3',
       playerTwoName: 'Camila Solano',
+      playerTwoImage: 'https://example.test/camila.png',
     },
     {
       id: 'fixture-1',
       matchId: 'match-1',
+      matchStatus: 'scheduled' as const,
       groupId: 'group-1',
       groupName: 'A',
       groupPosition: 1,
@@ -526,8 +533,10 @@ describe('Official Tournament management fixture read', () => {
       position: 1,
       playerOneId: 'player-1',
       playerOneName: 'Ana Vega',
+      playerOneImage: null,
       playerTwoId: 'player-2',
       playerTwoName: 'Bruno Castro',
+      playerTwoImage: 'https://example.test/bruno.png',
     },
   ];
 
@@ -552,26 +561,34 @@ describe('Official Tournament management fixture read', () => {
         groupPosition: fixture.groupPosition,
         round: fixture.round,
         position: fixture.position,
+        matchStatus: fixture.matchStatus,
         players: [fixture.playerOne.name, fixture.playerTwo.name],
+        playerImages: [fixture.playerOne.image, fixture.playerTwo.image],
       })),
     ).toEqual([
       {
         groupPosition: 1,
         round: 1,
         position: 1,
+        matchStatus: 'scheduled',
         players: ['Ana Vega', 'Bruno Castro'],
+        playerImages: [null, 'https://example.test/bruno.png'],
       },
       {
         groupPosition: 1,
         round: 2,
         position: 3,
+        matchStatus: 'in-progress',
         players: ['Ana Vega', 'Camila Solano'],
+        playerImages: [null, 'https://example.test/camila.png'],
       },
       {
         groupPosition: 2,
         round: 1,
         position: 2,
+        matchStatus: 'completed',
         players: ['Diego Arias', 'Elena Mora'],
+        playerImages: ['https://example.test/diego.png', null],
       },
     ]);
   });
@@ -610,8 +627,9 @@ describe('Official Tournament management fixture read', () => {
         {
           id: 'fixture-3',
           groupName: 'B',
-          playerOne: { name: 'Diego Arias' },
-          playerTwo: { name: 'Elena Mora' },
+          matchStatus: 'completed',
+          playerOne: { name: 'Diego Arias', image: 'https://example.test/diego.png' },
+          playerTwo: { name: 'Elena Mora', image: null },
         },
       ],
     });

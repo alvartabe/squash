@@ -22,6 +22,14 @@ export const submitMatchResultSchema = z.object({
   revisionReason: z.string().trim().max(500).optional(),
 });
 
+export const matchStatusSchema = z.enum([
+  'scheduled',
+  'in-progress',
+  'completed',
+  'disputed',
+  'void',
+]);
+
 export const createChallengeSchema = z.object({
   clubId: idSchema.optional(),
   opponentId: userIdSchema,
@@ -189,6 +197,7 @@ export const tournamentParticipationSchema = z.object({
 export const tournamentGroupFixtureSchema = z.object({
   id: idSchema,
   matchId: idSchema,
+  matchStatus: matchStatusSchema,
   groupId: idSchema,
   groupName: z.string(),
   groupPosition: z.number().int().positive(),
@@ -197,10 +206,12 @@ export const tournamentGroupFixtureSchema = z.object({
   playerOne: z.object({
     id: userIdSchema,
     name: z.string(),
+    image: z.string().nullable(),
   }),
   playerTwo: z.object({
     id: userIdSchema,
     name: z.string(),
+    image: z.string().nullable(),
   }),
 });
 
@@ -556,6 +567,7 @@ export type TournamentVisibility = z.infer<typeof tournamentVisibilitySchema>;
 export type TournamentStatus = z.infer<typeof tournamentStatusSchema>;
 export type TournamentPlayerRelationship = z.infer<typeof tournamentPlayerRelationshipSchema>;
 export type TournamentPlayer = z.infer<typeof tournamentPlayerSchema>;
+export type MatchStatus = z.infer<typeof matchStatusSchema>;
 export type TournamentEntryRequest = z.infer<typeof tournamentEntryRequestSchema>;
 export type TournamentInvitation = z.infer<typeof tournamentInvitationSchema>;
 export type TournamentParticipation = z.infer<typeof tournamentParticipationSchema>;

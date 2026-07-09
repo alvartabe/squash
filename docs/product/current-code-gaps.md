@@ -48,9 +48,10 @@ Official Tournament discovery, explicit Club-only or Public visibility, the Draf
 Registration Open transition, Entry Requests, Invitations, direct addition, accepted
 Tournament Participation, pre-Start withdrawal and removal, and Draft Draw invalidation
 are implemented. Tournament Start finalizes the accepted roster and Draft Draw by
-creating Group Stage fixtures and moving the Tournament to Group Stage. Participation is
-independent of Club Membership, and management routes use the isolated
-management-authentication boundary.
+creating Group Stage fixtures and moving the Tournament to Group Stage. Authorized web
+managers can view finalized Group Stage fixtures with Match status and Player identity
+details. Participation is independent of Club Membership, and management routes use the
+isolated management-authentication boundary.
 
 The legacy direct-registration table was pre-release/dev-only and intentionally removed
 without migration because it had no production participation data to preserve. The new
@@ -61,16 +62,16 @@ The Junior Club Participation Permission cannot yet be enforced for Tournament e
 because the repository has no Guardian, Junior age, consent, or permission model. This
 slice does not invent a bypass, denial rule, or consent mechanism.
 
-| Intended behavior                                | Current evidence                         | Gap                                                                                   |
-| ------------------------------------------------ | ---------------------------------------- | ------------------------------------------------------------------------------------- |
-| Official and Social Tournament ownership models  | `tournaments.clubId` is required         | Current schema supports Official Club ownership only; Social Tournaments remain Later |
-| Automatic plus Wildcard qualifiers               | `qualifiersPerGroup`                     | Fixed qualifiers per Group only                                                       |
-| Fixed Squash Canada-style tiebreak procedure     | `packages/domain/src/standings.ts`       | Current ordering uses a simpler whole-Group comparison and internal ID fallback       |
-| Normalized Wildcard comparison                   | Tournament domain                        | Not implemented                                                                       |
-| Automatic tiered Knockout Draw                   | `packages/domain/src/bracket.ts`         | Existing ordering compares raw wins/differentials and does not model Wildcards        |
-| Organizer-controlled Official Results            | `submitMatchResult`                      | Participants currently submit initial Tournament results                              |
-| Dependency-based Result Locks                    | Revision logic                           | Current corrections do not model agreed phase/dependency locks                        |
-| Separate Official and Social Competition Records | `tournamentStats`                        | All Tournament statistics share one category                                          |
+| Intended behavior                                | Current evidence                   | Gap                                                                                   |
+| ------------------------------------------------ | ---------------------------------- | ------------------------------------------------------------------------------------- |
+| Official and Social Tournament ownership models  | `tournaments.clubId` is required   | Current schema supports Official Club ownership only; Social Tournaments remain Later |
+| Automatic plus Wildcard qualifiers               | `qualifiersPerGroup`               | Fixed qualifiers per Group only                                                       |
+| Fixed Squash Canada-style tiebreak procedure     | `packages/domain/src/standings.ts` | Current ordering uses a simpler whole-Group comparison and internal ID fallback       |
+| Normalized Wildcard comparison                   | Tournament domain                  | Not implemented                                                                       |
+| Automatic tiered Knockout Draw                   | `packages/domain/src/bracket.ts`   | Existing ordering compares raw wins/differentials and does not model Wildcards        |
+| Organizer-controlled Official Results            | `submitMatchResult`                | Participants currently submit initial Tournament results                              |
+| Dependency-based Result Locks                    | Revision logic                     | Current corrections do not model agreed phase/dependency locks                        |
+| Separate Official and Social Competition Records | `tournamentStats`                  | All Tournament statistics share one category                                          |
 
 Social Tournaments remain Later.
 

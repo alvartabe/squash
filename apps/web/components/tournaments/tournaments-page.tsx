@@ -5,6 +5,7 @@ import type {
   TournamentManagement,
   TournamentVisibility,
 } from '@squash/contracts';
+import type { MessageKey } from '@squash/i18n';
 import { useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -388,6 +389,7 @@ function GroupStageFixturesSection({ tournament }: { tournament: TournamentManag
                 <tr>
                   <th className="px-3 py-2 font-medium">{t('tournaments.round')}</th>
                   <th className="px-3 py-2 font-medium">{t('tournaments.fixture')}</th>
+                  <th className="px-3 py-2 font-medium">{t('common.status')}</th>
                   <th className="px-3 py-2 font-medium">{t('tournaments.players')}</th>
                 </tr>
               </thead>
@@ -396,6 +398,9 @@ function GroupStageFixturesSection({ tournament }: { tournament: TournamentManag
                   <tr className="border-t" key={fixture.id}>
                     <td className="whitespace-nowrap px-3 py-2">{fixture.round}</td>
                     <td className="whitespace-nowrap px-3 py-2">{fixture.position}</td>
+                    <td className="whitespace-nowrap px-3 py-2">
+                      {t(matchStatusMessageKeys[fixture.matchStatus])}
+                    </td>
                     <td className="px-3 py-2">
                       {fixture.playerOne.name}
                       <span className="px-2 text-muted-foreground">{t('tournaments.versus')}</span>
@@ -411,6 +416,14 @@ function GroupStageFixturesSection({ tournament }: { tournament: TournamentManag
     </section>
   );
 }
+
+const matchStatusMessageKeys: Record<TournamentGroupFixture['matchStatus'], MessageKey> = {
+  scheduled: 'tournaments.matchStatus.scheduled',
+  'in-progress': 'tournaments.matchStatus.inProgress',
+  completed: 'tournaments.matchStatus.completed',
+  disputed: 'tournaments.matchStatus.disputed',
+  void: 'tournaments.matchStatus.void',
+};
 
 function groupFixturesByDraftDrawGroup(fixtures: TournamentGroupFixture[]) {
   const groups: Array<{

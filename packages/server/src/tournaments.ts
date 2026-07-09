@@ -842,6 +842,7 @@ const serializeParticipation = (row: {
 const serializeGroupFixture = (row: {
   id: string;
   matchId: string;
+  matchStatus: 'scheduled' | 'in-progress' | 'completed' | 'disputed' | 'void';
   groupId: string;
   groupName: string;
   groupPosition: number;
@@ -849,11 +850,14 @@ const serializeGroupFixture = (row: {
   position: number;
   playerOneId: string;
   playerOneName: string;
+  playerOneImage: string | null;
   playerTwoId: string;
   playerTwoName: string;
+  playerTwoImage: string | null;
 }): TournamentGroupFixture => ({
   id: row.id,
   matchId: row.matchId,
+  matchStatus: row.matchStatus,
   groupId: row.groupId,
   groupName: row.groupName,
   groupPosition: row.groupPosition,
@@ -862,10 +866,12 @@ const serializeGroupFixture = (row: {
   playerOne: {
     id: row.playerOneId,
     name: row.playerOneName,
+    image: row.playerOneImage,
   },
   playerTwo: {
     id: row.playerTwoId,
     name: row.playerTwoName,
+    image: row.playerTwoImage,
   },
 });
 
@@ -932,6 +938,7 @@ export async function getTournamentManagement(
         .select({
           id: tournamentFixtures.id,
           matchId: matches.id,
+          matchStatus: matches.status,
           groupId: tournamentGroups.id,
           groupName: tournamentGroups.name,
           groupPosition: tournamentGroups.position,
@@ -939,8 +946,10 @@ export async function getTournamentManagement(
           position: tournamentFixtures.position,
           playerOneId: fixturePlayerOne.id,
           playerOneName: fixturePlayerOne.name,
+          playerOneImage: fixturePlayerOne.image,
           playerTwoId: fixturePlayerTwo.id,
           playerTwoName: fixturePlayerTwo.name,
+          playerTwoImage: fixturePlayerTwo.image,
         })
         .from(tournamentFixtures)
         .innerJoin(tournamentGroups, eq(tournamentGroups.id, tournamentFixtures.groupId))
