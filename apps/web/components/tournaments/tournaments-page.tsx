@@ -1,6 +1,10 @@
 'use client';
 
-import type { TournamentManagement, TournamentVisibility } from '@squash/contracts';
+import type {
+  TournamentGroupFixture,
+  TournamentManagement,
+  TournamentVisibility,
+} from '@squash/contracts';
 import { useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -351,10 +355,91 @@ function TournamentCard({
             </div>
           ))}
         </section>
+        <GroupStageFixturesSection tournament={tournament} />
         {action.isError ? (
           <p className="text-sm text-destructive">{t('tournaments.actionError')}</p>
         ) : null}
       </CardContent>
     </Card>
   );
+}
+
+function GroupStageFixturesSection({ tournament }: { tournament: TournamentManagement }) {
+  const { t } = useLocale();
+  const showFixtures =
+    ['group-stage', 'knockout', 'completed'].includes(tournament.status) ||
+    tournament.groupFixtures.length > 0;
+  if (!showFixtures) return null;
+  const groups = groupFixturesByDraftDrawGroup(tournament.groupFixtures);
+  return (
+    <section className="grid gap-3">
+      <h3 className="font-semibold">{t('tournaments.groupStageFixtures')}</h3>
+      {tournament.groupFixtures.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{t('tournaments.noGroupFixtures')}</p>
+      ) : null}
+      {groups.map((group) => (
+        <div className="grid gap-2" key={group.id}>
+          <h4 className="text-sm font-medium">
+            {t('tournaments.group')} {group.name}
+          </h4>
+          <div className="overflow-x-auto rounded-md border">
+            <table className="w-full min-w-[30rem] text-sm">
+              <thead className="bg-muted/50 text-left text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2 font-medium">{t('tournaments.round')}</th>
+                  <th className="px-3 py-2 font-medium">{t('tournaments.fixture')}</th>
+                  <th className="px-3 py-2 font-medium">{t('tournaments.players')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {group.fixtures.map((fixture) => (
+                  <tr className="border-t" key={fixture.id}>
+                    <td className="whitespace-nowrap px-3 py-2">{fixture.round}</td>
+                    <td className="whitespace-nowrap px-3 py-2">{fixture.position}</td>
+                    <td className="px-3 py-2">
+                      {fixture.playerOne.name}
+                      <span className="px-2 text-muted-foreground">{t('tournaments.versus')}</span>
+                      {fixture.playerTwo.name}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function groupFixturesByDraftDrawGroup(fixtures: TournamentGroupFixture[]) {
+  const groups: Array<{
+    id: string;
+    name: string;
+    position: number;
+    fixtures: TournamentGroupFixture[];
+  }> = [];
+  const groupById = new Map<string, (typeof groups)[number]>();
+  for (const fixture of fixtures) {
+    let group = groupById.get(fixture.groupId);
+    if (!group) {
+      group = {
+        id: fixture.groupId,
+        name: fixture.groupName,
+        position: fixture.groupPosition,
+        fixtures: [],
+      };
+      groupById.set(fixture.groupId, group);
+      groups.push(group);
+    }
+    group.fixtures.push(fixture);
+  }
+  return groups
+    .sort((left, right) => left.position - right.position)
+    .map((group) => ({
+      ...group,
+      fixtures: [...group.fixtures].sort(
+        (left, right) => left.round - right.round || left.position - right.position,
+      ),
+    }));
 }

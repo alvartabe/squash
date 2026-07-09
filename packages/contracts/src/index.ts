@@ -186,6 +186,24 @@ export const tournamentParticipationSchema = z.object({
   acceptedAt: z.string(),
 });
 
+export const tournamentGroupFixtureSchema = z.object({
+  id: idSchema,
+  matchId: idSchema,
+  groupId: idSchema,
+  groupName: z.string(),
+  groupPosition: z.number().int().positive(),
+  round: z.number().int().positive(),
+  position: z.number().int().positive(),
+  playerOne: z.object({
+    id: userIdSchema,
+    name: z.string(),
+  }),
+  playerTwo: z.object({
+    id: userIdSchema,
+    name: z.string(),
+  }),
+});
+
 export const tournamentManagementSchema = z.object({
   id: idSchema,
   clubId: idSchema,
@@ -198,6 +216,7 @@ export const tournamentManagementSchema = z.object({
   entryRequests: z.array(tournamentEntryRequestSchema),
   invitations: z.array(tournamentInvitationSchema),
   participations: z.array(tournamentParticipationSchema),
+  groupFixtures: z.array(tournamentGroupFixtureSchema),
 });
 
 export const tournamentPlayerCandidateSchema = z.object({
@@ -540,6 +559,7 @@ export type TournamentPlayer = z.infer<typeof tournamentPlayerSchema>;
 export type TournamentEntryRequest = z.infer<typeof tournamentEntryRequestSchema>;
 export type TournamentInvitation = z.infer<typeof tournamentInvitationSchema>;
 export type TournamentParticipation = z.infer<typeof tournamentParticipationSchema>;
+export type TournamentGroupFixture = z.infer<typeof tournamentGroupFixtureSchema>;
 export type TournamentManagement = z.infer<typeof tournamentManagementSchema>;
 export type TournamentPlayerCandidate = z.infer<typeof tournamentPlayerCandidateSchema>;
 export type RecurringAvailabilityInput = z.infer<typeof recurringAvailabilitySchema>;

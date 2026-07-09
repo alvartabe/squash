@@ -1,6 +1,7 @@
 import type {
   CreateTournamentInput,
   TournamentEntryRequest,
+  TournamentGroupFixture,
   TournamentInvitation,
   TournamentManagement,
   TournamentParticipation,
@@ -27,6 +28,7 @@ import {
 } from '@squash/db/schema';
 import { assignPlayersToGroups, createRoundRobinPairs } from '@squash/domain';
 import { and, asc, eq, exists, ilike, inArray, isNull, or } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { getClubAuthorization } from './authorization';
 import { db } from './database';
 import { forbidden, notFound, ServiceError } from './errors';
@@ -34,6 +36,9 @@ import { forbidden, notFound, ServiceError } from './errors';
 type ReadDatabase = Pick<typeof db, 'select'>;
 
 const preStartStatuses = ['draft', 'registration'] as const;
+const groupFixtureReadableStatuses = ['group-stage', 'knockout', 'completed', 'cancelled'] as const;
+const fixturePlayerOne = alias(users, 'fixture_player_one');
+const fixturePlayerTwo = alias(users, 'fixture_player_two');
 
 function ruleRecord(rules: { bestOf: number; pointsToWin: number; winByTwo: boolean }) {
   return { bestOf: rules.bestOf, pointsToWin: rules.pointsToWin, winByTwo: rules.winByTwo };
@@ -834,6 +839,36 @@ const serializeParticipation = (row: {
   acceptedAt: row.acceptedAt.toISOString(),
 });
 
+const serializeGroupFixture = (row: {
+  id: string;
+  matchId: string;
+  groupId: string;
+  groupName: string;
+  groupPosition: number;
+  round: number;
+  position: number;
+  playerOneId: string;
+  playerOneName: string;
+  playerTwoId: string;
+  playerTwoName: string;
+}): TournamentGroupFixture => ({
+  id: row.id,
+  matchId: row.matchId,
+  groupId: row.groupId,
+  groupName: row.groupName,
+  groupPosition: row.groupPosition,
+  round: row.round,
+  position: row.position,
+  playerOne: {
+    id: row.playerOneId,
+    name: row.playerOneName,
+  },
+  playerTwo: {
+    id: row.playerTwoId,
+    name: row.playerTwoName,
+  },
+});
+
 export async function getTournamentManagement(
   actorId: string,
   tournamentId: string,
@@ -890,6 +925,46 @@ export async function getTournamentManagement(
     .innerJoin(users, eq(users.id, tournamentParticipations.playerId))
     .where(eq(tournamentParticipations.tournamentId, tournamentId))
     .orderBy(asc(tournamentParticipations.acceptedAt));
+  const groupFixtures = groupFixtureReadableStatuses.includes(
+    tournament.status as (typeof groupFixtureReadableStatuses)[number],
+  )
+    ? await db
+        .select({
+          id: tournamentFixtures.id,
+          matchId: matches.id,
+          groupId: tournamentGroups.id,
+          groupName: tournamentGroups.name,
+          groupPosition: tournamentGroups.position,
+          round: tournamentFixtures.round,
+          position: tournamentFixtures.position,
+          playerOneId: fixturePlayerOne.id,
+          playerOneName: fixturePlayerOne.name,
+          playerTwoId: fixturePlayerTwo.id,
+          playerTwoName: fixturePlayerTwo.name,
+        })
+        .from(tournamentFixtures)
+        .innerJoin(tournamentGroups, eq(tournamentGroups.id, tournamentFixtures.groupId))
+        .innerJoin(matches, eq(matches.id, tournamentFixtures.matchId))
+        .innerJoin(fixturePlayerOne, eq(fixturePlayerOne.id, tournamentFixtures.playerOneId))
+        .innerJoin(fixturePlayerTwo, eq(fixturePlayerTwo.id, tournamentFixtures.playerTwoId))
+        .where(
+          and(
+            eq(tournamentFixtures.tournamentId, tournamentId),
+            eq(tournamentFixtures.stage, 'group'),
+          ),
+        )
+        .orderBy(
+          asc(tournamentGroups.position),
+          asc(tournamentFixtures.round),
+          asc(tournamentFixtures.position),
+        )
+    : [];
+  const orderedGroupFixtures = [...groupFixtures].sort(
+    (left, right) =>
+      left.groupPosition - right.groupPosition ||
+      left.round - right.round ||
+      left.position - right.position,
+  );
   return {
     id: tournament.id,
     clubId: tournament.clubId,
@@ -902,6 +977,7 @@ export async function getTournamentManagement(
     entryRequests: entryRequests.map(serializeEntryRequest),
     invitations: invitations.map(serializeInvitation),
     participations: participations.map(serializeParticipation),
+    groupFixtures: orderedGroupFixtures.map(serializeGroupFixture),
   };
 }
 

@@ -14,6 +14,7 @@ import { db } from '../database';
 import {
   decideTournamentEntryRequest,
   directlyAddTournamentPlayer,
+  getTournamentManagement,
   inviteTournamentPlayer,
   removeTournamentPlayer,
   requestTournamentEntry,
@@ -39,25 +40,26 @@ const mockAuthorization = getClubAuthorization as jest.Mock;
 const tournament = {
   id: 'tournament-id',
   clubId: 'owning-club-id',
+  name: 'Club Open',
   status: 'registration' as const,
   visibility: 'public' as const,
+  startsAt: new Date('2026-08-01T15:00:00.000Z'),
+  timeZone: 'America/Costa_Rica',
+  draftDrawGeneratedAt: null,
 };
 
 function selectRows(rows: unknown[]) {
-  const limited = {
+  const query = {
+    from: () => query,
+    innerJoin: () => query,
+    leftJoin: () => query,
+    where: () => query,
+    orderBy: () => query,
+    limit: () => query,
     for: async () => rows,
     then: (resolve: (value: unknown[]) => unknown) => resolve(rows),
   };
-  const whereResult = {
-    limit: () => limited,
-    orderBy: async () => rows,
-    then: (resolve: (value: unknown[]) => unknown) => resolve(rows),
-  };
-  const query = {
-    where: () => whereResult,
-    orderBy: async () => rows,
-  };
-  return { from: () => query };
+  return query;
 }
 
 function managerLocator() {
@@ -75,6 +77,10 @@ function managerLocator() {
     responsibilities: ['owner'],
     clubArchivedAt: null,
   });
+}
+
+function queueSelectRows(selections: unknown[][]) {
+  for (const rows of selections) mockDb.select.mockReturnValueOnce(selectRows(rows));
 }
 
 function transactionWith(
@@ -471,5 +477,143 @@ describe('Official Tournament Start', () => {
     expect(new Set(fixtureRows.map((fixture) => `${fixture.round}:${fixture.position}`)).size).toBe(
       fixtureRows.length,
     );
+  });
+});
+
+describe('Official Tournament management fixture read', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  const startedTournament = {
+    ...tournament,
+    status: 'group-stage' as const,
+    draftDrawGeneratedAt: new Date('2026-08-01T15:00:00.000Z'),
+  };
+
+  const fixtureRows = [
+    {
+      id: 'fixture-3',
+      matchId: 'match-3',
+      groupId: 'group-2',
+      groupName: 'B',
+      groupPosition: 2,
+      round: 1,
+      position: 2,
+      playerOneId: 'player-4',
+      playerOneName: 'Diego Arias',
+      playerTwoId: 'player-5',
+      playerTwoName: 'Elena Mora',
+    },
+    {
+      id: 'fixture-2',
+      matchId: 'match-2',
+      groupId: 'group-1',
+      groupName: 'A',
+      groupPosition: 1,
+      round: 2,
+      position: 3,
+      playerOneId: 'player-1',
+      playerOneName: 'Ana Vega',
+      playerTwoId: 'player-3',
+      playerTwoName: 'Camila Solano',
+    },
+    {
+      id: 'fixture-1',
+      matchId: 'match-1',
+      groupId: 'group-1',
+      groupName: 'A',
+      groupPosition: 1,
+      round: 1,
+      position: 1,
+      playerOneId: 'player-1',
+      playerOneName: 'Ana Vega',
+      playerTwoId: 'player-2',
+      playerTwoName: 'Bruno Castro',
+    },
+  ];
+
+  function queueManagementPayload(fixtures: unknown[] = fixtureRows) {
+    queueSelectRows([[startedTournament], [], [], [], fixtures]);
+  }
+
+  it('returns finalized Group Stage fixtures with Player names for authorized managers', async () => {
+    managerLocator();
+    queueManagementPayload();
+
+    const result = await getTournamentManagement('owner-id', tournament.id);
+
+    expect(result.groupFixtures).toHaveLength(3);
+    expect(result.groupFixtures.map((fixture) => fixture.id)).toEqual([
+      'fixture-1',
+      'fixture-2',
+      'fixture-3',
+    ]);
+    expect(
+      result.groupFixtures.map((fixture) => ({
+        groupPosition: fixture.groupPosition,
+        round: fixture.round,
+        position: fixture.position,
+        players: [fixture.playerOne.name, fixture.playerTwo.name],
+      })),
+    ).toEqual([
+      {
+        groupPosition: 1,
+        round: 1,
+        position: 1,
+        players: ['Ana Vega', 'Bruno Castro'],
+      },
+      {
+        groupPosition: 1,
+        round: 2,
+        position: 3,
+        players: ['Ana Vega', 'Camila Solano'],
+      },
+      {
+        groupPosition: 2,
+        round: 1,
+        position: 2,
+        players: ['Diego Arias', 'Elena Mora'],
+      },
+    ]);
+  });
+
+  it('rejects Coach fixture reads without an explicit Tournament Organizer appointment', async () => {
+    mockDb.select.mockReturnValueOnce(
+      selectRows([{ id: tournament.id, clubId: tournament.clubId, archivedAt: null }]),
+    );
+    mockAuthorization.mockResolvedValueOnce({
+      membershipStatus: 'active',
+      responsibilities: ['coach'],
+      clubArchivedAt: null,
+    });
+    mockDb.select.mockReturnValueOnce(selectRows([]));
+
+    await expect(getTournamentManagement('coach-id', tournament.id)).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      status: 403,
+    });
+  });
+
+  it('allows an appointed Coach to read finalized Group Stage fixtures', async () => {
+    mockDb.select.mockReturnValueOnce(
+      selectRows([{ id: tournament.id, clubId: tournament.clubId, archivedAt: null }]),
+    );
+    mockAuthorization.mockResolvedValueOnce({
+      membershipStatus: 'active',
+      responsibilities: ['coach'],
+      clubArchivedAt: null,
+    });
+    mockDb.select.mockReturnValueOnce(selectRows([{ userId: 'coach-id' }]));
+    queueManagementPayload([fixtureRows[0]]);
+
+    await expect(getTournamentManagement('coach-id', tournament.id)).resolves.toMatchObject({
+      groupFixtures: [
+        {
+          id: 'fixture-3',
+          groupName: 'B',
+          playerOne: { name: 'Diego Arias' },
+          playerTwo: { name: 'Elena Mora' },
+        },
+      ],
+    });
   });
 });
