@@ -64,6 +64,13 @@
       "when": 1783294830765,
       "tag": "0008_many_gauntlet",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1783309312971,
+      "tag": "0009_narrow_mephisto",
+      "breakpoints": true
     }
   ]
 }

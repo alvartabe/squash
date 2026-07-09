@@ -11,6 +11,9 @@ import type {
   InviteClubResponsibility,
   MembershipStatus,
   PaginatedData,
+  TournamentManagement,
+  TournamentPlayerCandidate,
+  TournamentVisibility,
   UpdateClubInput,
 } from '@squash/contracts';
 import { api } from '@/src/lib/api';
@@ -70,12 +73,74 @@ export const workspaceKeys = {
   sessions: (clubId: string) => ['workspace', 'club', clubId, 'sessions'] as const,
   sessionCandidates: (sessionId: string) =>
     ['workspace', 'club-play-session', sessionId, 'candidates'] as const,
+  tournaments: (clubId: string) => ['workspace', 'club', clubId, 'tournaments'] as const,
+  tournamentCandidates: (tournamentId: string, search: string) =>
+    ['workspace', 'tournament', tournamentId, 'candidates', search] as const,
 };
 
 export function useWorkspaceMe() {
   return useQuery<WorkspaceMe>({
     queryKey: workspaceKeys.me,
     queryFn: async () => (await api.get('/me')).data.data,
+  });
+}
+
+export function useClubTournaments(clubId: string) {
+  return useQuery<TournamentManagement[]>({
+    queryKey: workspaceKeys.tournaments(clubId),
+    enabled: Boolean(clubId),
+    queryFn: async () => (await api.get(`/clubs/${clubId}/tournaments`)).data.data,
+  });
+}
+
+function useInvalidateTournaments(clubId: string) {
+  const client = useQueryClient();
+  return () => {
+    client.invalidateQueries({ queryKey: workspaceKeys.tournaments(clubId) });
+    client.invalidateQueries({ queryKey: ['tournaments'] });
+  };
+}
+
+export function useCreateTournament(clubId: string) {
+  const invalidate = useInvalidateTournaments(clubId);
+  return useMutation({
+    mutationFn: async (input: {
+      name: string;
+      visibility: TournamentVisibility;
+      startsAt: string;
+      timeZone: string;
+      groupSize: number;
+      qualifiersPerGroup: number;
+      seedingMethod: 'random' | 'manual';
+      rules: { bestOf: 1 | 3 | 5; pointsToWin: number; winByTwo: boolean };
+    }) => (await api.post('/tournaments', { clubId, ...input })).data.data,
+    onSuccess: invalidate,
+  });
+}
+
+export function useTournamentAction(clubId: string) {
+  const invalidate = useInvalidateTournaments(clubId);
+  return useMutation({
+    mutationFn: async ({
+      method = 'post',
+      path,
+      data,
+    }: {
+      method?: 'post' | 'patch' | 'delete';
+      path: string;
+      data?: unknown;
+    }) => (await api.request({ method, url: path, data })).data.data,
+    onSuccess: invalidate,
+  });
+}
+
+export function useTournamentCandidates(tournamentId: string, search: string) {
+  return useQuery<TournamentPlayerCandidate[]>({
+    queryKey: workspaceKeys.tournamentCandidates(tournamentId, search),
+    enabled: Boolean(tournamentId),
+    queryFn: async () =>
+      (await api.get(`/tournaments/${tournamentId}/player-candidates`, { params: { search } })).data
+        .data,
   });
 }
 

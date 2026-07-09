@@ -6,4 +6,5 @@ export * from './scoring';
 export * from './social';
 export * from './standings';
 export * from './tournament';
+export * from './official-tournament';
 export * from './types';

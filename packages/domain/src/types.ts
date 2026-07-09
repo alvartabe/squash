@@ -1,4 +1,4 @@
-export type BestOf = 1 | 3 | 5 | 7;
+export type BestOf = 1 | 3 | 5;
 
 export type MatchRules = {
   bestOf: BestOf;

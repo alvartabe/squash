@@ -1,4 +1,8 @@
-import { requireLockedActiveClubMembership, requireLockedClubAction } from '../authorization';
+import {
+  getClubAuthorization,
+  requireLockedActiveClubMembership,
+  requireLockedClubAction,
+} from '../authorization';
 import { clubPlaySessionParticipants, clubPlaySessions } from '@squash/db/schema';
 import { db } from '../database';
 import { ServiceError } from '../errors';
@@ -7,7 +11,7 @@ import {
   setClubPlaySessionAttendance,
   updateClubPlaySession,
 } from '../club-play-sessions';
-import { createTournament, generateTournamentGroups } from '../services';
+import { createTournament, generateTournamentDraftDraw } from '../tournaments';
 
 jest.mock('../database', () => ({
   db: {
@@ -17,6 +21,7 @@ jest.mock('../database', () => ({
 }));
 
 jest.mock('../authorization', () => ({
+  getClubAuthorization: jest.fn(),
   requireActiveClubMembership: jest.fn(),
   requireClubAction: jest.fn(),
   requireLockedActiveClubMembership: jest.fn(),
@@ -27,6 +32,7 @@ jest.mock('../authorization', () => ({
 const mockDb = db as unknown as { select: jest.Mock; transaction: jest.Mock };
 const mockRequireLockedClubAction = requireLockedClubAction as jest.Mock;
 const mockRequireLockedActiveClubMembership = requireLockedActiveClubMembership as jest.Mock;
+const mockGetClubAuthorization = getClubAuthorization as jest.Mock;
 
 describe('archived Club activity guards', () => {
   beforeEach(() => {
@@ -43,9 +49,12 @@ describe('archived Club activity guards', () => {
   function topLevelSelectOne(row: unknown) {
     mockDb.select.mockReturnValueOnce({
       from: () => ({
-        where: () => ({
-          limit: async () => (row ? [row] : []),
+        innerJoin: () => ({
+          where: () => ({
+            limit: async () => (row ? [row] : []),
+          }),
         }),
+        where: () => ({ limit: async () => (row ? [row] : []) }),
       }),
     });
   }
@@ -107,14 +116,31 @@ describe('archived Club activity guards', () => {
   });
 
   it('rejects a new Official Tournament before inserting rules or activity', async () => {
-    const tx = transaction();
+    mockGetClubAuthorization.mockResolvedValueOnce({
+      membershipStatus: 'active',
+      responsibilities: ['owner'],
+      clubArchivedAt: new Date(),
+    });
+    const tx = {
+      select: jest.fn(() => ({
+        from: () => ({
+          where: () => ({
+            limit: () => ({ for: async () => [{ id: 'club-id' }] }),
+          }),
+        }),
+      })),
+      insert: jest.fn(),
+    };
+    mockDb.transaction.mockImplementationOnce(
+      async (callback: (transaction: typeof tx) => unknown) => callback(tx),
+    );
 
     await expect(
       createTournament('owner-id', {
         clubId: 'bd8749bd-8b32-4fd2-a96e-5413de2057cc',
         name: 'Club Championship',
+        visibility: 'club-only',
         startsAt: '2026-08-01T09:00:00.000-06:00',
-        registrationClosesAt: '2026-07-30T18:00:00.000-06:00',
         timeZone: 'America/Costa_Rica',
         groupSize: 4,
         qualifiersPerGroup: 2,
@@ -122,12 +148,6 @@ describe('archived Club activity guards', () => {
         rules: { bestOf: 5, pointsToWin: 11, winByTwo: true },
       }),
     ).rejects.toMatchObject({ code: 'CLUB_ARCHIVED', status: 409 });
-    expect(mockRequireLockedClubAction).toHaveBeenCalledWith(
-      tx,
-      'owner-id',
-      'bd8749bd-8b32-4fd2-a96e-5413de2057cc',
-      'tournament.manage',
-    );
     expect(tx.insert).not.toHaveBeenCalled();
   });
 
@@ -171,7 +191,7 @@ describe('archived Club activity guards', () => {
   it('does not regenerate a Tournament cancelled by archival after restoration', async () => {
     const clubId = 'bd8749bd-8b32-4fd2-a96e-5413de2057cc';
     topLevelSelectOne({ clubId });
-    mockRequireLockedClubAction.mockResolvedValueOnce({
+    mockGetClubAuthorization.mockResolvedValueOnce({
       membershipStatus: 'active',
       responsibilities: ['owner'],
       clubArchivedAt: null,
@@ -201,8 +221,8 @@ describe('archived Club activity guards', () => {
       async (callback: (transaction: typeof tx) => unknown) => callback(tx),
     );
 
-    await expect(generateTournamentGroups('owner-id', 'tournament-id')).rejects.toMatchObject({
-      code: 'TOURNAMENT_ALREADY_STARTED',
+    await expect(generateTournamentDraftDraw('owner-id', 'tournament-id')).rejects.toMatchObject({
+      code: 'TOURNAMENT_REGISTRATION_NOT_OPEN',
       status: 409,
     });
     expect(tx.insert).not.toHaveBeenCalled();

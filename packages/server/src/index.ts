@@ -11,3 +11,4 @@ export * from './membership';
 export * from './membership-requests';
 export * from './outbox';
 export * from './services';
+export * from './tournaments';

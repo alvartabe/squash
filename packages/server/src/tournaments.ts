@@ -1,0 +1,844 @@
+import type {
+  CreateTournamentInput,
+  TournamentEntryRequest,
+  TournamentInvitation,
+  TournamentManagement,
+  TournamentParticipation,
+  TournamentPlayer,
+  TournamentPlayerCandidate,
+  TournamentVisibility,
+} from '@squash/contracts';
+import {
+  clubMemberships,
+  clubResponsibilities,
+  clubs,
+  matchRuleSnapshots,
+  tournamentEntryRequests,
+  tournamentGroupMembers,
+  tournamentGroups,
+  tournamentInvitations,
+  tournamentOrganizers,
+  tournamentParticipations,
+  tournaments,
+  users,
+} from '@squash/db/schema';
+import { assignPlayersToGroups } from '@squash/domain';
+import { and, asc, eq, exists, ilike, isNull, or } from 'drizzle-orm';
+import { getClubAuthorization } from './authorization';
+import { db } from './database';
+import { forbidden, notFound, ServiceError } from './errors';
+
+type ReadDatabase = Pick<typeof db, 'select'>;
+
+const preStartStatuses = ['draft', 'registration'] as const;
+
+function ruleRecord(rules: { bestOf: number; pointsToWin: number; winByTwo: boolean }) {
+  return { bestOf: rules.bestOf, pointsToWin: rules.pointsToWin, winByTwo: rules.winByTwo };
+}
+
+function isPreStart(status: string) {
+  return preStartStatuses.includes(status as (typeof preStartStatuses)[number]);
+}
+
+function assertPreStart(status: string) {
+  if (!isPreStart(status)) {
+    throw new ServiceError('TOURNAMENT_ROSTER_LOCKED', 'error.invalidRequest', 409);
+  }
+}
+
+function assertRegistrationOpen(status: string) {
+  if (status !== 'registration') {
+    throw new ServiceError('TOURNAMENT_REGISTRATION_NOT_OPEN', 'error.invalidRequest', 409);
+  }
+}
+
+async function requireTournamentManager(
+  actorId: string,
+  tournamentId: string,
+  database: ReadDatabase = db,
+) {
+  const [tournament] = await database
+    .select({ id: tournaments.id, clubId: tournaments.clubId, archivedAt: clubs.archivedAt })
+    .from(tournaments)
+    .innerJoin(clubs, eq(clubs.id, tournaments.clubId))
+    .where(eq(tournaments.id, tournamentId))
+    .limit(1);
+  if (!tournament) throw notFound('TOURNAMENT_NOT_FOUND');
+  if (tournament.archivedAt) {
+    throw new ServiceError('CLUB_ARCHIVED', 'error.invalidRequest', 409);
+  }
+
+  const authorization = await getClubAuthorization(actorId, tournament.clubId, database);
+  if (authorization?.membershipStatus !== 'active') throw forbidden();
+  if (
+    authorization.responsibilities.includes('owner') ||
+    authorization.responsibilities.includes('admin')
+  ) {
+    return tournament;
+  }
+  if (!authorization.responsibilities.includes('coach')) throw forbidden();
+  const [appointment] = await database
+    .select({ userId: tournamentOrganizers.userId })
+    .from(tournamentOrganizers)
+    .where(
+      and(
+        eq(tournamentOrganizers.tournamentId, tournamentId),
+        eq(tournamentOrganizers.userId, actorId),
+      ),
+    )
+    .limit(1);
+  if (!appointment) throw forbidden();
+  return tournament;
+}
+
+async function requireTournamentCreator(actorId: string, clubId: string, database: ReadDatabase) {
+  const authorization = await getClubAuthorization(actorId, clubId, database);
+  if (
+    authorization?.membershipStatus !== 'active' ||
+    (!authorization.responsibilities.includes('owner') &&
+      !authorization.responsibilities.includes('admin'))
+  ) {
+    throw forbidden();
+  }
+  if (authorization.clubArchivedAt) {
+    throw new ServiceError('CLUB_ARCHIVED', 'error.invalidRequest', 409);
+  }
+}
+
+async function lockTournament(
+  database: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  tournamentId: string,
+) {
+  const [tournament] = await database
+    .select()
+    .from(tournaments)
+    .where(eq(tournaments.id, tournamentId))
+    .limit(1)
+    .for('update');
+  if (!tournament) throw notFound('TOURNAMENT_NOT_FOUND');
+  return tournament;
+}
+
+async function assertNoTournamentRelationship(
+  database: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  tournamentId: string,
+  playerId: string,
+) {
+  const [participation] = await database
+    .select({ playerId: tournamentParticipations.playerId })
+    .from(tournamentParticipations)
+    .where(
+      and(
+        eq(tournamentParticipations.tournamentId, tournamentId),
+        eq(tournamentParticipations.playerId, playerId),
+      ),
+    )
+    .limit(1);
+  if (participation) {
+    throw new ServiceError('TOURNAMENT_PARTICIPATION_EXISTS', 'error.invalidRequest', 409);
+  }
+  const [request] = await database
+    .select({ id: tournamentEntryRequests.id })
+    .from(tournamentEntryRequests)
+    .where(
+      and(
+        eq(tournamentEntryRequests.tournamentId, tournamentId),
+        eq(tournamentEntryRequests.playerId, playerId),
+        eq(tournamentEntryRequests.status, 'pending'),
+      ),
+    )
+    .limit(1);
+  const [invitation] = await database
+    .select({ id: tournamentInvitations.id })
+    .from(tournamentInvitations)
+    .where(
+      and(
+        eq(tournamentInvitations.tournamentId, tournamentId),
+        eq(tournamentInvitations.playerId, playerId),
+        eq(tournamentInvitations.status, 'pending'),
+      ),
+    )
+    .limit(1);
+  if (request || invitation) {
+    throw new ServiceError('TOURNAMENT_RELATIONSHIP_PENDING', 'error.invalidRequest', 409);
+  }
+}
+
+async function invalidateDraftDraw(
+  database: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  tournamentId: string,
+) {
+  await database.delete(tournamentGroups).where(eq(tournamentGroups.tournamentId, tournamentId));
+  await database
+    .update(tournaments)
+    .set({ draftDrawGeneratedAt: null, updatedAt: new Date() })
+    .where(eq(tournaments.id, tournamentId));
+}
+
+async function addParticipation(
+  database: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  input: {
+    tournamentId: string;
+    playerId: string;
+    source: 'entry-request' | 'invitation' | 'direct';
+    acceptedById: string;
+  },
+) {
+  const [participation] = await database
+    .insert(tournamentParticipations)
+    .values(input)
+    .onConflictDoNothing()
+    .returning();
+  if (!participation) {
+    throw new ServiceError('TOURNAMENT_PARTICIPATION_EXISTS', 'error.invalidRequest', 409);
+  }
+  await invalidateDraftDraw(database, input.tournamentId);
+  return participation;
+}
+
+export async function createTournament(actorId: string, input: CreateTournamentInput) {
+  return db.transaction(async (tx) => {
+    await tx
+      .select({ id: clubs.id })
+      .from(clubs)
+      .where(eq(clubs.id, input.clubId))
+      .limit(1)
+      .for('update');
+    await requireTournamentCreator(actorId, input.clubId, tx);
+    const [rules] = await tx.insert(matchRuleSnapshots).values(ruleRecord(input.rules)).returning();
+    if (!rules) throw new Error('Failed to create Tournament rules.');
+    const [tournament] = await tx
+      .insert(tournaments)
+      .values({
+        clubId: input.clubId,
+        organizerId: actorId,
+        name: input.name,
+        visibility: input.visibility,
+        startsAt: new Date(input.startsAt),
+        timeZone: input.timeZone,
+        groupSize: input.groupSize,
+        qualifiersPerGroup: input.qualifiersPerGroup,
+        seedingMethod: input.seedingMethod,
+        rulesId: rules.id,
+      })
+      .returning();
+    if (!tournament) throw new Error('Failed to create Tournament.');
+    return tournament;
+  });
+}
+
+export async function openTournamentRegistration(actorId: string, tournamentId: string) {
+  await requireTournamentManager(actorId, tournamentId);
+  return db.transaction(async (tx) => {
+    const tournament = await lockTournament(tx, tournamentId);
+    if (tournament.status !== 'draft') {
+      throw new ServiceError('TOURNAMENT_NOT_DRAFT', 'error.invalidRequest', 409);
+    }
+    const [opened] = await tx
+      .update(tournaments)
+      .set({ status: 'registration', updatedAt: new Date() })
+      .where(and(eq(tournaments.id, tournamentId), eq(tournaments.status, 'draft')))
+      .returning();
+    if (!opened) throw new ServiceError('TOURNAMENT_STATE_CONFLICT', 'error.invalidRequest', 409);
+    return opened;
+  });
+}
+
+export async function updateTournamentVisibility(
+  actorId: string,
+  tournamentId: string,
+  visibility: TournamentVisibility,
+) {
+  await requireTournamentManager(actorId, tournamentId);
+  return db.transaction(async (tx) => {
+    const tournament = await lockTournament(tx, tournamentId);
+    assertPreStart(tournament.status);
+    const [updated] = await tx
+      .update(tournaments)
+      .set({ visibility, updatedAt: new Date() })
+      .where(eq(tournaments.id, tournamentId))
+      .returning();
+    return updated;
+  });
+}
+
+export async function listDiscoverableTournaments(actorId: string): Promise<TournamentPlayer[]> {
+  const [player] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.id, actorId))
+    .limit(1);
+  if (!player) throw forbidden();
+  const activeMembership = db
+    .select({ clubId: clubMemberships.clubId })
+    .from(clubMemberships)
+    .where(
+      and(
+        eq(clubMemberships.clubId, tournaments.clubId),
+        eq(clubMemberships.userId, actorId),
+        eq(clubMemberships.status, 'active'),
+      ),
+    );
+  const rows = await db
+    .select({
+      id: tournaments.id,
+      clubId: tournaments.clubId,
+      clubName: clubs.name,
+      name: tournaments.name,
+      visibility: tournaments.visibility,
+      status: tournaments.status,
+      startsAt: tournaments.startsAt,
+      timeZone: tournaments.timeZone,
+      participantId: tournamentParticipations.playerId,
+      entryRequestId: tournamentEntryRequests.id,
+      invitationId: tournamentInvitations.id,
+    })
+    .from(tournaments)
+    .innerJoin(clubs, eq(clubs.id, tournaments.clubId))
+    .leftJoin(
+      tournamentParticipations,
+      and(
+        eq(tournamentParticipations.tournamentId, tournaments.id),
+        eq(tournamentParticipations.playerId, actorId),
+      ),
+    )
+    .leftJoin(
+      tournamentEntryRequests,
+      and(
+        eq(tournamentEntryRequests.tournamentId, tournaments.id),
+        eq(tournamentEntryRequests.playerId, actorId),
+        eq(tournamentEntryRequests.status, 'pending'),
+      ),
+    )
+    .leftJoin(
+      tournamentInvitations,
+      and(
+        eq(tournamentInvitations.tournamentId, tournaments.id),
+        eq(tournamentInvitations.playerId, actorId),
+        eq(tournamentInvitations.status, 'pending'),
+      ),
+    )
+    .where(
+      and(
+        eq(tournaments.status, 'registration'),
+        isNull(clubs.archivedAt),
+        or(
+          eq(tournaments.visibility, 'public'),
+          exists(activeMembership),
+          eq(tournamentParticipations.playerId, actorId),
+          eq(tournamentEntryRequests.playerId, actorId),
+          eq(tournamentInvitations.playerId, actorId),
+        ),
+      ),
+    )
+    .orderBy(asc(tournaments.startsAt), asc(tournaments.name));
+  return rows.map((row) => ({
+    ...row,
+    status: 'registration',
+    startsAt: row.startsAt.toISOString(),
+    relationship: row.participantId
+      ? 'accepted'
+      : row.entryRequestId
+        ? 'request-pending'
+        : row.invitationId
+          ? 'invited'
+          : 'none',
+  }));
+}
+
+export async function requestTournamentEntry(actorId: string, tournamentId: string) {
+  return db.transaction(async (tx) => {
+    const tournament = await lockTournament(tx, tournamentId);
+    assertRegistrationOpen(tournament.status);
+    const [player] = await tx
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, actorId))
+      .limit(1);
+    if (!player) throw forbidden();
+    const [membership] = await tx
+      .select({ status: clubMemberships.status })
+      .from(clubMemberships)
+      .where(
+        and(
+          eq(clubMemberships.clubId, tournament.clubId),
+          eq(clubMemberships.userId, actorId),
+          eq(clubMemberships.status, 'active'),
+        ),
+      )
+      .limit(1);
+    if (tournament.visibility === 'club-only' && !membership) throw forbidden();
+    await assertNoTournamentRelationship(tx, tournamentId, actorId);
+    const [request] = await tx
+      .insert(tournamentEntryRequests)
+      .values({ tournamentId, playerId: actorId })
+      .returning();
+    if (!request) throw new Error('Failed to create Tournament Entry Request.');
+    return request;
+  });
+}
+
+export async function inviteTournamentPlayer(
+  actorId: string,
+  tournamentId: string,
+  playerId: string,
+) {
+  await requireTournamentManager(actorId, tournamentId);
+  return db.transaction(async (tx) => {
+    const tournament = await lockTournament(tx, tournamentId);
+    assertRegistrationOpen(tournament.status);
+    const [player] = await tx
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, playerId))
+      .limit(1);
+    if (!player) throw notFound('PLAYER_NOT_FOUND');
+    await assertNoTournamentRelationship(tx, tournamentId, playerId);
+    const [invitation] = await tx
+      .insert(tournamentInvitations)
+      .values({ tournamentId, playerId, invitedById: actorId })
+      .returning();
+    if (!invitation) throw new Error('Failed to create Tournament Invitation.');
+    return invitation;
+  });
+}
+
+export async function respondToTournamentInvitation(
+  actorId: string,
+  tournamentId: string,
+  invitationId: string,
+  accept: boolean,
+) {
+  return db.transaction(async (tx) => {
+    const tournament = await lockTournament(tx, tournamentId);
+    assertRegistrationOpen(tournament.status);
+    const [invitation] = await tx
+      .select()
+      .from(tournamentInvitations)
+      .where(
+        and(
+          eq(tournamentInvitations.id, invitationId),
+          eq(tournamentInvitations.tournamentId, tournamentId),
+        ),
+      )
+      .limit(1)
+      .for('update');
+    if (!invitation) throw notFound('TOURNAMENT_INVITATION_NOT_FOUND');
+    if (invitation.playerId !== actorId) throw forbidden();
+    if (invitation.status !== 'pending') {
+      throw new ServiceError('TOURNAMENT_INVITATION_NOT_PENDING', 'error.invalidRequest', 409);
+    }
+    if (accept) {
+      const [participation] = await tx
+        .select({ playerId: tournamentParticipations.playerId })
+        .from(tournamentParticipations)
+        .where(
+          and(
+            eq(tournamentParticipations.tournamentId, tournamentId),
+            eq(tournamentParticipations.playerId, actorId),
+          ),
+        )
+        .limit(1);
+      if (participation) {
+        throw new ServiceError('TOURNAMENT_PARTICIPATION_EXISTS', 'error.invalidRequest', 409);
+      }
+      await addParticipation(tx, {
+        tournamentId,
+        playerId: actorId,
+        source: 'invitation',
+        acceptedById: actorId,
+      });
+    }
+    const [responded] = await tx
+      .update(tournamentInvitations)
+      .set({ status: accept ? 'accepted' : 'rejected', respondedAt: new Date() })
+      .where(
+        and(
+          eq(tournamentInvitations.id, invitationId),
+          eq(tournamentInvitations.status, 'pending'),
+        ),
+      )
+      .returning();
+    if (!responded) {
+      throw new ServiceError('TOURNAMENT_INVITATION_NOT_PENDING', 'error.invalidRequest', 409);
+    }
+    return responded;
+  });
+}
+
+export async function decideTournamentEntryRequest(
+  actorId: string,
+  tournamentId: string,
+  requestId: string,
+  approve: boolean,
+) {
+  await requireTournamentManager(actorId, tournamentId);
+  return db.transaction(async (tx) => {
+    const tournament = await lockTournament(tx, tournamentId);
+    assertRegistrationOpen(tournament.status);
+    const [request] = await tx
+      .select()
+      .from(tournamentEntryRequests)
+      .where(
+        and(
+          eq(tournamentEntryRequests.id, requestId),
+          eq(tournamentEntryRequests.tournamentId, tournamentId),
+        ),
+      )
+      .limit(1)
+      .for('update');
+    if (!request) throw notFound('TOURNAMENT_ENTRY_REQUEST_NOT_FOUND');
+    if (request.status !== 'pending') {
+      throw new ServiceError('TOURNAMENT_ENTRY_REQUEST_NOT_PENDING', 'error.invalidRequest', 409);
+    }
+    if (approve) {
+      await addParticipation(tx, {
+        tournamentId,
+        playerId: request.playerId,
+        source: 'entry-request',
+        acceptedById: actorId,
+      });
+    }
+    const [resolved] = await tx
+      .update(tournamentEntryRequests)
+      .set({
+        status: approve ? 'approved' : 'rejected',
+        resolvedAt: new Date(),
+        resolvedById: actorId,
+      })
+      .where(
+        and(
+          eq(tournamentEntryRequests.id, requestId),
+          eq(tournamentEntryRequests.status, 'pending'),
+        ),
+      )
+      .returning();
+    if (!resolved) {
+      throw new ServiceError('TOURNAMENT_ENTRY_REQUEST_NOT_PENDING', 'error.invalidRequest', 409);
+    }
+    return resolved;
+  });
+}
+
+export async function directlyAddTournamentPlayer(
+  actorId: string,
+  tournamentId: string,
+  playerId: string,
+) {
+  await requireTournamentManager(actorId, tournamentId);
+  return db.transaction(async (tx) => {
+    const tournament = await lockTournament(tx, tournamentId);
+    assertPreStart(tournament.status);
+    const [player] = await tx
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, playerId))
+      .limit(1);
+    if (!player) throw notFound('PLAYER_NOT_FOUND');
+    await assertNoTournamentRelationship(tx, tournamentId, playerId);
+    return addParticipation(tx, {
+      tournamentId,
+      playerId,
+      source: 'direct',
+      acceptedById: actorId,
+    });
+  });
+}
+
+export async function withdrawTournamentParticipation(actorId: string, tournamentId: string) {
+  return db.transaction(async (tx) => {
+    const tournament = await lockTournament(tx, tournamentId);
+    assertPreStart(tournament.status);
+    const [removed] = await tx
+      .delete(tournamentParticipations)
+      .where(
+        and(
+          eq(tournamentParticipations.tournamentId, tournamentId),
+          eq(tournamentParticipations.playerId, actorId),
+        ),
+      )
+      .returning();
+    if (!removed) throw notFound('TOURNAMENT_PARTICIPATION_NOT_FOUND');
+    await invalidateDraftDraw(tx, tournamentId);
+    return { tournamentId, playerId: actorId, withdrawn: true as const };
+  });
+}
+
+export async function removeTournamentPlayer(
+  actorId: string,
+  tournamentId: string,
+  playerId: string,
+) {
+  await requireTournamentManager(actorId, tournamentId);
+  return db.transaction(async (tx) => {
+    const tournament = await lockTournament(tx, tournamentId);
+    assertPreStart(tournament.status);
+    const [removed] = await tx
+      .delete(tournamentParticipations)
+      .where(
+        and(
+          eq(tournamentParticipations.tournamentId, tournamentId),
+          eq(tournamentParticipations.playerId, playerId),
+        ),
+      )
+      .returning();
+    if (!removed) throw notFound('TOURNAMENT_PARTICIPATION_NOT_FOUND');
+    await invalidateDraftDraw(tx, tournamentId);
+    return { tournamentId, playerId, removed: true as const };
+  });
+}
+
+function shuffled<T>(items: readonly T[]): T[] {
+  const result = [...items];
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    const random = crypto.getRandomValues(new Uint32Array(1))[0] ?? 0;
+    const swap = random % (index + 1);
+    [result[index], result[swap]] = [result[swap] as T, result[index] as T];
+  }
+  return result;
+}
+
+export async function generateTournamentDraftDraw(actorId: string, tournamentId: string) {
+  await requireTournamentManager(actorId, tournamentId);
+  return db.transaction(async (tx) => {
+    const tournament = await lockTournament(tx, tournamentId);
+    if (tournament.status !== 'registration') {
+      throw new ServiceError('TOURNAMENT_REGISTRATION_NOT_OPEN', 'error.invalidRequest', 409);
+    }
+    const participations = await tx
+      .select({ playerId: tournamentParticipations.playerId, seed: tournamentParticipations.seed })
+      .from(tournamentParticipations)
+      .where(eq(tournamentParticipations.tournamentId, tournamentId))
+      .orderBy(asc(tournamentParticipations.seed), asc(tournamentParticipations.acceptedAt));
+    const ordered =
+      tournament.seedingMethod === 'random' ? shuffled(participations) : participations;
+    let assignments;
+    try {
+      assignments = assignPlayersToGroups(
+        ordered.map((item) => item.playerId),
+        tournament.groupSize,
+      );
+    } catch {
+      throw new ServiceError('TOURNAMENT_DRAW_REQUIRES_PLAYERS', 'error.invalidRequest', 409);
+    }
+    await tx.delete(tournamentGroups).where(eq(tournamentGroups.tournamentId, tournamentId));
+    for (const assignment of assignments) {
+      const [group] = await tx
+        .insert(tournamentGroups)
+        .values({
+          tournamentId,
+          name: String.fromCharCode(64 + assignment.groupPosition),
+          position: assignment.groupPosition,
+        })
+        .returning();
+      if (!group) throw new Error('Failed to create Tournament Group.');
+      await tx.insert(tournamentGroupMembers).values(
+        assignment.playerIds.map((playerId) => ({
+          groupId: group.id,
+          userId: playerId,
+          seed: participations.find((item) => item.playerId === playerId)?.seed,
+        })),
+      );
+    }
+    const generatedAt = new Date();
+    await tx
+      .update(tournaments)
+      .set({ draftDrawGeneratedAt: generatedAt, updatedAt: generatedAt })
+      .where(eq(tournaments.id, tournamentId));
+    return { tournamentId, groups: assignments.length, players: participations.length };
+  });
+}
+
+const serializeEntryRequest = (row: {
+  id: string;
+  tournamentId: string;
+  playerId: string;
+  playerName: string;
+  playerImage: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  submittedAt: Date;
+  resolvedAt: Date | null;
+  resolvedById: string | null;
+}): TournamentEntryRequest => ({
+  ...row,
+  submittedAt: row.submittedAt.toISOString(),
+  resolvedAt: row.resolvedAt?.toISOString() ?? null,
+});
+
+const serializeInvitation = (row: {
+  id: string;
+  tournamentId: string;
+  playerId: string;
+  playerName: string;
+  playerImage: string | null;
+  invitedById: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  invitedAt: Date;
+  respondedAt: Date | null;
+}): TournamentInvitation => ({
+  ...row,
+  invitedAt: row.invitedAt.toISOString(),
+  respondedAt: row.respondedAt?.toISOString() ?? null,
+});
+
+const serializeParticipation = (row: {
+  tournamentId: string;
+  playerId: string;
+  playerName: string;
+  playerImage: string | null;
+  source: 'entry-request' | 'invitation' | 'direct';
+  acceptedAt: Date;
+}): TournamentParticipation => ({
+  ...row,
+  acceptedAt: row.acceptedAt.toISOString(),
+});
+
+export async function getTournamentManagement(
+  actorId: string,
+  tournamentId: string,
+): Promise<TournamentManagement> {
+  await requireTournamentManager(actorId, tournamentId);
+  const [tournament] = await db
+    .select()
+    .from(tournaments)
+    .where(eq(tournaments.id, tournamentId))
+    .limit(1);
+  if (!tournament) throw notFound('TOURNAMENT_NOT_FOUND');
+  const entryRequests = await db
+    .select({
+      id: tournamentEntryRequests.id,
+      tournamentId: tournamentEntryRequests.tournamentId,
+      playerId: tournamentEntryRequests.playerId,
+      playerName: users.name,
+      playerImage: users.image,
+      status: tournamentEntryRequests.status,
+      submittedAt: tournamentEntryRequests.submittedAt,
+      resolvedAt: tournamentEntryRequests.resolvedAt,
+      resolvedById: tournamentEntryRequests.resolvedById,
+    })
+    .from(tournamentEntryRequests)
+    .innerJoin(users, eq(users.id, tournamentEntryRequests.playerId))
+    .where(eq(tournamentEntryRequests.tournamentId, tournamentId))
+    .orderBy(asc(tournamentEntryRequests.submittedAt));
+  const invitations = await db
+    .select({
+      id: tournamentInvitations.id,
+      tournamentId: tournamentInvitations.tournamentId,
+      playerId: tournamentInvitations.playerId,
+      playerName: users.name,
+      playerImage: users.image,
+      invitedById: tournamentInvitations.invitedById,
+      status: tournamentInvitations.status,
+      invitedAt: tournamentInvitations.invitedAt,
+      respondedAt: tournamentInvitations.respondedAt,
+    })
+    .from(tournamentInvitations)
+    .innerJoin(users, eq(users.id, tournamentInvitations.playerId))
+    .where(eq(tournamentInvitations.tournamentId, tournamentId))
+    .orderBy(asc(tournamentInvitations.invitedAt));
+  const participations = await db
+    .select({
+      tournamentId: tournamentParticipations.tournamentId,
+      playerId: tournamentParticipations.playerId,
+      playerName: users.name,
+      playerImage: users.image,
+      source: tournamentParticipations.source,
+      acceptedAt: tournamentParticipations.acceptedAt,
+    })
+    .from(tournamentParticipations)
+    .innerJoin(users, eq(users.id, tournamentParticipations.playerId))
+    .where(eq(tournamentParticipations.tournamentId, tournamentId))
+    .orderBy(asc(tournamentParticipations.acceptedAt));
+  return {
+    id: tournament.id,
+    clubId: tournament.clubId,
+    name: tournament.name,
+    visibility: tournament.visibility,
+    status: tournament.status,
+    startsAt: tournament.startsAt.toISOString(),
+    timeZone: tournament.timeZone,
+    draftDrawGeneratedAt: tournament.draftDrawGeneratedAt?.toISOString() ?? null,
+    entryRequests: entryRequests.map(serializeEntryRequest),
+    invitations: invitations.map(serializeInvitation),
+    participations: participations.map(serializeParticipation),
+  };
+}
+
+export async function listClubTournaments(actorId: string, clubId: string) {
+  const authorization = await getClubAuthorization(actorId, clubId);
+  if (authorization?.membershipStatus !== 'active') throw forbidden();
+  const managesEveryTournament =
+    authorization.responsibilities.includes('owner') ||
+    authorization.responsibilities.includes('admin');
+  if (!managesEveryTournament && !authorization.responsibilities.includes('coach')) {
+    throw forbidden();
+  }
+  const rows = managesEveryTournament
+    ? await db
+        .select({ id: tournaments.id })
+        .from(tournaments)
+        .where(eq(tournaments.clubId, clubId))
+        .orderBy(asc(tournaments.startsAt))
+    : await db
+        .select({ id: tournaments.id })
+        .from(tournaments)
+        .innerJoin(tournamentOrganizers, eq(tournamentOrganizers.tournamentId, tournaments.id))
+        .where(and(eq(tournaments.clubId, clubId), eq(tournamentOrganizers.userId, actorId)))
+        .orderBy(asc(tournaments.startsAt));
+  return Promise.all(rows.map((row) => getTournamentManagement(actorId, row.id)));
+}
+
+export async function listTournamentPlayerCandidates(
+  actorId: string,
+  tournamentId: string,
+  search: string,
+): Promise<TournamentPlayerCandidate[]> {
+  await requireTournamentManager(actorId, tournamentId);
+  return db
+    .select({ id: users.id, name: users.name, image: users.image })
+    .from(users)
+    .where(search ? ilike(users.name, `%${search}%`) : undefined)
+    .orderBy(asc(users.name))
+    .limit(50);
+}
+
+export async function appointTournamentCoach(
+  actorId: string,
+  tournamentId: string,
+  coachId: string,
+) {
+  const tournament = await requireTournamentManager(actorId, tournamentId);
+  const authorization = await getClubAuthorization(actorId, tournament.clubId);
+  if (
+    !authorization?.responsibilities.includes('owner') &&
+    !authorization?.responsibilities.includes('admin')
+  ) {
+    throw forbidden();
+  }
+  const [coach] = await db
+    .select({ userId: clubMemberships.userId })
+    .from(clubMemberships)
+    .innerJoin(
+      clubResponsibilities,
+      and(
+        eq(clubResponsibilities.clubId, clubMemberships.clubId),
+        eq(clubResponsibilities.userId, clubMemberships.userId),
+      ),
+    )
+    .where(
+      and(
+        eq(clubMemberships.clubId, tournament.clubId),
+        eq(clubMemberships.userId, coachId),
+        eq(clubMemberships.status, 'active'),
+        eq(clubResponsibilities.responsibility, 'coach'),
+      ),
+    )
+    .limit(1);
+  if (!coach)
+    throw new ServiceError('TOURNAMENT_ORGANIZER_MUST_BE_COACH', 'error.invalidRequest', 409);
+  await db
+    .insert(tournamentOrganizers)
+    .values({ tournamentId, userId: coachId })
+    .onConflictDoNothing();
+  return { tournamentId, coachId };
+}

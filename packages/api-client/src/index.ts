@@ -13,6 +13,7 @@ import type {
   MembershipRequestStatus,
   PaginatedData,
   PlayerStatistics,
+  TournamentPlayer,
   UpdateClubInput,
 } from '@squash/contracts';
 import Axios, { type AxiosInstance } from 'axios';
@@ -124,6 +125,16 @@ export function squashApi(client: AxiosInstance) {
     ) => (await client.put(`/club-play-sessions/${sessionId}/attendance`, input)).data,
     createTournament: async (input: CreateTournamentInput) =>
       (await client.post('/tournaments', input)).data,
+    getDiscoverableTournaments: async (): Promise<{ data: TournamentPlayer[] }> =>
+      (await client.get('/tournaments')).data,
+    requestTournamentEntry: async (tournamentId: string) =>
+      (await client.post(`/tournaments/${tournamentId}/entry-requests`)).data,
+    acceptTournamentInvitation: async (tournamentId: string, invitationId: string) =>
+      (await client.post(`/tournaments/${tournamentId}/invitations/${invitationId}/accept`)).data,
+    rejectTournamentInvitation: async (tournamentId: string, invitationId: string) =>
+      (await client.post(`/tournaments/${tournamentId}/invitations/${invitationId}/reject`)).data,
+    withdrawTournamentParticipation: async (tournamentId: string) =>
+      (await client.delete(`/tournaments/${tournamentId}/participation`)).data,
     getStatistics: async (playerId: string): Promise<{ data: PlayerStatistics }> =>
       (await client.get(`/statistics/${playerId}`)).data,
     presignUpload: async (input: {
@@ -148,6 +159,6 @@ export const queryKeys = {
   clubPlaySessions: () => ['club-play-sessions'] as const,
   clubPlaySession: (sessionId: string) => ['club-play-sessions', sessionId] as const,
   challenges: () => ['challenges'] as const,
-  tournaments: (clubId: string) => ['tournaments', clubId] as const,
+  tournaments: () => ['tournaments'] as const,
   statistics: (playerId: string) => ['statistics', playerId] as const,
 };

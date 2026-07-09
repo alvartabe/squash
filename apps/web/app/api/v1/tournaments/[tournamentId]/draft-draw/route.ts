@@ -1,4 +1,4 @@
-import { generateTournamentGroups } from '@squash/server';
+import { generateTournamentDraftDraw } from '@squash/server';
 import { dataResponse, errorResponse, requireManagementUserId } from '@/src/http';
 
 export async function POST(
@@ -8,7 +8,7 @@ export async function POST(
   try {
     const actorId = await requireManagementUserId();
     const { tournamentId } = await context.params;
-    return dataResponse(await generateTournamentGroups(actorId, tournamentId));
+    return dataResponse(await generateTournamentDraftDraw(actorId, tournamentId));
   } catch (error) {
     return errorResponse(error);
   }

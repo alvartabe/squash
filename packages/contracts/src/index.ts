@@ -4,7 +4,7 @@ export const idSchema = z.uuid();
 export const userIdSchema = z.string().trim().min(1).max(128);
 export const localeSchema = z.enum(['en-US', 'es-419']);
 export const isoDateTimeSchema = z.iso.datetime({ offset: true });
-export const bestOfSchema = z.union([z.literal(1), z.literal(3), z.literal(5), z.literal(7)]);
+export const bestOfSchema = z.union([z.literal(1), z.literal(3), z.literal(5)]);
 
 export const matchRulesSchema = z.object({
   bestOf: bestOfSchema,
@@ -18,7 +18,7 @@ export const setScoreSchema = z.object({
 });
 
 export const submitMatchResultSchema = z.object({
-  sets: z.array(setScoreSchema).min(1).max(7),
+  sets: z.array(setScoreSchema).min(1).max(5),
   revisionReason: z.string().trim().max(500).optional(),
 });
 
@@ -96,17 +96,32 @@ export const clubPlaySessionListQuerySchema = z.object({
   scope: z.enum(['upcoming', 'past', 'all']).default('upcoming'),
 });
 
-export const seedingMethodSchema = z.enum(['random', 'ranking', 'manual']);
+export const seedingMethodSchema = z.enum(['random', 'manual']);
+export const tournamentVisibilitySchema = z.enum(['club-only', 'public']);
+export const tournamentStatusSchema = z.enum([
+  'draft',
+  'registration',
+  'group-stage',
+  'knockout',
+  'completed',
+  'cancelled',
+]);
+export const tournamentPlayerRelationshipSchema = z.enum([
+  'none',
+  'request-pending',
+  'invited',
+  'accepted',
+]);
 
 export const createTournamentSchema = z
   .object({
     clubId: idSchema,
     name: z.string().trim().min(1).max(160),
+    visibility: tournamentVisibilitySchema,
     startsAt: isoDateTimeSchema,
-    registrationClosesAt: isoDateTimeSchema,
     timeZone: z.string().trim().min(1).max(100),
-    groupSize: z.number().int().min(2).max(32),
-    qualifiersPerGroup: z.number().int().min(1).max(16),
+    groupSize: z.number().int().min(2),
+    qualifiersPerGroup: z.number().int().min(1),
     seedingMethod: seedingMethodSchema,
     rules: matchRulesSchema,
   })
@@ -119,6 +134,79 @@ export const createTournamentSchema = z
       });
     }
   });
+
+export const updateTournamentVisibilitySchema = z.object({
+  visibility: tournamentVisibilitySchema,
+});
+
+export const tournamentPlayerSchema = z.object({
+  id: idSchema,
+  clubId: idSchema,
+  clubName: z.string(),
+  name: z.string(),
+  visibility: tournamentVisibilitySchema,
+  status: z.literal('registration'),
+  startsAt: z.string(),
+  timeZone: z.string(),
+  relationship: tournamentPlayerRelationshipSchema,
+  entryRequestId: idSchema.nullable(),
+  invitationId: idSchema.nullable(),
+});
+
+export const tournamentEntryRequestSchema = z.object({
+  id: idSchema,
+  tournamentId: idSchema,
+  playerId: userIdSchema,
+  playerName: z.string(),
+  playerImage: z.string().nullable(),
+  status: z.enum(['pending', 'approved', 'rejected']),
+  submittedAt: z.string(),
+  resolvedAt: z.string().nullable(),
+  resolvedById: userIdSchema.nullable(),
+});
+
+export const tournamentInvitationSchema = z.object({
+  id: idSchema,
+  tournamentId: idSchema,
+  playerId: userIdSchema,
+  playerName: z.string(),
+  playerImage: z.string().nullable(),
+  invitedById: userIdSchema,
+  status: z.enum(['pending', 'accepted', 'rejected']),
+  invitedAt: z.string(),
+  respondedAt: z.string().nullable(),
+});
+
+export const tournamentParticipationSchema = z.object({
+  tournamentId: idSchema,
+  playerId: userIdSchema,
+  playerName: z.string(),
+  playerImage: z.string().nullable(),
+  source: z.enum(['entry-request', 'invitation', 'direct']),
+  acceptedAt: z.string(),
+});
+
+export const tournamentManagementSchema = z.object({
+  id: idSchema,
+  clubId: idSchema,
+  name: z.string(),
+  visibility: tournamentVisibilitySchema,
+  status: tournamentStatusSchema,
+  startsAt: z.string(),
+  timeZone: z.string(),
+  draftDrawGeneratedAt: z.string().nullable(),
+  entryRequests: z.array(tournamentEntryRequestSchema),
+  invitations: z.array(tournamentInvitationSchema),
+  participations: z.array(tournamentParticipationSchema),
+});
+
+export const tournamentPlayerCandidateSchema = z.object({
+  id: userIdSchema,
+  name: z.string(),
+  image: z.string().nullable(),
+});
+
+export const tournamentPlayerActionSchema = z.object({ playerId: userIdSchema });
 
 export const recurringAvailabilitySchema = z
   .object({
@@ -445,5 +533,14 @@ export type InviteClubPlaySessionParticipantsInput = z.infer<
 >;
 export type UpdateAttendanceResponseInput = z.infer<typeof updateAttendanceResponseSchema>;
 export type CreateTournamentInput = z.infer<typeof createTournamentSchema>;
+export type TournamentVisibility = z.infer<typeof tournamentVisibilitySchema>;
+export type TournamentStatus = z.infer<typeof tournamentStatusSchema>;
+export type TournamentPlayerRelationship = z.infer<typeof tournamentPlayerRelationshipSchema>;
+export type TournamentPlayer = z.infer<typeof tournamentPlayerSchema>;
+export type TournamentEntryRequest = z.infer<typeof tournamentEntryRequestSchema>;
+export type TournamentInvitation = z.infer<typeof tournamentInvitationSchema>;
+export type TournamentParticipation = z.infer<typeof tournamentParticipationSchema>;
+export type TournamentManagement = z.infer<typeof tournamentManagementSchema>;
+export type TournamentPlayerCandidate = z.infer<typeof tournamentPlayerCandidateSchema>;
 export type RecurringAvailabilityInput = z.infer<typeof recurringAvailabilitySchema>;
 export type PlayerStatistics = z.infer<typeof playerStatisticsSchema>;

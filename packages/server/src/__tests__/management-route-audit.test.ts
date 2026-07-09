@@ -73,13 +73,46 @@ describe('web-management API authentication audit', () => {
     'clubs/[clubId]/membership-requests/[requestId]/reject/route.ts',
     'clubs/[clubId]/play-sessions/route.ts',
     'club-play-sessions/[sessionId]/participants/route.ts',
-    'tournaments/route.ts',
-    'tournaments/[tournamentId]/generate/route.ts',
+    'tournaments/[tournamentId]/draft-draw/route.ts',
+    'tournaments/[tournamentId]/open/route.ts',
+    'tournaments/[tournamentId]/visibility/route.ts',
+    'tournaments/[tournamentId]/management/route.ts',
+    'tournaments/[tournamentId]/entry-requests/[requestId]/approve/route.ts',
+    'tournaments/[tournamentId]/entry-requests/[requestId]/reject/route.ts',
+    'tournaments/[tournamentId]/invitations/route.ts',
+    'tournaments/[tournamentId]/participants/route.ts',
+    'tournaments/[tournamentId]/participants/[playerId]/route.ts',
+    'tournaments/[tournamentId]/player-candidates/route.ts',
+    'clubs/[clubId]/tournaments/route.ts',
     'me/route.ts',
   ])('%s uses the centralized management-authentication guard', (path) => {
     const source = route(path);
     expect(source).toContain('requireManagementUserId');
     expect(source).not.toMatch(/await requireUserId\(\)/);
+  });
+
+  it('separates Tournament Player discovery from Draft creation in the shared route', () => {
+    const source = route('tournaments/route.ts');
+    const getHandler = source.slice(
+      source.indexOf('export async function GET'),
+      source.indexOf('export async function POST'),
+    );
+    const postHandler = source.slice(source.indexOf('export async function POST'));
+    expect(getHandler).toContain('requireUserId');
+    expect(getHandler).not.toContain('requireManagementUserId');
+    expect(postHandler).toContain('requireManagementUserId');
+    expect(postHandler).not.toMatch(/await requireUserId\(\)/);
+  });
+
+  it.each([
+    'tournaments/[tournamentId]/entry-requests/route.ts',
+    'tournaments/[tournamentId]/invitations/[invitationId]/accept/route.ts',
+    'tournaments/[tournamentId]/invitations/[invitationId]/reject/route.ts',
+    'tournaments/[tournamentId]/participation/route.ts',
+  ])('%s uses only the Player authentication boundary', (path) => {
+    const source = route(path);
+    expect(source).toContain('requireUserId');
+    expect(source).not.toContain('requireManagementUserId');
   });
 
   it('guards only the management operation in the shared Membership Request route', () => {

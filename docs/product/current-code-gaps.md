@@ -44,32 +44,43 @@ Challenges remain Later despite partial implementation.
 
 ## Tournaments
 
-| Intended behavior                                | Current evidence                   | Gap                                                                             |
-| ------------------------------------------------ | ---------------------------------- | ------------------------------------------------------------------------------- |
-| Official and Social Tournament ownership models  | `tournaments.clubId` is required   | Current schema supports Official Club ownership only                            |
-| Cross-Club and clubless Official participation   | `registerForTournament`            | Current service requires active Membership in the owning Club                   |
-| Club-only or Public Official visibility          | Tournament schema                  | No visibility mode                                                              |
-| Draft Draw is separate from Tournament Start     | `generateTournamentGroups`         | Group generation immediately moves to Group Stage                               |
-| Automatic plus Wildcard qualifiers               | `qualifiersPerGroup`               | Fixed qualifiers per Group only                                                 |
-| Fixed Squash Canada-style tiebreak procedure     | `packages/domain/src/standings.ts` | Current ordering uses a simpler whole-Group comparison and internal ID fallback |
-| Normalized Wildcard comparison                   | Tournament domain                  | Not implemented                                                                 |
-| Automatic tiered Knockout Draw                   | `packages/domain/src/bracket.ts`   | Existing ordering compares raw wins/differentials and does not model Wildcards  |
-| Random or Manual seeding only                    | `seedingMethod` includes `ranking` | Ranking seeding exists without a ranking product                                |
-| Best-of 1, 3, or 5 Games                         | `BestOf` includes 7                | Best-of-7 exceeds intended rules                                                |
-| Organizer-controlled Official Results            | `submitMatchResult`                | Participants currently submit initial Tournament results                        |
-| Dependency-based Result Locks                    | Revision logic                     | Current corrections do not model agreed phase/dependency locks                  |
-| Separate Official and Social Competition Records | `tournamentStats`                  | All Tournament statistics share one category                                    |
+Official Tournament discovery, explicit Club-only or Public visibility, the Draft to
+Registration Open transition, Entry Requests, Invitations, direct addition, accepted
+Tournament Participation, pre-Start withdrawal and removal, and Draft Draw invalidation
+are implemented. Participation is independent of Club Membership, and management routes
+use the isolated management-authentication boundary.
+
+The legacy direct-registration table was pre-release/dev-only and intentionally removed
+without migration because it had no production participation data to preserve. The new
+Entry Request, Invitation, and accepted Tournament Participation model is the first
+supported Official Tournament registration model.
+
+The Junior Club Participation Permission cannot yet be enforced for Tournament entry
+because the repository has no Guardian, Junior age, consent, or permission model. This
+slice does not invent a bypass, denial rule, or consent mechanism.
+
+| Intended behavior                                | Current evidence                         | Gap                                                                                   |
+| ------------------------------------------------ | ---------------------------------------- | ------------------------------------------------------------------------------------- |
+| Official and Social Tournament ownership models  | `tournaments.clubId` is required         | Current schema supports Official Club ownership only; Social Tournaments remain Later |
+| Explicit Tournament Start                        | Pre-Start roster and Draft Draw services | No Start action finalizing roster, draw, scoring, and visibility                      |
+| Automatic plus Wildcard qualifiers               | `qualifiersPerGroup`                     | Fixed qualifiers per Group only                                                       |
+| Fixed Squash Canada-style tiebreak procedure     | `packages/domain/src/standings.ts`       | Current ordering uses a simpler whole-Group comparison and internal ID fallback       |
+| Normalized Wildcard comparison                   | Tournament domain                        | Not implemented                                                                       |
+| Automatic tiered Knockout Draw                   | `packages/domain/src/bracket.ts`         | Existing ordering compares raw wins/differentials and does not model Wildcards        |
+| Organizer-controlled Official Results            | `submitMatchResult`                      | Participants currently submit initial Tournament results                              |
+| Dependency-based Result Locks                    | Revision logic                           | Current corrections do not model agreed phase/dependency locks                        |
+| Separate Official and Social Competition Records | `tournamentStats`                        | All Tournament statistics share one category                                          |
 
 Social Tournaments remain Later.
 
 ## Applications
 
-| Intended behavior                                | Current evidence                                                                  | Gap                                                                              |
-| ------------------------------------------------ | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| Mobile contains complete Player journeys         | Club Sessions and Club Membership are functional; Tournaments remain placeholders | Several Initial Player journeys remain incomplete                                |
-| Web contains only management capabilities        | Club Session and Membership management are functional workspace routes            | Other management features remain placeholders                                    |
-| Spanish default for Costa Rica, English optional | `packages/i18n`                                                                   | Both languages exist; default and complete feature coverage require verification |
-| Product terminology and Initial scope            | Match and Later-feature code                                                      | Some dormant legacy Match terminology still uses sets                            |
+| Intended behavior                                | Current evidence                                                                                       | Gap                                                                              |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| Mobile contains complete Player journeys         | Club Sessions, Club Membership, and pre-Start Official Tournament participation are functional         | Several other Initial Player journeys remain incomplete                          |
+| Web contains only management capabilities        | Club Session, Membership, and pre-Start Official Tournament management are functional workspace routes | Other management features remain placeholders                                    |
+| Spanish default for Costa Rica, English optional | `packages/i18n`                                                                                        | Both languages exist; default and complete feature coverage require verification |
+| Product terminology and Initial scope            | Match and Later-feature code                                                                           | Some dormant legacy Match terminology still uses sets                            |
 
 ## Operational gaps
 

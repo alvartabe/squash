@@ -1,7 +1,6 @@
 import type {
   CreateChallengeInput,
   CreateClubInput,
-  CreateTournamentInput,
   PlayerStatistics,
   SetScoreInput,
 } from '@squash/contracts';
@@ -28,13 +27,11 @@ import {
   tournamentFixtures,
   tournamentGroupMembers,
   tournamentGroups,
-  tournamentRegistrations,
   tournamentStats,
   tournaments,
   users,
 } from '@squash/db/schema';
 import {
-  assignPlayersToGroups,
   canCancelChallenge,
   canDisputeChallenge,
   canRespondToFriendship,
@@ -42,21 +39,18 @@ import {
   calculateMatchResult,
   calculateStandings,
   createFirstRound,
-  createRoundRobinPairs,
   isAcceptedFriendship,
   nextPowerOfTwo,
   qualifierOrder,
   type GroupMatch,
   type Qualifier,
 } from '@squash/domain';
-import { and, asc, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull, or, sql } from 'drizzle-orm';
 import { db } from './database';
 import { forbidden, notFound, ServiceError } from './errors';
 import {
   requireActiveClubMembership,
   requireClubAction,
-  requireLockedActiveClubMembership,
-  requireLockedClubAction,
   requirePlatformAdmin,
 } from './authorization';
 import { membershipResponsibilities } from './membership';
@@ -524,161 +518,6 @@ export async function disputeChallenge(actorId: string, challengeId: string, rea
   });
 }
 
-export async function createTournament(actorId: string, input: CreateTournamentInput) {
-  return db.transaction(async (tx) => {
-    await requireLockedClubAction(tx, actorId, input.clubId, 'tournament.manage');
-    const [rules] = await tx.insert(matchRuleSnapshots).values(ruleRecord(input.rules)).returning();
-    if (!rules) throw new Error('Failed to create rules.');
-    const [tournament] = await tx
-      .insert(tournaments)
-      .values({
-        clubId: input.clubId,
-        organizerId: actorId,
-        name: input.name,
-        startsAt: new Date(input.startsAt),
-        registrationClosesAt: new Date(input.registrationClosesAt),
-        timeZone: input.timeZone,
-        groupSize: input.groupSize,
-        qualifiersPerGroup: input.qualifiersPerGroup,
-        seedingMethod: input.seedingMethod,
-        rulesId: rules.id,
-      })
-      .returning();
-    if (!tournament) throw new Error('Failed to create tournament.');
-    return tournament;
-  });
-}
-
-export async function registerForTournament(actorId: string, tournamentId: string) {
-  return db.transaction(async (tx) => {
-    const [tournament] = await tx
-      .select({
-        clubId: tournaments.clubId,
-        status: tournaments.status,
-        closesAt: tournaments.registrationClosesAt,
-      })
-      .from(tournaments)
-      .where(eq(tournaments.id, tournamentId))
-      .limit(1)
-      .for('update');
-    if (!tournament) throw notFound('TOURNAMENT_NOT_FOUND');
-    await requireLockedActiveClubMembership(tx, actorId, tournament.clubId);
-    if (
-      !['draft', 'registration'].includes(tournament.status) ||
-      tournament.closesAt < new Date()
-    ) {
-      throw new ServiceError('REGISTRATION_CLOSED', 'error.invalidRequest', 409);
-    }
-    const [registration] = await tx
-      .insert(tournamentRegistrations)
-      .values({ tournamentId, userId: actorId })
-      .onConflictDoNothing()
-      .returning();
-    return registration ?? { tournamentId, userId: actorId };
-  });
-}
-
-function shuffled<T>(items: readonly T[]): T[] {
-  const result = [...items];
-  for (let index = result.length - 1; index > 0; index -= 1) {
-    const random = crypto.getRandomValues(new Uint32Array(1))[0] ?? 0;
-    const swap = random % (index + 1);
-    [result[index], result[swap]] = [result[swap] as T, result[index] as T];
-  }
-  return result;
-}
-
-export async function generateTournamentGroups(actorId: string, tournamentId: string) {
-  const [tournamentLocator] = await db
-    .select({ clubId: tournaments.clubId })
-    .from(tournaments)
-    .where(eq(tournaments.id, tournamentId))
-    .limit(1);
-  if (!tournamentLocator) throw notFound('TOURNAMENT_NOT_FOUND');
-
-  return db.transaction(async (tx) => {
-    await requireLockedClubAction(tx, actorId, tournamentLocator.clubId, 'tournament.manage');
-    const [tournament] = await tx
-      .select()
-      .from(tournaments)
-      .where(
-        and(eq(tournaments.id, tournamentId), eq(tournaments.clubId, tournamentLocator.clubId)),
-      )
-      .limit(1)
-      .for('update');
-    if (!tournament) throw notFound('TOURNAMENT_NOT_FOUND');
-    if (!['draft', 'registration'].includes(tournament.status)) {
-      throw new ServiceError('TOURNAMENT_ALREADY_STARTED', 'error.invalidRequest', 409);
-    }
-    const registrations = await tx
-      .select({ userId: tournamentRegistrations.userId, seed: tournamentRegistrations.seed })
-      .from(tournamentRegistrations)
-      .where(eq(tournamentRegistrations.tournamentId, tournamentId))
-      .orderBy(asc(tournamentRegistrations.seed), asc(tournamentRegistrations.registeredAt));
-    const ordered = tournament.seedingMethod === 'random' ? shuffled(registrations) : registrations;
-    const assignments = assignPlayersToGroups(
-      ordered.map((item) => item.userId),
-      tournament.groupSize,
-    );
-
-    for (const assignment of assignments) {
-      const [group] = await tx
-        .insert(tournamentGroups)
-        .values({
-          tournamentId,
-          name: String.fromCharCode(64 + assignment.groupPosition),
-          position: assignment.groupPosition,
-        })
-        .returning();
-      if (!group) throw new Error('Failed to create tournament group.');
-      await tx.insert(tournamentGroupMembers).values(
-        assignment.playerIds.map((userId) => ({
-          groupId: group.id,
-          userId,
-          seed: registrations.find((item) => item.userId === userId)?.seed,
-        })),
-      );
-      for (const [position, pair] of createRoundRobinPairs(assignment.playerIds).entries()) {
-        const [match] = await tx
-          .insert(matches)
-          .values({
-            clubId: tournament.clubId,
-            source: 'tournament',
-            countsForStatistics: true,
-            status: 'scheduled',
-            rulesId: tournament.rulesId,
-          })
-          .returning();
-        if (!match) throw new Error('Failed to create group match.');
-        await tx.insert(matchParticipants).values([
-          { matchId: match.id, userId: pair.playerOneId, position: 1 },
-          { matchId: match.id, userId: pair.playerTwoId, position: 2 },
-        ]);
-        await tx.insert(tournamentFixtures).values({
-          tournamentId,
-          groupId: group.id,
-          matchId: match.id,
-          stage: 'group',
-          round: pair.round,
-          position: position + 1,
-          playerOneId: pair.playerOneId,
-          playerTwoId: pair.playerTwoId,
-        });
-      }
-    }
-    await tx
-      .update(tournaments)
-      .set({ status: 'group-stage', updatedAt: new Date() })
-      .where(
-        and(
-          eq(tournaments.id, tournamentId),
-          inArray(tournaments.status, ['draft', 'registration']),
-        ),
-      );
-    return { tournamentId, groups: assignments.length, players: registrations.length };
-  });
-}
-
 async function groupQualifiers(
   tournamentId: string,
   qualifiersPerGroup: number,
@@ -988,7 +827,7 @@ export async function submitMatchResult(
   }
 
   const result = calculateMatchResult(scores, {
-    bestOf: record.bestOf as 1 | 3 | 5 | 7,
+    bestOf: record.bestOf as 1 | 3 | 5,
     pointsToWin: record.pointsToWin,
     winByTwo: record.winByTwo,
   });

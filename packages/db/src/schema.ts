@@ -61,8 +61,24 @@ export const tournamentStatus = pgEnum('tournament_status', [
   'completed',
   'cancelled',
 ]);
+export const tournamentVisibility = pgEnum('tournament_visibility', ['club-only', 'public']);
+export const tournamentEntryRequestStatus = pgEnum('tournament_entry_request_status', [
+  'pending',
+  'approved',
+  'rejected',
+]);
+export const tournamentInvitationStatus = pgEnum('tournament_invitation_status', [
+  'pending',
+  'accepted',
+  'rejected',
+]);
+export const tournamentParticipationSource = pgEnum('tournament_participation_source', [
+  'entry-request',
+  'invitation',
+  'direct',
+]);
 export const tournamentStage = pgEnum('tournament_stage', ['group', 'knockout']);
-export const seedingMethod = pgEnum('seeding_method', ['random', 'ranking', 'manual']);
+export const seedingMethod = pgEnum('seeding_method', ['random', 'manual']);
 export const mediaPurpose = pgEnum('media_purpose', ['avatar', 'racket', 'club-logo']);
 export const outboxStatus = pgEnum('outbox_status', [
   'pending',
@@ -567,9 +583,9 @@ export const tournaments = pgTable(
       .notNull()
       .references(() => users.id),
     name: text('name').notNull(),
+    visibility: tournamentVisibility('visibility').notNull(),
     status: tournamentStatus('status').notNull().default('draft'),
     startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
-    registrationClosesAt: timestamp('registration_closes_at', { withTimezone: true }).notNull(),
     timeZone: text('time_zone').notNull(),
     groupSize: integer('group_size').notNull(),
     qualifiersPerGroup: integer('qualifiers_per_group').notNull(),
@@ -577,6 +593,7 @@ export const tournaments = pgTable(
     rulesId: uuid('rules_id')
       .notNull()
       .references(() => matchRuleSnapshots.id),
+    draftDrawGeneratedAt: timestamp('draft_draw_generated_at', { withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -596,19 +613,69 @@ export const tournamentOrganizers = pgTable(
   (table) => [primaryKey({ columns: [table.tournamentId, table.userId] })],
 );
 
-export const tournamentRegistrations = pgTable(
-  'tournament_registrations',
+export const tournamentEntryRequests = pgTable(
+  'tournament_entry_requests',
+  {
+    id: id(),
+    tournamentId: uuid('tournament_id')
+      .notNull()
+      .references(() => tournaments.id, { onDelete: 'cascade' }),
+    playerId: text('player_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    status: tournamentEntryRequestStatus('status').notNull().default('pending'),
+    submittedAt: timestamp('submitted_at', { withTimezone: true }).notNull().defaultNow(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    resolvedById: text('resolved_by_id').references(() => users.id),
+  },
+  (table) => [
+    index('tournament_entry_requests_tournament_status_idx').on(table.tournamentId, table.status),
+    uniqueIndex('tournament_entry_requests_pending_idx')
+      .on(table.tournamentId, table.playerId)
+      .where(sql`${table.status} = 'pending'`),
+  ],
+);
+
+export const tournamentInvitations = pgTable(
+  'tournament_invitations',
+  {
+    id: id(),
+    tournamentId: uuid('tournament_id')
+      .notNull()
+      .references(() => tournaments.id, { onDelete: 'cascade' }),
+    playerId: text('player_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    invitedById: text('invited_by_id')
+      .notNull()
+      .references(() => users.id),
+    status: tournamentInvitationStatus('status').notNull().default('pending'),
+    invitedAt: timestamp('invited_at', { withTimezone: true }).notNull().defaultNow(),
+    respondedAt: timestamp('responded_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('tournament_invitations_tournament_status_idx').on(table.tournamentId, table.status),
+    uniqueIndex('tournament_invitations_pending_idx')
+      .on(table.tournamentId, table.playerId)
+      .where(sql`${table.status} = 'pending'`),
+  ],
+);
+
+export const tournamentParticipations = pgTable(
+  'tournament_participations',
   {
     tournamentId: uuid('tournament_id')
       .notNull()
       .references(() => tournaments.id, { onDelete: 'cascade' }),
-    userId: text('user_id')
+    playerId: text('player_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     seed: integer('seed'),
-    registeredAt: createdAt(),
+    source: tournamentParticipationSource('source').notNull(),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }).notNull().defaultNow(),
+    acceptedById: text('accepted_by_id').references(() => users.id),
   },
-  (table) => [primaryKey({ columns: [table.tournamentId, table.userId] })],
+  (table) => [primaryKey({ columns: [table.tournamentId, table.playerId] })],
 );
 
 export const tournamentGroups = pgTable(

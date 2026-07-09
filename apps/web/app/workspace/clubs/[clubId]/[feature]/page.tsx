@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation';
 import type { MessageKey } from '@squash/i18n';
 import { ComingSoon } from '@/components/workspace/coming-soon';
 import { SessionsPage } from '@/components/sessions/sessions-page';
+import { TournamentsPage } from '@/components/tournaments/tournaments-page';
 import { useLocale } from '@/src/locale-provider';
 
 const titles: Record<string, MessageKey> = {
@@ -17,5 +18,6 @@ export default function ClubFeaturePage() {
   const { clubId, feature } = useParams<{ clubId: string; feature: string }>();
   const { t } = useLocale();
   if (feature === 'sessions') return <SessionsPage clubId={clubId} />;
+  if (feature === 'tournaments') return <TournamentsPage clubId={clubId} />;
   return <ComingSoon title={t(titles[feature] ?? 'workspace.heading')} />;
 }
