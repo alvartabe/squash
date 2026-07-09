@@ -226,6 +226,33 @@ test('requires an Organizer Tiebreak Decision for inseparable bracket seeds', ()
   ).toThrow(OrganizerTiebreakRequiredError);
 });
 
+test('gives required byes to the highest Knockout Seeds', () => {
+  const fixtures = createFirstRound(
+    Array.from({ length: 6 }, (_, index) =>
+      qualifier({
+        playerId: `seed-${index + 1}`,
+        groupId: `group-${index + 1}`,
+        groupRank: 1,
+        matchWinPercentage: 1 - index * 0.1,
+        gameWinPercentage: 1 - index * 0.1,
+        pointWinPercentage: 1 - index * 0.1,
+      }),
+    ),
+  );
+
+  expect(fixtures[0]).toMatchObject({
+    playerOneId: 'seed-1',
+    playerTwoId: null,
+    byePlayerId: 'seed-1',
+  });
+  expect(fixtures[1]).toMatchObject({
+    playerOneId: 'seed-2',
+    playerTwoId: null,
+    byePlayerId: 'seed-2',
+  });
+  expect(fixtures.filter((fixture) => fixture.byePlayerId !== null)).toHaveLength(2);
+});
+
 test('adds byes and avoids same-group first-round matches when possible', () => {
   const fixtures = createFirstRound([
     qualifier({

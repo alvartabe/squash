@@ -189,9 +189,10 @@ export function createFirstRound(
   const ordered = seedQualifiers(qualifiers, options);
   const bracketSize = nextPowerOfTwo(ordered.length);
   const highSeeds = ordered.slice(0, bracketSize / 2);
+  const requiredByes = bracketSize - ordered.length;
   const lowSeeds: Array<Qualifier | null> = [
+    ...Array<null>(requiredByes).fill(null),
     ...ordered.slice(bracketSize / 2).reverse(),
-    ...Array<null>(bracketSize - ordered.length).fill(null),
   ];
 
   const fixtures: FirstRoundFixture[] = [];

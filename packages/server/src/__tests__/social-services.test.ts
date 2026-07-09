@@ -4,6 +4,8 @@ import {
   matchRuleSnapshots,
   matches,
   outboxEvents,
+  tournamentAdvancements,
+  tournamentFixtures,
 } from '@squash/db/schema';
 import { db } from '../database';
 import {
@@ -349,5 +351,145 @@ describe('tournament progression', () => {
       reason: 'manual-tiebreak-required',
     });
     expect(mockDb.transaction).not.toHaveBeenCalled();
+  });
+
+  it('creates a later-round Knockout Match when both Players arrive by first-round byes', async () => {
+    mockSelect([
+      {
+        id: 'tournament-id',
+        clubId: 'club-id',
+        rulesId: 'rules-id',
+        status: 'group-stage',
+        qualifiersPerGroup: 2,
+        wildcardQualifiers: 1,
+      },
+    ]);
+    mockWhereSelect([{ id: 'group-a' }, { id: 'group-b' }]);
+    mockWhereSelect([{ userId: 'a1' }, { userId: 'a2' }, { userId: 'a3' }]);
+    mockJoinedWhereSelect([
+      {
+        matchId: 'match-a1-a2',
+        playerOneId: 'a1',
+        playerTwoId: 'a2',
+        status: 'completed',
+      },
+      {
+        matchId: 'match-a1-a3',
+        playerOneId: 'a1',
+        playerTwoId: 'a3',
+        status: 'completed',
+      },
+      {
+        matchId: 'match-a2-a3',
+        playerOneId: 'a2',
+        playerTwoId: 'a3',
+        status: 'completed',
+      },
+    ]);
+    mockWhereSelect([{ playerOnePoints: 11, playerTwoPoints: 5 }]);
+    mockWhereSelect([{ playerOnePoints: 11, playerTwoPoints: 8 }]);
+    mockWhereSelect([{ playerOnePoints: 11, playerTwoPoints: 9 }]);
+    mockWhereSelect([{ userId: 'b1' }, { userId: 'b2' }, { userId: 'b3' }]);
+    mockJoinedWhereSelect([
+      {
+        matchId: 'match-b1-b2',
+        playerOneId: 'b1',
+        playerTwoId: 'b2',
+        status: 'completed',
+      },
+      {
+        matchId: 'match-b1-b3',
+        playerOneId: 'b1',
+        playerTwoId: 'b3',
+        status: 'completed',
+      },
+      {
+        matchId: 'match-b2-b3',
+        playerOneId: 'b2',
+        playerTwoId: 'b3',
+        status: 'completed',
+      },
+    ]);
+    mockWhereSelect([{ playerOnePoints: 11, playerTwoPoints: 4 }]);
+    mockWhereSelect([{ playerOnePoints: 11, playerTwoPoints: 1 }]);
+    mockWhereSelect([{ playerOnePoints: 11, playerTwoPoints: 1 }]);
+
+    const rankTransaction = {
+      update: jest.fn(() => ({
+        set: () => ({
+          where: jest.fn(),
+        }),
+      })),
+    };
+    mockDb.transaction
+      .mockImplementationOnce(async (callback: (database: typeof rankTransaction) => unknown) =>
+        callback(rankTransaction),
+      )
+      .mockImplementationOnce(async (callback: (database: typeof rankTransaction) => unknown) =>
+        callback(rankTransaction),
+      );
+
+    const participantInserts: unknown[] = [];
+    const targetFixtures = [
+      [{ id: 'round-2-position-1', matchId: null, playerOneId: 'b1', playerTwoId: null }],
+      [{ id: 'round-2-position-1', matchId: null, playerOneId: 'b1', playerTwoId: 'a1' }],
+      [{ id: 'round-2-position-2', matchId: null, playerOneId: 'b2', playerTwoId: null }],
+    ];
+    let matchNumber = 0;
+    const progressionTransaction = {
+      insert: jest.fn((table: unknown) => ({
+        values: (values: unknown) => {
+          if (table === tournamentFixtures) {
+            return {
+              returning: async () =>
+                (Array.isArray(values) ? values : [values]).map(
+                  (fixture: { round: number; position: number }) => ({
+                    id: `round-${fixture.round}-position-${fixture.position}`,
+                    position: fixture.position,
+                  }),
+                ),
+            };
+          }
+          if (table === matches) {
+            return {
+              returning: async () => [{ id: `knockout-match-${(matchNumber += 1)}` }],
+            };
+          }
+          if (table === matchParticipants) {
+            participantInserts.push(values);
+          }
+          if (table === tournamentAdvancements) {
+            return {};
+          }
+          return {};
+        },
+      })),
+      select: jest.fn(() => ({
+        from: () => ({
+          where: () => ({
+            limit: async () => targetFixtures.shift() ?? [],
+          }),
+        }),
+      })),
+      update: jest.fn(() => ({
+        set: () => ({
+          where: jest.fn(),
+        }),
+      })),
+    };
+    mockDb.transaction.mockImplementationOnce(
+      async (callback: (database: typeof progressionTransaction) => unknown) =>
+        callback(progressionTransaction),
+    );
+
+    await expect(progressTournament('tournament-id')).resolves.toMatchObject({
+      progressed: true,
+      qualifiers: 5,
+      rounds: 3,
+    });
+    expect(participantInserts).toContainEqual([
+      { matchId: 'knockout-match-1', userId: 'b1', position: 1 },
+      { matchId: 'knockout-match-1', userId: 'a1', position: 2 },
+    ]);
   });
 });

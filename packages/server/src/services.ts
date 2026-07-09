@@ -687,29 +687,41 @@ export async function progressTournament(tournamentId: string) {
         }
       }
     }
+    const createKnockoutMatchForFixture = async (fixture: {
+      id: string;
+      playerOneId: string | null;
+      playerTwoId: string | null;
+    }) => {
+      if (!fixture.playerOneId || !fixture.playerTwoId) return;
+      const [match] = await tx
+        .insert(matches)
+        .values({
+          clubId: tournament.clubId,
+          source: 'tournament',
+          countsForStatistics: true,
+          status: 'scheduled',
+          rulesId: tournament.rulesId,
+        })
+        .returning();
+      if (!match) throw new Error('Failed to create knockout match.');
+      await tx.insert(matchParticipants).values([
+        { matchId: match.id, userId: fixture.playerOneId, position: 1 },
+        { matchId: match.id, userId: fixture.playerTwoId, position: 2 },
+      ]);
+      await tx
+        .update(tournamentFixtures)
+        .set({ matchId: match.id })
+        .where(eq(tournamentFixtures.id, fixture.id));
+    };
     for (const fixture of rounds.get(1) ?? []) {
       const opening = firstRound.find((item) => item.position === fixture.position);
       if (!opening) continue;
       if (opening.playerOneId && opening.playerTwoId) {
-        const [match] = await tx
-          .insert(matches)
-          .values({
-            clubId: tournament.clubId,
-            source: 'tournament',
-            countsForStatistics: true,
-            status: 'scheduled',
-            rulesId: tournament.rulesId,
-          })
-          .returning();
-        if (!match) throw new Error('Failed to create knockout match.');
-        await tx.insert(matchParticipants).values([
-          { matchId: match.id, userId: opening.playerOneId, position: 1 },
-          { matchId: match.id, userId: opening.playerTwoId, position: 2 },
-        ]);
-        await tx
-          .update(tournamentFixtures)
-          .set({ matchId: match.id })
-          .where(eq(tournamentFixtures.id, fixture.id));
+        await createKnockoutMatchForFixture({
+          id: fixture.id,
+          playerOneId: opening.playerOneId,
+          playerTwoId: opening.playerTwoId,
+        });
       } else if (opening.byePlayerId && totalRounds > 1) {
         const target = rounds
           .get(2)
@@ -723,6 +735,19 @@ export async function progressTournament(tournamentId: string) {
                 : { playerTwoId: opening.byePlayerId },
             )
             .where(eq(tournamentFixtures.id, target.id));
+          const [targetFixture] = await tx
+            .select({
+              id: tournamentFixtures.id,
+              matchId: tournamentFixtures.matchId,
+              playerOneId: tournamentFixtures.playerOneId,
+              playerTwoId: tournamentFixtures.playerTwoId,
+            })
+            .from(tournamentFixtures)
+            .where(eq(tournamentFixtures.id, target.id))
+            .limit(1);
+          if (targetFixture && !targetFixture.matchId) {
+            await createKnockoutMatchForFixture(targetFixture);
+          }
         }
       }
     }
