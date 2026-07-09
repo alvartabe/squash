@@ -12,8 +12,11 @@ import {
   clubMemberships,
   clubResponsibilities,
   clubs,
+  matches,
+  matchParticipants,
   matchRuleSnapshots,
   tournamentEntryRequests,
+  tournamentFixtures,
   tournamentGroupMembers,
   tournamentGroups,
   tournamentInvitations,
@@ -22,8 +25,8 @@ import {
   tournaments,
   users,
 } from '@squash/db/schema';
-import { assignPlayersToGroups } from '@squash/domain';
-import { and, asc, eq, exists, ilike, isNull, or } from 'drizzle-orm';
+import { assignPlayersToGroups, createRoundRobinPairs } from '@squash/domain';
+import { and, asc, eq, exists, ilike, inArray, isNull, or } from 'drizzle-orm';
 import { getClubAuthorization } from './authorization';
 import { db } from './database';
 import { forbidden, notFound, ServiceError } from './errors';
@@ -49,6 +52,16 @@ function assertPreStart(status: string) {
 function assertRegistrationOpen(status: string) {
   if (status !== 'registration') {
     throw new ServiceError('TOURNAMENT_REGISTRATION_NOT_OPEN', 'error.invalidRequest', 409);
+  }
+}
+
+function assertAutomaticQualifiersFitGroupSize(
+  qualifiersPerGroup: number,
+  groupSizes: readonly number[],
+) {
+  const smallestGroupSize = Math.min(...groupSizes);
+  if (qualifiersPerGroup >= smallestGroupSize) {
+    throw new ServiceError('TOURNAMENT_QUALIFIERS_INVALID', 'error.invalidRequest', 409);
   }
 }
 
@@ -621,6 +634,10 @@ export async function generateTournamentDraftDraw(actorId: string, tournamentId:
     } catch {
       throw new ServiceError('TOURNAMENT_DRAW_REQUIRES_PLAYERS', 'error.invalidRequest', 409);
     }
+    assertAutomaticQualifiersFitGroupSize(
+      tournament.qualifiersPerGroup,
+      assignments.map((assignment) => assignment.playerIds.length),
+    );
     await tx.delete(tournamentGroups).where(eq(tournamentGroups.tournamentId, tournamentId));
     for (const assignment of assignments) {
       const [group] = await tx
@@ -646,6 +663,121 @@ export async function generateTournamentDraftDraw(actorId: string, tournamentId:
       .set({ draftDrawGeneratedAt: generatedAt, updatedAt: generatedAt })
       .where(eq(tournaments.id, tournamentId));
     return { tournamentId, groups: assignments.length, players: participations.length };
+  });
+}
+
+export async function startTournament(actorId: string, tournamentId: string) {
+  await requireTournamentManager(actorId, tournamentId);
+  return db.transaction(async (tx) => {
+    const tournament = await lockTournament(tx, tournamentId);
+    assertRegistrationOpen(tournament.status);
+    if (!tournament.draftDrawGeneratedAt) {
+      throw new ServiceError('TOURNAMENT_DRAFT_DRAW_REQUIRED', 'error.invalidRequest', 409);
+    }
+
+    const participations = await tx
+      .select({ playerId: tournamentParticipations.playerId })
+      .from(tournamentParticipations)
+      .where(eq(tournamentParticipations.tournamentId, tournamentId))
+      .orderBy(asc(tournamentParticipations.acceptedAt));
+    if (participations.length < 3) {
+      throw new ServiceError('TOURNAMENT_START_REQUIRES_THREE_PLAYERS', 'error.invalidRequest', 409);
+    }
+
+    const groups = await tx
+      .select({ id: tournamentGroups.id, position: tournamentGroups.position })
+      .from(tournamentGroups)
+      .where(eq(tournamentGroups.tournamentId, tournamentId))
+      .orderBy(asc(tournamentGroups.position));
+    if (groups.length === 0) {
+      throw new ServiceError('TOURNAMENT_DRAFT_DRAW_REQUIRED', 'error.invalidRequest', 409);
+    }
+
+    const groupMembers = await tx
+      .select({
+        groupId: tournamentGroupMembers.groupId,
+        playerId: tournamentGroupMembers.userId,
+        seed: tournamentGroupMembers.seed,
+      })
+      .from(tournamentGroupMembers)
+      .where(
+        inArray(
+          tournamentGroupMembers.groupId,
+          groups.map((group) => group.id),
+        ),
+      )
+      .orderBy(asc(tournamentGroupMembers.seed), asc(tournamentGroupMembers.userId));
+
+    const acceptedPlayerIds = new Set(participations.map((participation) => participation.playerId));
+    const drawnPlayerIds = new Set(groupMembers.map((member) => member.playerId));
+    if (
+      drawnPlayerIds.size !== groupMembers.length ||
+      drawnPlayerIds.size !== acceptedPlayerIds.size ||
+      [...acceptedPlayerIds].some((playerId) => !drawnPlayerIds.has(playerId))
+    ) {
+      throw new ServiceError('TOURNAMENT_DRAFT_DRAW_STALE', 'error.invalidRequest', 409);
+    }
+
+    const membersByGroup = new Map<string, string[]>();
+    for (const group of groups) membersByGroup.set(group.id, []);
+    for (const member of groupMembers) {
+      membersByGroup.get(member.groupId)?.push(member.playerId);
+    }
+    const groupSizes = [...membersByGroup.values()].map((playerIds) => playerIds.length);
+    if (groupSizes.some((size) => size < 2)) {
+      throw new ServiceError('TOURNAMENT_DRAFT_DRAW_INVALID', 'error.invalidRequest', 409);
+    }
+    if (Math.max(...groupSizes) - Math.min(...groupSizes) > 1) {
+      throw new ServiceError('TOURNAMENT_DRAFT_DRAW_INVALID', 'error.invalidRequest', 409);
+    }
+    assertAutomaticQualifiersFitGroupSize(tournament.qualifiersPerGroup, groupSizes);
+
+    let fixtureCount = 0;
+    for (const group of groups) {
+      const playerIds = membersByGroup.get(group.id) ?? [];
+      for (const [position, pair] of createRoundRobinPairs(playerIds).entries()) {
+        const [match] = await tx
+          .insert(matches)
+          .values({
+            clubId: tournament.clubId,
+            source: 'tournament',
+            countsForStatistics: true,
+            status: 'scheduled',
+            rulesId: tournament.rulesId,
+          })
+          .returning();
+        if (!match) throw new Error('Failed to create group Match.');
+        await tx.insert(matchParticipants).values([
+          { matchId: match.id, userId: pair.playerOneId, position: 1 },
+          { matchId: match.id, userId: pair.playerTwoId, position: 2 },
+        ]);
+        await tx.insert(tournamentFixtures).values({
+          tournamentId,
+          groupId: group.id,
+          matchId: match.id,
+          stage: 'group',
+          round: pair.round,
+          position: position + 1,
+          playerOneId: pair.playerOneId,
+          playerTwoId: pair.playerTwoId,
+        });
+        fixtureCount += 1;
+      }
+    }
+
+    const [started] = await tx
+      .update(tournaments)
+      .set({ status: 'group-stage', updatedAt: new Date() })
+      .where(and(eq(tournaments.id, tournamentId), eq(tournaments.status, 'registration')))
+      .returning();
+    if (!started) throw new ServiceError('TOURNAMENT_STATE_CONFLICT', 'error.invalidRequest', 409);
+    return {
+      tournamentId,
+      status: 'group-stage' as const,
+      players: participations.length,
+      groups: groups.length,
+      fixtures: fixtureCount,
+    };
   });
 }
 

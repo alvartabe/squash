@@ -74,6 +74,7 @@ describe('web-management API authentication audit', () => {
     'clubs/[clubId]/play-sessions/route.ts',
     'club-play-sessions/[sessionId]/participants/route.ts',
     'tournaments/[tournamentId]/draft-draw/route.ts',
+    'tournaments/[tournamentId]/start/route.ts',
     'tournaments/[tournamentId]/open/route.ts',
     'tournaments/[tournamentId]/visibility/route.ts',
     'tournaments/[tournamentId]/management/route.ts',

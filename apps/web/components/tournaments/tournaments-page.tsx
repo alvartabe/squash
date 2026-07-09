@@ -230,7 +230,15 @@ function TournamentCard({
               {t('tournaments.generateDraftDraw')}
             </Button>
           ) : null}
-          {tournament.draftDrawGeneratedAt ? (
+          {tournament.status === 'registration' && tournament.draftDrawGeneratedAt ? (
+            <Button
+              disabled={action.isPending}
+              onClick={() => run(`/tournaments/${tournament.id}/start`)}
+            >
+              {t('tournaments.startTournament')}
+            </Button>
+          ) : null}
+          {tournament.status === 'registration' && tournament.draftDrawGeneratedAt ? (
             <span className="self-center text-sm text-primary">
               {t('tournaments.draftDrawReady')}
             </span>

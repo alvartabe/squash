@@ -47,8 +47,10 @@ Challenges remain Later despite partial implementation.
 Official Tournament discovery, explicit Club-only or Public visibility, the Draft to
 Registration Open transition, Entry Requests, Invitations, direct addition, accepted
 Tournament Participation, pre-Start withdrawal and removal, and Draft Draw invalidation
-are implemented. Participation is independent of Club Membership, and management routes
-use the isolated management-authentication boundary.
+are implemented. Tournament Start finalizes the accepted roster and Draft Draw by
+creating Group Stage fixtures and moving the Tournament to Group Stage. Participation is
+independent of Club Membership, and management routes use the isolated
+management-authentication boundary.
 
 The legacy direct-registration table was pre-release/dev-only and intentionally removed
 without migration because it had no production participation data to preserve. The new
@@ -62,7 +64,6 @@ slice does not invent a bypass, denial rule, or consent mechanism.
 | Intended behavior                                | Current evidence                         | Gap                                                                                   |
 | ------------------------------------------------ | ---------------------------------------- | ------------------------------------------------------------------------------------- |
 | Official and Social Tournament ownership models  | `tournaments.clubId` is required         | Current schema supports Official Club ownership only; Social Tournaments remain Later |
-| Explicit Tournament Start                        | Pre-Start roster and Draft Draw services | No Start action finalizing roster, draw, scoring, and visibility                      |
 | Automatic plus Wildcard qualifiers               | `qualifiersPerGroup`                     | Fixed qualifiers per Group only                                                       |
 | Fixed Squash Canada-style tiebreak procedure     | `packages/domain/src/standings.ts`       | Current ordering uses a simpler whole-Group comparison and internal ID fallback       |
 | Normalized Wildcard comparison                   | Tournament domain                        | Not implemented                                                                       |

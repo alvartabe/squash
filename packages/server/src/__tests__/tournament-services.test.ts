@@ -1,8 +1,13 @@
 import {
+  matches,
+  matchParticipants,
   tournamentEntryRequests,
+  tournamentFixtures,
+  tournamentGroupMembers,
   tournamentGroups,
   tournamentInvitations,
   tournamentParticipations,
+  tournaments,
 } from '@squash/db/schema';
 import { getClubAuthorization } from '../authorization';
 import { db } from '../database';
@@ -13,6 +18,7 @@ import {
   removeTournamentPlayer,
   requestTournamentEntry,
   respondToTournamentInvitation,
+  startTournament,
   withdrawTournamentParticipation,
 } from '../tournaments';
 
@@ -38,13 +44,18 @@ const tournament = {
 };
 
 function selectRows(rows: unknown[]) {
+  const limited = {
+    for: async () => rows,
+    then: (resolve: (value: unknown[]) => unknown) => resolve(rows),
+  };
+  const whereResult = {
+    limit: () => limited,
+    orderBy: async () => rows,
+    then: (resolve: (value: unknown[]) => unknown) => resolve(rows),
+  };
   const query = {
-    where: () => ({
-      limit: () => ({
-        for: async () => rows,
-        then: (resolve: (value: unknown[]) => unknown) => resolve(rows),
-      }),
-    }),
+    where: () => whereResult,
+    orderBy: async () => rows,
   };
   return { from: () => query };
 }
@@ -121,6 +132,44 @@ function transactionWith(
     callback(tx),
   );
   return { tx, inserts, updates, deletes };
+}
+
+function startTransactionWith(
+  selections: unknown[][],
+  matchIds = ['match-1', 'match-2', 'match-3'],
+) {
+  const inserts: Array<{ table: unknown; values: unknown }> = [];
+  const updates: Array<{ table: unknown; values: Record<string, unknown> }> = [];
+  const select = jest.fn();
+  const remainingMatchIds = [...matchIds];
+  for (const rows of selections) select.mockReturnValueOnce(selectRows(rows));
+  const tx = {
+    select,
+    insert: jest.fn((table: unknown) => ({
+      values: (values: unknown) => {
+        inserts.push({ table, values });
+        return {
+          returning: async () => [
+            table === matches ? { id: remainingMatchIds.shift() ?? 'match-id' } : values,
+          ],
+        };
+      },
+    })),
+    update: jest.fn((table: unknown) => ({
+      set: (values: Record<string, unknown>) => {
+        updates.push({ table, values });
+        return {
+          where: () => ({
+            returning: async () => [{ ...values, id: 'started-id' }],
+          }),
+        };
+      },
+    })),
+  };
+  mockDb.transaction.mockImplementationOnce(async (callback: (database: typeof tx) => unknown) =>
+    callback(tx),
+  );
+  return { tx, inserts, updates };
 }
 
 describe('Official Tournament Player participation', () => {
@@ -291,5 +340,87 @@ describe('Official Tournament accepted-roster management', () => {
       status: 409,
     });
     expect(tx.delete).not.toHaveBeenCalled();
+  });
+});
+
+describe('Official Tournament Start', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  const startReadyTournament = {
+    ...tournament,
+    draftDrawGeneratedAt: new Date('2026-08-01T15:00:00.000Z'),
+    qualifiersPerGroup: 2,
+    rulesId: 'rules-id',
+  };
+
+  it('requires a generated Draft Draw before Start', async () => {
+    managerLocator();
+    const { tx } = startTransactionWith([[{ ...startReadyTournament, draftDrawGeneratedAt: null }]]);
+
+    await expect(startTournament('owner-id', tournament.id)).rejects.toMatchObject({
+      code: 'TOURNAMENT_DRAFT_DRAW_REQUIRED',
+      status: 409,
+    });
+    expect(tx.insert).not.toHaveBeenCalled();
+  });
+
+  it('requires at least three accepted Players at Start', async () => {
+    managerLocator();
+    const { tx } = startTransactionWith([
+      [startReadyTournament],
+      [{ playerId: 'player-1' }, { playerId: 'player-2' }],
+    ]);
+
+    await expect(startTournament('owner-id', tournament.id)).rejects.toMatchObject({
+      code: 'TOURNAMENT_START_REQUIRES_THREE_PLAYERS',
+      status: 409,
+    });
+    expect(tx.insert).not.toHaveBeenCalled();
+  });
+
+  it('rejects a stale Draft Draw when the accepted roster changed', async () => {
+    managerLocator();
+    const { tx } = startTransactionWith([
+      [startReadyTournament],
+      [{ playerId: 'player-1' }, { playerId: 'player-2' }, { playerId: 'player-3' }],
+      [{ id: 'group-1', position: 1 }],
+      [
+        { groupId: 'group-1', playerId: 'player-1', seed: null },
+        { groupId: 'group-1', playerId: 'player-2', seed: null },
+      ],
+    ]);
+
+    await expect(startTournament('owner-id', tournament.id)).rejects.toMatchObject({
+      code: 'TOURNAMENT_DRAFT_DRAW_STALE',
+      status: 409,
+    });
+    expect(tx.insert).not.toHaveBeenCalled();
+  });
+
+  it('creates Group Stage fixtures and locks the Tournament in Group Stage', async () => {
+    managerLocator();
+    const { inserts, updates } = startTransactionWith([
+      [startReadyTournament],
+      [{ playerId: 'player-1' }, { playerId: 'player-2' }, { playerId: 'player-3' }],
+      [{ id: 'group-1', position: 1 }],
+      [
+        { groupId: 'group-1', playerId: 'player-1', seed: 1 },
+        { groupId: 'group-1', playerId: 'player-2', seed: 2 },
+        { groupId: 'group-1', playerId: 'player-3', seed: 3 },
+      ],
+    ]);
+
+    await expect(startTournament('owner-id', tournament.id)).resolves.toMatchObject({
+      status: 'group-stage',
+      players: 3,
+      groups: 1,
+      fixtures: 3,
+    });
+    expect(inserts.filter(({ table }) => table === matches)).toHaveLength(3);
+    expect(inserts.filter(({ table }) => table === matchParticipants)).toHaveLength(3);
+    expect(inserts.filter(({ table }) => table === tournamentFixtures)).toHaveLength(3);
+    expect(inserts.some(({ table }) => table === tournamentGroups)).toBe(false);
+    expect(inserts.some(({ table }) => table === tournamentGroupMembers)).toBe(false);
+    expect(updates.find(({ table }) => table === tournaments)?.values.status).toBe('group-stage');
   });
 });
