@@ -681,7 +681,11 @@ export async function startTournament(actorId: string, tournamentId: string) {
       .where(eq(tournamentParticipations.tournamentId, tournamentId))
       .orderBy(asc(tournamentParticipations.acceptedAt));
     if (participations.length < 3) {
-      throw new ServiceError('TOURNAMENT_START_REQUIRES_THREE_PLAYERS', 'error.invalidRequest', 409);
+      throw new ServiceError(
+        'TOURNAMENT_START_REQUIRES_THREE_PLAYERS',
+        'error.invalidRequest',
+        409,
+      );
     }
 
     const groups = await tx
@@ -708,7 +712,9 @@ export async function startTournament(actorId: string, tournamentId: string) {
       )
       .orderBy(asc(tournamentGroupMembers.seed), asc(tournamentGroupMembers.userId));
 
-    const acceptedPlayerIds = new Set(participations.map((participation) => participation.playerId));
+    const acceptedPlayerIds = new Set(
+      participations.map((participation) => participation.playerId),
+    );
     const drawnPlayerIds = new Set(groupMembers.map((member) => member.playerId));
     if (
       drawnPlayerIds.size !== groupMembers.length ||
@@ -733,9 +739,12 @@ export async function startTournament(actorId: string, tournamentId: string) {
     assertAutomaticQualifiersFitGroupSize(tournament.qualifiersPerGroup, groupSizes);
 
     let fixtureCount = 0;
+    const nextFixturePositionByRound = new Map<number, number>();
     for (const group of groups) {
       const playerIds = membersByGroup.get(group.id) ?? [];
-      for (const [position, pair] of createRoundRobinPairs(playerIds).entries()) {
+      for (const pair of createRoundRobinPairs(playerIds)) {
+        const position = nextFixturePositionByRound.get(pair.round) ?? 1;
+        nextFixturePositionByRound.set(pair.round, position + 1);
         const [match] = await tx
           .insert(matches)
           .values({
@@ -757,7 +766,7 @@ export async function startTournament(actorId: string, tournamentId: string) {
           matchId: match.id,
           stage: 'group',
           round: pair.round,
-          position: position + 1,
+          position,
           playerOneId: pair.playerOneId,
           playerTwoId: pair.playerTwoId,
         });

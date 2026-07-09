@@ -355,7 +355,9 @@ describe('Official Tournament Start', () => {
 
   it('requires a generated Draft Draw before Start', async () => {
     managerLocator();
-    const { tx } = startTransactionWith([[{ ...startReadyTournament, draftDrawGeneratedAt: null }]]);
+    const { tx } = startTransactionWith([
+      [{ ...startReadyTournament, draftDrawGeneratedAt: null }],
+    ]);
 
     await expect(startTournament('owner-id', tournament.id)).rejects.toMatchObject({
       code: 'TOURNAMENT_DRAFT_DRAW_REQUIRED',
@@ -422,5 +424,52 @@ describe('Official Tournament Start', () => {
     expect(inserts.some(({ table }) => table === tournamentGroups)).toBe(false);
     expect(inserts.some(({ table }) => table === tournamentGroupMembers)).toBe(false);
     expect(updates.find(({ table }) => table === tournaments)?.values.status).toBe('group-stage');
+  });
+
+  it('creates unique Group Stage fixture positions across multiple Groups', async () => {
+    managerLocator();
+    const { inserts } = startTransactionWith(
+      [
+        [startReadyTournament],
+        [
+          { playerId: 'player-1' },
+          { playerId: 'player-2' },
+          { playerId: 'player-3' },
+          { playerId: 'player-4' },
+          { playerId: 'player-5' },
+          { playerId: 'player-6' },
+        ],
+        [
+          { id: 'group-1', position: 1 },
+          { id: 'group-2', position: 2 },
+        ],
+        [
+          { groupId: 'group-1', playerId: 'player-1', seed: 1 },
+          { groupId: 'group-1', playerId: 'player-2', seed: 2 },
+          { groupId: 'group-1', playerId: 'player-3', seed: 3 },
+          { groupId: 'group-2', playerId: 'player-4', seed: 4 },
+          { groupId: 'group-2', playerId: 'player-5', seed: 5 },
+          { groupId: 'group-2', playerId: 'player-6', seed: 6 },
+        ],
+      ],
+      ['match-1', 'match-2', 'match-3', 'match-4', 'match-5', 'match-6'],
+    );
+
+    await expect(startTournament('owner-id', tournament.id)).resolves.toMatchObject({
+      status: 'group-stage',
+      players: 6,
+      groups: 2,
+      fixtures: 6,
+    });
+
+    const fixtureRows = inserts
+      .filter(({ table }) => table === tournamentFixtures)
+      .map(({ values }) => values as { groupId: string; round: number; position: number });
+    expect(fixtureRows).toHaveLength(6);
+    expect(fixtureRows.filter((fixture) => fixture.groupId === 'group-1')).toHaveLength(3);
+    expect(fixtureRows.filter((fixture) => fixture.groupId === 'group-2')).toHaveLength(3);
+    expect(new Set(fixtureRows.map((fixture) => `${fixture.round}:${fixture.position}`)).size).toBe(
+      fixtureRows.length,
+    );
   });
 });

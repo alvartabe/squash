@@ -176,6 +176,7 @@ function TournamentCard({
   const { data: candidates = [] } = useTournamentCandidates(tournament.id, candidateSearch);
   const { t } = useLocale();
   const [playerId, setPlayerId] = useState('');
+  const registrationOpen = tournament.status === 'registration';
   const pendingRequests = tournament.entryRequests.filter(
     (request) => request.status === 'pending',
   );
@@ -221,7 +222,7 @@ function TournamentCard({
               {t('tournaments.openRegistration')}
             </Button>
           ) : null}
-          {tournament.status === 'registration' ? (
+          {registrationOpen ? (
             <Button
               disabled={action.isPending}
               onClick={() => run(`/tournaments/${tournament.id}/draft-draw`)}
@@ -230,7 +231,7 @@ function TournamentCard({
               {t('tournaments.generateDraftDraw')}
             </Button>
           ) : null}
-          {tournament.status === 'registration' && tournament.draftDrawGeneratedAt ? (
+          {registrationOpen && tournament.draftDrawGeneratedAt ? (
             <Button
               disabled={action.isPending}
               onClick={() => run(`/tournaments/${tournament.id}/start`)}
@@ -238,7 +239,7 @@ function TournamentCard({
               {t('tournaments.startTournament')}
             </Button>
           ) : null}
-          {tournament.status === 'registration' && tournament.draftDrawGeneratedAt ? (
+          {registrationOpen && tournament.draftDrawGeneratedAt ? (
             <span className="self-center text-sm text-primary">
               {t('tournaments.draftDrawReady')}
             </span>
@@ -250,25 +251,27 @@ function TournamentCard({
           {pendingRequests.map((request) => (
             <div className="flex items-center justify-between gap-3" key={request.id}>
               <span>{request.playerName}</span>
-              <div className="flex gap-2">
-                <Button
-                  onClick={() =>
-                    run(`/tournaments/${tournament.id}/entry-requests/${request.id}/approve`)
-                  }
-                  size="sm"
-                >
-                  {t('tournaments.approve')}
-                </Button>
-                <Button
-                  onClick={() =>
-                    run(`/tournaments/${tournament.id}/entry-requests/${request.id}/reject`)
-                  }
-                  size="sm"
-                  variant="outline"
-                >
-                  {t('tournaments.reject')}
-                </Button>
-              </div>
+              {registrationOpen ? (
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() =>
+                      run(`/tournaments/${tournament.id}/entry-requests/${request.id}/approve`)
+                    }
+                    size="sm"
+                  >
+                    {t('tournaments.approve')}
+                  </Button>
+                  <Button
+                    onClick={() =>
+                      run(`/tournaments/${tournament.id}/entry-requests/${request.id}/reject`)
+                    }
+                    size="sm"
+                    variant="outline"
+                  >
+                    {t('tournaments.reject')}
+                  </Button>
+                </div>
+              ) : null}
             </div>
           ))}
         </section>
@@ -294,7 +297,7 @@ function TournamentCard({
               ))}
             </select>
             <Button
-              disabled={!playerId || action.isPending || tournament.status !== 'registration'}
+              disabled={!playerId || action.isPending || !registrationOpen}
               onClick={() => run(`/tournaments/${tournament.id}/invitations`, { playerId })}
               variant="outline"
             >
