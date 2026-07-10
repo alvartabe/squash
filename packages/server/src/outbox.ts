@@ -3,7 +3,7 @@ import { resolveLocale, translate, type MessageKey } from '@squash/i18n';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { Resend } from 'resend';
 import { db } from './database';
-import { advanceKnockoutWinner, progressTournament } from './services';
+import { advanceKnockoutWinner, progressTournament } from './tournament-progression';
 
 type ClaimedEvent = {
   id: string;

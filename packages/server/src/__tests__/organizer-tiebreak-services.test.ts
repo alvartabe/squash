@@ -1,7 +1,7 @@
 import { auditLogs, organizerTiebreakDecisions, outboxEvents } from '@squash/db/schema';
 import { getClubAuthorization } from '../authorization';
 import { db } from '../database';
-import { inspectTournamentProgression, progressTournament } from '../services';
+import { inspectTournamentProgression, progressTournament } from '../tournament-progression';
 import { submitOrganizerTiebreakDecision } from '../tournaments';
 
 jest.mock('../database', () => ({
@@ -15,7 +15,7 @@ jest.mock('../authorization', () => ({
   getClubAuthorization: jest.fn(),
 }));
 
-jest.mock('../services', () => ({
+jest.mock('../tournament-progression', () => ({
   inspectTournamentProgression: jest.fn(),
   progressTournament: jest.fn(),
 }));
@@ -24,6 +24,7 @@ const mockDb = db as unknown as { select: jest.Mock; transaction: jest.Mock };
 const mockAuthorization = getClubAuthorization as jest.Mock;
 const mockInspect = inspectTournamentProgression as jest.Mock;
 const mockProgress = progressTournament as jest.Mock;
+const validationTx = { insert: jest.fn(), select: jest.fn() };
 
 const requirement = {
   tournamentId: 'tournament-id',
@@ -60,6 +61,9 @@ function authorizeOwner() {
 describe('Organizer Tiebreak Decision service', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockDb.transaction.mockImplementation(
+      async (callback: (database: typeof validationTx) => unknown) => callback(validationTx),
+    );
     mockInspect.mockResolvedValue({ status: 'manual-tiebreak-required', requirement });
     mockProgress.mockResolvedValue({ progressed: true, qualifiers: 4, rounds: 2 });
   });
@@ -154,7 +158,8 @@ describe('Organizer Tiebreak Decision service', () => {
         orderedPlayerIds,
       }),
     ).rejects.toMatchObject({ code: 'ORGANIZER_TIEBREAK_ORDER_INVALID', status: 400 });
-    expect(mockDb.transaction).not.toHaveBeenCalled();
+    expect(mockDb.transaction).toHaveBeenCalledTimes(1);
+    expect(validationTx.insert).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -175,14 +180,13 @@ describe('Organizer Tiebreak Decision service', () => {
         orderedPlayerIds: ['player-1', 'player-2', 'player-3'],
       }),
     ).rejects.toMatchObject({ code: 'ORGANIZER_TIEBREAK_STALE', status: 409 });
-    expect(mockDb.transaction).not.toHaveBeenCalled();
+    expect(mockDb.transaction).toHaveBeenCalledTimes(1);
+    expect(validationTx.insert).not.toHaveBeenCalled();
   });
 
-  it('rejects a decision when progression changes between preflight and persistence', async () => {
+  it('rejects a decision when the transactional progression state is stale', async () => {
     authorizeOwner();
-    mockInspect
-      .mockResolvedValueOnce({ status: 'manual-tiebreak-required', requirement })
-      .mockResolvedValueOnce({ status: 'inactive' });
+    mockInspect.mockResolvedValueOnce({ status: 'inactive' });
     const tx = { insert: jest.fn(), select: jest.fn() };
     mockDb.transaction.mockImplementationOnce(async (callback: (database: typeof tx) => unknown) =>
       callback(tx),

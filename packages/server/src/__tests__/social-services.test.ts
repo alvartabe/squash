@@ -12,10 +12,10 @@ import {
   cancelChallenge,
   createChallenge,
   disputeChallenge,
-  progressTournament,
   respondToFriend,
   submitMatchResult,
 } from '../services';
+import { progressTournament } from '../tournament-progression';
 
 jest.mock('../database', () => ({
   db: {

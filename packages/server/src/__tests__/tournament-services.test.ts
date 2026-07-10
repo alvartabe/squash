@@ -11,7 +11,7 @@ import {
 } from '@squash/db/schema';
 import { getClubAuthorization } from '../authorization';
 import { db } from '../database';
-import { inspectTournamentProgression } from '../services';
+import { inspectTournamentProgression } from '../tournament-progression';
 import {
   decideTournamentEntryRequest,
   directlyAddTournamentPlayer,
@@ -35,7 +35,7 @@ jest.mock('../authorization', () => ({
   getClubAuthorization: jest.fn(),
 }));
 
-jest.mock('../services', () => ({
+jest.mock('../tournament-progression', () => ({
   inspectTournamentProgression: jest.fn(),
   progressTournament: jest.fn(),
 }));

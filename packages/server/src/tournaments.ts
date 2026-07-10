@@ -41,7 +41,7 @@ import { alias } from 'drizzle-orm/pg-core';
 import { getClubAuthorization } from './authorization';
 import { db } from './database';
 import { forbidden, notFound, ServiceError } from './errors';
-import { inspectTournamentProgression, progressTournament } from './services';
+import { inspectTournamentProgression, progressTournament } from './tournament-progression';
 
 type ReadDatabase = Pick<typeof db, 'select'>;
 
@@ -1075,7 +1075,6 @@ export async function submitOrganizerTiebreakDecision(
   input: OrganizerTiebreakDecisionInput,
 ) {
   const tournament = await requireTournamentManager(actorId, tournamentId);
-  requireCurrentValidTiebreakRequirement(await inspectTournamentProgression(tournamentId), input);
 
   const decision = await db.transaction(
     async (tx) => {
