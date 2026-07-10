@@ -22,6 +22,12 @@ export const submitMatchResultSchema = z.object({
   revisionReason: z.string().trim().max(500).optional(),
 });
 
+export const gameScoreSchema = setScoreSchema;
+export const officialResultInputSchema = z.object({
+  expectedRevision: z.literal(0),
+  games: z.array(gameScoreSchema).min(1).max(5),
+});
+
 export const matchStatusSchema = z.enum([
   'scheduled',
   'in-progress',
@@ -198,7 +204,9 @@ export const tournamentParticipationSchema = z.object({
 export const tournamentGroupFixtureSchema = z.object({
   id: idSchema,
   matchId: idSchema,
+  stage: z.literal('group'),
   matchStatus: matchStatusSchema,
+  currentRevision: z.number().int().nonnegative(),
   groupId: idSchema,
   groupName: z.string(),
   groupPosition: z.number().int().positive(),
@@ -214,6 +222,30 @@ export const tournamentGroupFixtureSchema = z.object({
     name: z.string(),
     image: z.string().nullable(),
   }),
+  scoringRules: matchRulesSchema,
+  games: z.array(gameScoreSchema),
+  winnerId: userIdSchema.nullable(),
+  mayRecordInitialOfficialResult: z.boolean(),
+});
+
+export const tournamentKnockoutFixtureSchema = z.object({
+  id: idSchema,
+  matchId: idSchema.nullable(),
+  stage: z.literal('knockout'),
+  matchStatus: matchStatusSchema.nullable(),
+  currentRevision: z.number().int().nonnegative(),
+  round: z.number().int().positive(),
+  position: z.number().int().positive(),
+  playerOne: z
+    .object({ id: userIdSchema, name: z.string(), image: z.string().nullable() })
+    .nullable(),
+  playerTwo: z
+    .object({ id: userIdSchema, name: z.string(), image: z.string().nullable() })
+    .nullable(),
+  scoringRules: matchRulesSchema,
+  games: z.array(gameScoreSchema),
+  winnerId: userIdSchema.nullable(),
+  mayRecordInitialOfficialResult: z.boolean(),
 });
 
 export const organizerTiebreakContextSchema = z.enum([
@@ -273,6 +305,7 @@ export const tournamentManagementSchema = z.object({
   invitations: z.array(tournamentInvitationSchema),
   participations: z.array(tournamentParticipationSchema),
   groupFixtures: z.array(tournamentGroupFixtureSchema),
+  knockoutFixtures: z.array(tournamentKnockoutFixtureSchema),
   organizerTiebreakRequirement: organizerTiebreakRequirementSchema.nullable(),
 });
 
@@ -597,6 +630,8 @@ export const apiDataSchema = <T extends z.ZodType>(schema: T) => z.object({ data
 
 export type MatchRulesInput = z.infer<typeof matchRulesSchema>;
 export type SetScoreInput = z.infer<typeof setScoreSchema>;
+export type GameScoreInput = z.infer<typeof gameScoreSchema>;
+export type OfficialResultInput = z.infer<typeof officialResultInputSchema>;
 export type CreateChallengeInput = z.infer<typeof createChallengeSchema>;
 export type CreateClubInput = z.infer<typeof createClubSchema>;
 export type UpdateClubInput = z.infer<typeof updateClubSchema>;
@@ -618,6 +653,7 @@ export type TournamentEntryRequest = z.infer<typeof tournamentEntryRequestSchema
 export type TournamentInvitation = z.infer<typeof tournamentInvitationSchema>;
 export type TournamentParticipation = z.infer<typeof tournamentParticipationSchema>;
 export type TournamentGroupFixture = z.infer<typeof tournamentGroupFixtureSchema>;
+export type TournamentKnockoutFixture = z.infer<typeof tournamentKnockoutFixtureSchema>;
 export type OrganizerTiebreakContext = z.infer<typeof organizerTiebreakContextSchema>;
 export type OrganizerTiebreakRequirement = z.infer<typeof organizerTiebreakRequirementSchema>;
 export type OrganizerTiebreakDecisionInput = z.infer<typeof organizerTiebreakDecisionInputSchema>;

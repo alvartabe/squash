@@ -90,6 +90,12 @@ export function useClubTournaments(clubId: string) {
     queryKey: workspaceKeys.tournaments(clubId),
     enabled: Boolean(clubId),
     queryFn: async () => (await api.get(`/clubs/${clubId}/tournaments`)).data.data,
+    refetchInterval: (query) =>
+      query.state.data?.some((tournament) =>
+        ['group-stage', 'knockout'].includes(tournament.status),
+      )
+        ? 2_000
+        : false,
   });
 }
 

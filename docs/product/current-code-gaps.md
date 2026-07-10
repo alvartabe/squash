@@ -61,6 +61,13 @@ immutable decision records its Tournament context, selected order, deciding orga
 and timestamp, rejects stale or invalid submissions, and resumes progression without an
 ID-based fallback.
 
+Organizer-controlled Official Results are implemented through the isolated web-management
+authentication boundary for Group and available Knockout fixtures. Authorized Tournament
+Organizers finalize the initial result against the Match Scoring Rules snapshot; the Match,
+Game scores, immutable result revision, audit record, statistics rebuild event, and deterministic
+Tournament progression event are written atomically. Participants can view Official Results but
+the Player-authenticated result route rejects Tournament Matches.
+
 The legacy direct-registration table was pre-release/dev-only and intentionally removed
 without migration because it had no production participation data to preserve. The new
 Entry Request, Invitation, and accepted Tournament Participation model is the first
@@ -73,7 +80,6 @@ slice does not invent a bypass, denial rule, or consent mechanism.
 | Intended behavior                                | Current evidence                 | Gap                                                                                   |
 | ------------------------------------------------ | -------------------------------- | ------------------------------------------------------------------------------------- |
 | Official and Social Tournament ownership models  | `tournaments.clubId` is required | Current schema supports Official Club ownership only; Social Tournaments remain Later |
-| Organizer-controlled Official Results            | `submitMatchResult`              | Participants currently submit initial Tournament results                              |
 | Dependency-based Result Locks                    | Revision logic                   | Current corrections do not model agreed phase/dependency locks                        |
 | Separate Official and Social Competition Records | `tournamentStats`                | All Tournament statistics share one category                                          |
 

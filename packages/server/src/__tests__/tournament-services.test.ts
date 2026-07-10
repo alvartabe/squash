@@ -513,6 +513,8 @@ describe('Official Tournament management fixture read', () => {
       id: 'fixture-3',
       matchId: 'match-3',
       matchStatus: 'completed' as const,
+      currentRevision: 1,
+      winnerId: 'player-4',
       groupId: 'group-2',
       groupName: 'B',
       groupPosition: 2,
@@ -524,11 +526,16 @@ describe('Official Tournament management fixture read', () => {
       playerTwoId: 'player-5',
       playerTwoName: 'Elena Mora',
       playerTwoImage: null,
+      bestOf: 3,
+      pointsToWin: 11,
+      winByTwo: true,
     },
     {
       id: 'fixture-2',
       matchId: 'match-2',
       matchStatus: 'in-progress' as const,
+      currentRevision: 0,
+      winnerId: null,
       groupId: 'group-1',
       groupName: 'A',
       groupPosition: 1,
@@ -540,11 +547,16 @@ describe('Official Tournament management fixture read', () => {
       playerTwoId: 'player-3',
       playerTwoName: 'Camila Solano',
       playerTwoImage: 'https://example.test/camila.png',
+      bestOf: 3,
+      pointsToWin: 11,
+      winByTwo: true,
     },
     {
       id: 'fixture-1',
       matchId: 'match-1',
       matchStatus: 'scheduled' as const,
+      currentRevision: 0,
+      winnerId: null,
       groupId: 'group-1',
       groupName: 'A',
       groupPosition: 1,
@@ -556,11 +568,22 @@ describe('Official Tournament management fixture read', () => {
       playerTwoId: 'player-2',
       playerTwoName: 'Bruno Castro',
       playerTwoImage: 'https://example.test/bruno.png',
+      bestOf: 3,
+      pointsToWin: 11,
+      winByTwo: true,
     },
   ];
 
   function queueManagementPayload(fixtures: unknown[] = fixtureRows) {
-    queueSelectRows([[startedTournament], [], [], [], fixtures]);
+    queueSelectRows([
+      [startedTournament],
+      [{ bestOf: 3, pointsToWin: 11, winByTwo: true }],
+      [],
+      [],
+      [],
+      fixtures,
+      [],
+    ]);
   }
 
   it('returns finalized Group Stage fixtures with Player names for authorized managers', async () => {
@@ -581,6 +604,7 @@ describe('Official Tournament management fixture read', () => {
         round: fixture.round,
         position: fixture.position,
         matchStatus: fixture.matchStatus,
+        mayRecord: fixture.mayRecordInitialOfficialResult,
         players: [fixture.playerOne.name, fixture.playerTwo.name],
         playerImages: [fixture.playerOne.image, fixture.playerTwo.image],
       })),
@@ -590,6 +614,7 @@ describe('Official Tournament management fixture read', () => {
         round: 1,
         position: 1,
         matchStatus: 'scheduled',
+        mayRecord: true,
         players: ['Ana Vega', 'Bruno Castro'],
         playerImages: [null, 'https://example.test/bruno.png'],
       },
@@ -598,6 +623,7 @@ describe('Official Tournament management fixture read', () => {
         round: 2,
         position: 3,
         matchStatus: 'in-progress',
+        mayRecord: false,
         players: ['Ana Vega', 'Camila Solano'],
         playerImages: [null, 'https://example.test/camila.png'],
       },
@@ -606,6 +632,7 @@ describe('Official Tournament management fixture read', () => {
         round: 1,
         position: 2,
         matchStatus: 'completed',
+        mayRecord: false,
         players: ['Diego Arias', 'Elena Mora'],
         playerImages: ['https://example.test/diego.png', null],
       },
@@ -649,6 +676,93 @@ describe('Official Tournament management fixture read', () => {
           matchStatus: 'completed',
           playerOne: { name: 'Diego Arias', image: 'https://example.test/diego.png' },
           playerTwo: { name: 'Elena Mora', image: null },
+        },
+      ],
+    });
+  });
+
+  it('serializes available and completed Knockout fixtures with scoring and Official Results', async () => {
+    managerLocator();
+    queueSelectRows([
+      [{ ...startedTournament, status: 'knockout' as const }],
+      [{ bestOf: 5, pointsToWin: 11, winByTwo: true }],
+      [],
+      [],
+      [],
+      [],
+      [
+        {
+          id: 'knockout-1',
+          matchId: 'knockout-match-1',
+          matchStatus: 'completed',
+          currentRevision: 1,
+          winnerId: 'player-1',
+          round: 1,
+          position: 1,
+          playerOneId: 'player-1',
+          playerOneName: 'Ana Vega',
+          playerOneImage: null,
+          playerTwoId: 'player-2',
+          playerTwoName: 'Bruno Castro',
+          playerTwoImage: null,
+        },
+        {
+          id: 'knockout-2',
+          matchId: 'knockout-match-2',
+          matchStatus: 'scheduled',
+          currentRevision: 0,
+          winnerId: null,
+          round: 1,
+          position: 2,
+          playerOneId: 'player-3',
+          playerOneName: 'Camila Solano',
+          playerOneImage: null,
+          playerTwoId: 'player-4',
+          playerTwoName: 'Diego Arias',
+          playerTwoImage: null,
+        },
+      ],
+      [
+        {
+          matchId: 'knockout-match-1',
+          gameNumber: 1,
+          playerOnePoints: 11,
+          playerTwoPoints: 8,
+        },
+        {
+          matchId: 'knockout-match-1',
+          gameNumber: 2,
+          playerOnePoints: 11,
+          playerTwoPoints: 9,
+        },
+        {
+          matchId: 'knockout-match-1',
+          gameNumber: 3,
+          playerOnePoints: 11,
+          playerTwoPoints: 6,
+        },
+      ],
+    ]);
+
+    await expect(getTournamentManagement('owner-id', tournament.id)).resolves.toMatchObject({
+      knockoutFixtures: [
+        {
+          id: 'knockout-1',
+          stage: 'knockout',
+          scoringRules: { bestOf: 5, pointsToWin: 11, winByTwo: true },
+          games: [
+            { playerOnePoints: 11, playerTwoPoints: 8 },
+            { playerOnePoints: 11, playerTwoPoints: 9 },
+            { playerOnePoints: 11, playerTwoPoints: 6 },
+          ],
+          winnerId: 'player-1',
+          mayRecordInitialOfficialResult: false,
+        },
+        {
+          id: 'knockout-2',
+          stage: 'knockout',
+          games: [],
+          mayRecordInitialOfficialResult: true,
         },
       ],
     });

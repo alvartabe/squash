@@ -10,6 +10,7 @@ export * from './management-authentication';
 export * from './membership';
 export * from './membership-requests';
 export * from './outbox';
+export * from './official-results';
 export * from './services';
 export * from './tournament-progression';
 export * from './tournaments';

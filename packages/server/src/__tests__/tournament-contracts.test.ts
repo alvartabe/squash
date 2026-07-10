@@ -1,5 +1,6 @@
 import {
   createTournamentSchema,
+  officialResultInputSchema,
   organizerTiebreakDecisionInputSchema,
   tournamentManagementSchema,
   tournamentPlayerSchema,
@@ -87,7 +88,9 @@ describe('Official Tournament contracts', () => {
         {
           id: '4cb49f8a-a584-4424-9e39-274df6d7f8d7',
           matchId: '71ba8d8f-c323-4e64-ae4f-7b6bb969f32c',
+          stage: 'group',
           matchStatus: 'scheduled',
+          currentRevision: 0,
           groupId: 'd7e5d16a-ee4f-4c57-b94f-eaf94ad2975d',
           groupName: 'A',
           groupPosition: 1,
@@ -99,19 +102,41 @@ describe('Official Tournament contracts', () => {
             image: 'https://example.test/ana.png',
           },
           playerTwo: { id: 'player-2', name: 'Bruno Castro', image: null },
-          winnerId: 'player-1',
+          scoringRules: { bestOf: 5, pointsToWin: 11, winByTwo: true },
+          games: [],
+          winnerId: null,
+          mayRecordInitialOfficialResult: true,
         },
       ],
+      knockoutFixtures: [],
     });
     const shape = tournamentManagementSchema.shape;
     expect(shape).toHaveProperty('participations');
     expect(shape).toHaveProperty('groupFixtures');
-    expect(parsed.groupFixtures[0]).not.toHaveProperty('winnerId');
+    expect(parsed.groupFixtures[0]?.winnerId).toBeNull();
+    expect(parsed.groupFixtures[0]?.mayRecordInitialOfficialResult).toBe(true);
     expect(parsed.groupFixtures[0]?.matchStatus).toBe('scheduled');
     expect(parsed.groupFixtures[0]?.playerOne.name).toBe('Ana Vega');
     expect(parsed.groupFixtures[0]?.playerOne.image).toBe('https://example.test/ana.png');
     expect(JSON.stringify(shape)).not.toContain('social');
-    expect(JSON.stringify(shape)).not.toContain('winner');
+  });
+
+  it('accepts only initial Official Result Games and rejects malformed submissions', () => {
+    expect(
+      officialResultInputSchema.parse({
+        expectedRevision: 0,
+        games: [{ playerOnePoints: 11, playerTwoPoints: 7 }],
+      }),
+    ).toEqual({
+      expectedRevision: 0,
+      games: [{ playerOnePoints: 11, playerTwoPoints: 7 }],
+    });
+    expect(
+      officialResultInputSchema.safeParse({
+        expectedRevision: 1,
+        games: [{ playerOnePoints: 11.5, playerTwoPoints: -1 }],
+      }).success,
+    ).toBe(false);
   });
 
   it('accepts only a unique, complete ordering for an exposed tie requirement', () => {

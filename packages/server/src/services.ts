@@ -531,6 +531,7 @@ export async function submitMatchResult(
     .where(eq(matches.id, matchId))
     .limit(1);
   if (!record) throw notFound('MATCH_NOT_FOUND');
+  if (record.source === 'tournament') throw forbidden();
 
   const participants = await db
     .select({ userId: matchParticipants.userId, position: matchParticipants.position })

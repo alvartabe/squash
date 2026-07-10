@@ -360,6 +360,8 @@ const en = {
   'tournaments.generateDraftDraw': 'Generate Draft Draw',
   'tournaments.startTournament': 'Start Tournament',
   'tournaments.groupStageFixtures': 'Group Stage fixtures',
+  'tournaments.knockoutFixtures': 'Knockout fixtures',
+  'tournaments.noKnockoutFixtures': 'No Knockout fixtures are available yet.',
   'tournaments.noGroupFixtures': 'No Group Stage fixtures found.',
   'tournaments.group': 'Group',
   'tournaments.round': 'Round',
@@ -371,6 +373,20 @@ const en = {
   'tournaments.matchStatus.completed': 'Completed',
   'tournaments.matchStatus.disputed': 'Disputed',
   'tournaments.matchStatus.void': 'Void',
+  'tournaments.officialResult.heading': 'Official Result',
+  'tournaments.officialResult.game': 'Game',
+  'tournaments.officialResult.winner': 'Winner',
+  'tournaments.officialResult.submit': 'Finalize Official Result',
+  'tournaments.officialResult.submitting': 'Finalizing…',
+  'tournaments.officialResult.awaitingPlayers': 'Awaiting Players from the previous round.',
+  'tournaments.officialResult.validationError':
+    'Enter consecutive, complete Games with valid scores and one Match winner.',
+  'tournaments.officialResult.error':
+    'The Official Result was not finalized. Refresh to check for another Organizer’s update, then review the scores and try again.',
+  'tournaments.officialResult.conflictError':
+    'Another Organizer changed this Match. Refresh to view the current Official Result.',
+  'tournaments.officialResult.unavailableError':
+    'This fixture is not available for an Official Result. Refresh to view the latest Tournament progression.',
   'tournaments.tiebreak.heading': 'Organizer Tiebreak Decision',
   'tournaments.tiebreak.description':
     'Order every tied Player from highest to lowest to resume Tournament progression.',
@@ -797,6 +813,8 @@ const es: Record<MessageKey, string> = {
   'tournaments.generateDraftDraw': 'Generar Sorteo Preliminar',
   'tournaments.startTournament': 'Iniciar Torneo',
   'tournaments.groupStageFixtures': 'Partidos de la Fase de Grupos',
+  'tournaments.knockoutFixtures': 'Partidos de Eliminación Directa',
+  'tournaments.noKnockoutFixtures': 'Todavía no hay partidos de Eliminación Directa disponibles.',
   'tournaments.noGroupFixtures': 'No se encontraron partidos de la Fase de Grupos.',
   'tournaments.group': 'Grupo',
   'tournaments.round': 'Ronda',
@@ -808,6 +826,20 @@ const es: Record<MessageKey, string> = {
   'tournaments.matchStatus.completed': 'Completado',
   'tournaments.matchStatus.disputed': 'En disputa',
   'tournaments.matchStatus.void': 'Anulado',
+  'tournaments.officialResult.heading': 'Resultado Oficial',
+  'tournaments.officialResult.game': 'Juego',
+  'tournaments.officialResult.winner': 'Ganador',
+  'tournaments.officialResult.submit': 'Finalizar Resultado Oficial',
+  'tournaments.officialResult.submitting': 'Finalizando…',
+  'tournaments.officialResult.awaitingPlayers': 'Esperando Jugadores de la ronda anterior.',
+  'tournaments.officialResult.validationError':
+    'Ingresa Juegos consecutivos y completos con marcadores válidos y un ganador del Partido.',
+  'tournaments.officialResult.error':
+    'No se finalizó el Resultado Oficial. Actualiza para comprobar si otro Organizador registró un cambio, revisa los marcadores e inténtalo de nuevo.',
+  'tournaments.officialResult.conflictError':
+    'Otro Organizador cambió este Partido. Actualiza para ver el Resultado Oficial actual.',
+  'tournaments.officialResult.unavailableError':
+    'Este partido no está disponible para un Resultado Oficial. Actualiza para ver el avance más reciente del Torneo.',
   'tournaments.tiebreak.heading': 'Decisión de Desempate del Organizador',
   'tournaments.tiebreak.description':
     'Ordena a todos los Jugadores empatados de mayor a menor para continuar el Torneo.',
