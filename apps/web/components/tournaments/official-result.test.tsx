@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import type { TournamentGroupFixture } from '@squash/contracts';
 import { translate, type Locale } from '@squash/i18n';
-import { FixtureOfficialResult } from './tournaments-page';
+import { FixtureOfficialResult } from './official-result';
 
 const mutate = jest.fn();
 let actionState: {

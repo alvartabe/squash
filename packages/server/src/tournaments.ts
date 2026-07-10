@@ -3,8 +3,6 @@ import type {
   OrganizerTiebreakDecisionInput,
   OrganizerTiebreakRequirement,
   TournamentEntryRequest,
-  TournamentGroupFixture,
-  TournamentKnockoutFixture,
   TournamentInvitation,
   TournamentManagement,
   TournamentParticipation,
@@ -20,7 +18,6 @@ import {
   matches,
   matchParticipants,
   matchRuleSnapshots,
-  matchSets,
   organizerTiebreakDecisions,
   outboxEvents,
   tournamentEntryRequests,
@@ -39,19 +36,15 @@ import {
   isExactOrganizerTiebreakOrder,
 } from '@squash/domain';
 import { and, asc, eq, exists, ilike, inArray, isNull, or } from 'drizzle-orm';
-import { alias } from 'drizzle-orm/pg-core';
 import { getClubAuthorization } from './authorization';
 import { db } from './database';
 import { forbidden, notFound, ServiceError } from './errors';
+import { getTournamentFixtureReadModel } from './tournament-fixture-read-model';
 import { inspectTournamentProgression, progressTournament } from './tournament-progression';
 
 type ReadDatabase = Pick<typeof db, 'select'>;
 
 const preStartStatuses = ['draft', 'registration'] as const;
-const groupFixtureReadableStatuses = ['group-stage', 'knockout', 'completed', 'cancelled'] as const;
-const knockoutFixtureReadableStatuses = ['knockout', 'completed', 'cancelled'] as const;
-const fixturePlayerOne = alias(users, 'fixture_player_one');
-const fixturePlayerTwo = alias(users, 'fixture_player_two');
 
 function ruleRecord(rules: { bestOf: number; pointsToWin: number; winByTwo: boolean }) {
   return { bestOf: rules.bestOf, pointsToWin: rules.pointsToWin, winByTwo: rules.winByTwo };
@@ -866,102 +859,6 @@ const serializeParticipation = (row: {
   acceptedAt: row.acceptedAt.toISOString(),
 });
 
-const serializeGroupFixture = (
-  row: {
-    id: string;
-    matchId: string;
-    matchStatus: 'scheduled' | 'in-progress' | 'completed' | 'disputed' | 'void';
-    currentRevision: number;
-    winnerId: string | null;
-    groupId: string;
-    groupName: string;
-    groupPosition: number;
-    round: number;
-    position: number;
-    playerOneId: string;
-    playerOneName: string;
-    playerOneImage: string | null;
-    playerTwoId: string;
-    playerTwoName: string;
-    playerTwoImage: string | null;
-    bestOf: number;
-    pointsToWin: number;
-    winByTwo: boolean;
-  },
-  games: Array<{ playerOnePoints: number; playerTwoPoints: number }>,
-  mayRecord: boolean,
-): TournamentGroupFixture => ({
-  id: row.id,
-  matchId: row.matchId,
-  stage: 'group',
-  matchStatus: row.matchStatus,
-  currentRevision: row.currentRevision,
-  groupId: row.groupId,
-  groupName: row.groupName,
-  groupPosition: row.groupPosition,
-  round: row.round,
-  position: row.position,
-  playerOne: {
-    id: row.playerOneId,
-    name: row.playerOneName,
-    image: row.playerOneImage,
-  },
-  playerTwo: {
-    id: row.playerTwoId,
-    name: row.playerTwoName,
-    image: row.playerTwoImage,
-  },
-  scoringRules: {
-    bestOf: row.bestOf as 1 | 3 | 5,
-    pointsToWin: row.pointsToWin,
-    winByTwo: row.winByTwo,
-  },
-  games,
-  winnerId: row.winnerId,
-  mayRecordInitialOfficialResult: mayRecord,
-});
-
-const serializeKnockoutFixture = (
-  row: {
-    id: string;
-    matchId: string | null;
-    matchStatus: 'scheduled' | 'in-progress' | 'completed' | 'disputed' | 'void' | null;
-    currentRevision: number | null;
-    winnerId: string | null;
-    round: number;
-    position: number;
-    playerOneId: string | null;
-    playerOneName: string | null;
-    playerOneImage: string | null;
-    playerTwoId: string | null;
-    playerTwoName: string | null;
-    playerTwoImage: string | null;
-  },
-  rules: { bestOf: number; pointsToWin: number; winByTwo: boolean },
-  games: Array<{ playerOnePoints: number; playerTwoPoints: number }>,
-  mayRecord: boolean,
-): TournamentKnockoutFixture => ({
-  id: row.id,
-  matchId: row.matchId,
-  stage: 'knockout',
-  matchStatus: row.matchStatus,
-  currentRevision: row.currentRevision ?? 0,
-  round: row.round,
-  position: row.position,
-  playerOne:
-    row.playerOneId && row.playerOneName
-      ? { id: row.playerOneId, name: row.playerOneName, image: row.playerOneImage }
-      : null,
-  playerTwo:
-    row.playerTwoId && row.playerTwoName
-      ? { id: row.playerTwoId, name: row.playerTwoName, image: row.playerTwoImage }
-      : null,
-  scoringRules: { ...rules, bestOf: rules.bestOf as 1 | 3 | 5 },
-  games,
-  winnerId: row.winnerId,
-  mayRecordInitialOfficialResult: mayRecord,
-});
-
 export async function getTournamentManagement(
   actorId: string,
   tournamentId: string,
@@ -973,16 +870,6 @@ export async function getTournamentManagement(
     .where(eq(tournaments.id, tournamentId))
     .limit(1);
   if (!tournament) throw notFound('TOURNAMENT_NOT_FOUND');
-  const [tournamentRules] = await db
-    .select({
-      bestOf: matchRuleSnapshots.bestOf,
-      pointsToWin: matchRuleSnapshots.pointsToWin,
-      winByTwo: matchRuleSnapshots.winByTwo,
-    })
-    .from(matchRuleSnapshots)
-    .where(eq(matchRuleSnapshots.id, tournament.rulesId))
-    .limit(1);
-  if (!tournamentRules) throw new Error('Tournament Match Scoring Rules could not be loaded.');
   const entryRequests = await db
     .select({
       id: tournamentEntryRequests.id,
@@ -1028,112 +915,7 @@ export async function getTournamentManagement(
     .innerJoin(users, eq(users.id, tournamentParticipations.playerId))
     .where(eq(tournamentParticipations.tournamentId, tournamentId))
     .orderBy(asc(tournamentParticipations.acceptedAt));
-  const groupFixtures = groupFixtureReadableStatuses.includes(
-    tournament.status as (typeof groupFixtureReadableStatuses)[number],
-  )
-    ? await db
-        .select({
-          id: tournamentFixtures.id,
-          matchId: matches.id,
-          matchStatus: matches.status,
-          currentRevision: matches.currentRevision,
-          winnerId: matches.winnerId,
-          groupId: tournamentGroups.id,
-          groupName: tournamentGroups.name,
-          groupPosition: tournamentGroups.position,
-          round: tournamentFixtures.round,
-          position: tournamentFixtures.position,
-          playerOneId: fixturePlayerOne.id,
-          playerOneName: fixturePlayerOne.name,
-          playerOneImage: fixturePlayerOne.image,
-          playerTwoId: fixturePlayerTwo.id,
-          playerTwoName: fixturePlayerTwo.name,
-          playerTwoImage: fixturePlayerTwo.image,
-          bestOf: matchRuleSnapshots.bestOf,
-          pointsToWin: matchRuleSnapshots.pointsToWin,
-          winByTwo: matchRuleSnapshots.winByTwo,
-        })
-        .from(tournamentFixtures)
-        .innerJoin(tournamentGroups, eq(tournamentGroups.id, tournamentFixtures.groupId))
-        .innerJoin(matches, eq(matches.id, tournamentFixtures.matchId))
-        .innerJoin(matchRuleSnapshots, eq(matchRuleSnapshots.id, matches.rulesId))
-        .innerJoin(fixturePlayerOne, eq(fixturePlayerOne.id, tournamentFixtures.playerOneId))
-        .innerJoin(fixturePlayerTwo, eq(fixturePlayerTwo.id, tournamentFixtures.playerTwoId))
-        .where(
-          and(
-            eq(tournamentFixtures.tournamentId, tournamentId),
-            eq(tournamentFixtures.stage, 'group'),
-          ),
-        )
-        .orderBy(
-          asc(tournamentGroups.position),
-          asc(tournamentFixtures.round),
-          asc(tournamentFixtures.position),
-        )
-    : [];
-  const orderedGroupFixtures = [...groupFixtures].sort(
-    (left, right) =>
-      left.groupPosition - right.groupPosition ||
-      left.round - right.round ||
-      left.position - right.position,
-  );
-  const knockoutFixtures = knockoutFixtureReadableStatuses.includes(
-    tournament.status as (typeof knockoutFixtureReadableStatuses)[number],
-  )
-    ? await db
-        .select({
-          id: tournamentFixtures.id,
-          matchId: tournamentFixtures.matchId,
-          matchStatus: matches.status,
-          currentRevision: matches.currentRevision,
-          winnerId: matches.winnerId,
-          round: tournamentFixtures.round,
-          position: tournamentFixtures.position,
-          playerOneId: fixturePlayerOne.id,
-          playerOneName: fixturePlayerOne.name,
-          playerOneImage: fixturePlayerOne.image,
-          playerTwoId: fixturePlayerTwo.id,
-          playerTwoName: fixturePlayerTwo.name,
-          playerTwoImage: fixturePlayerTwo.image,
-        })
-        .from(tournamentFixtures)
-        .leftJoin(matches, eq(matches.id, tournamentFixtures.matchId))
-        .leftJoin(fixturePlayerOne, eq(fixturePlayerOne.id, tournamentFixtures.playerOneId))
-        .leftJoin(fixturePlayerTwo, eq(fixturePlayerTwo.id, tournamentFixtures.playerTwoId))
-        .where(
-          and(
-            eq(tournamentFixtures.tournamentId, tournamentId),
-            eq(tournamentFixtures.stage, 'knockout'),
-          ),
-        )
-        .orderBy(asc(tournamentFixtures.round), asc(tournamentFixtures.position))
-    : [];
-  const matchIds = [...orderedGroupFixtures, ...knockoutFixtures]
-    .map((fixture) => fixture.matchId)
-    .filter((matchId): matchId is string => Boolean(matchId));
-  const gameRows =
-    matchIds.length > 0
-      ? await db
-          .select({
-            matchId: matchSets.matchId,
-            gameNumber: matchSets.setNumber,
-            playerOnePoints: matchSets.playerOnePoints,
-            playerTwoPoints: matchSets.playerTwoPoints,
-          })
-          .from(matchSets)
-          .where(inArray(matchSets.matchId, matchIds))
-          .orderBy(asc(matchSets.matchId), asc(matchSets.setNumber))
-      : [];
-  const gamesByMatchId = new Map<
-    string,
-    Array<{ playerOnePoints: number; playerTwoPoints: number }>
-  >();
-  for (const { matchId, playerOnePoints, playerTwoPoints } of gameRows) {
-    const games = gamesByMatchId.get(matchId) ?? [];
-    games.push({ playerOnePoints, playerTwoPoints });
-    gamesByMatchId.set(matchId, games);
-  }
-  const gamesFor = (matchId: string | null) => (matchId ? (gamesByMatchId.get(matchId) ?? []) : []);
+  const fixtureReadModel = await getTournamentFixtureReadModel(tournament);
   const progressionState = await inspectTournamentProgression(tournamentId);
   let organizerTiebreakRequirement: OrganizerTiebreakRequirement | null = null;
   if (progressionState.status === 'manual-tiebreak-required') {
@@ -1148,7 +930,7 @@ export async function getTournamentManagement(
       return player;
     });
     const groupFixture = progressionState.requirement.groupId
-      ? orderedGroupFixtures.find(
+      ? fixtureReadModel.groupFixtures.find(
           (fixture) => fixture.groupId === progressionState.requirement.groupId,
         )
       : null;
@@ -1182,26 +964,7 @@ export async function getTournamentManagement(
     entryRequests: entryRequests.map(serializeEntryRequest),
     invitations: invitations.map(serializeInvitation),
     participations: participations.map(serializeParticipation),
-    groupFixtures: orderedGroupFixtures.map((fixture) =>
-      serializeGroupFixture(
-        fixture,
-        gamesFor(fixture.matchId),
-        tournament.status === 'group-stage' &&
-          fixture.matchStatus === 'scheduled' &&
-          fixture.currentRevision === 0,
-      ),
-    ),
-    knockoutFixtures: knockoutFixtures.map((fixture) =>
-      serializeKnockoutFixture(
-        fixture,
-        tournamentRules,
-        gamesFor(fixture.matchId),
-        tournament.status === 'knockout' &&
-          fixture.matchStatus === 'scheduled' &&
-          fixture.currentRevision === 0 &&
-          Boolean(fixture.matchId && fixture.playerOneId && fixture.playerTwoId),
-      ),
-    ),
+    ...fixtureReadModel,
     organizerTiebreakRequirement,
   };
 }

@@ -499,6 +499,9 @@ describe('Official Tournament Start', () => {
 describe('Official Tournament management fixture read', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockDb.select.mockReset();
+    mockAuthorization.mockReset();
+    mockInspectProgression.mockReset();
     mockInspectProgression.mockResolvedValue({ status: 'inactive' });
   });
 
@@ -577,10 +580,10 @@ describe('Official Tournament management fixture read', () => {
   function queueManagementPayload(fixtures: unknown[] = fixtureRows) {
     queueSelectRows([
       [startedTournament],
+      [],
+      [],
+      [],
       [{ bestOf: 3, pointsToWin: 11, winByTwo: true }],
-      [],
-      [],
-      [],
       fixtures,
       [],
     ]);
@@ -685,10 +688,10 @@ describe('Official Tournament management fixture read', () => {
     managerLocator();
     queueSelectRows([
       [{ ...startedTournament, status: 'knockout' as const }],
+      [],
+      [],
+      [],
       [{ bestOf: 5, pointsToWin: 11, winByTwo: true }],
-      [],
-      [],
-      [],
       [],
       [
         {
