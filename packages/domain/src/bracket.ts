@@ -6,6 +6,10 @@ export type GroupStandings = {
   standings: readonly Standing[];
 };
 
+type OrganizerBracketTiebreakOrders = Partial<
+  Record<'wildcard-cutoff' | 'knockout-seeding', readonly string[]>
+>;
+
 export function nextPowerOfTwo(value: number): number {
   if (!Number.isInteger(value) || value < 2) {
     throw new Error('A bracket needs at least two qualifiers.');
@@ -88,6 +92,7 @@ function orderWithOrganizerTiebreak<T extends { playerId: string }>(
         throw new OrganizerTiebreakRequiredError(
           'An Organizer Tiebreak Decision is required.',
           tied.map((item) => item.playerId),
+          'knockout-seeding',
         );
       }
     }
@@ -126,6 +131,7 @@ function selectWildcardQualifiers(
       throw new OrganizerTiebreakRequiredError(
         'An Organizer Tiebreak Decision is required.',
         tied.map((candidate) => candidate.playerId),
+        'wildcard-cutoff',
       );
     }
     tied.sort(
@@ -151,6 +157,7 @@ export function selectTournamentQualifiers(
     automaticQualifiersPerGroup: number;
     wildcardQualifiers: number;
     organizerTiebreakOrder?: readonly string[];
+    organizerTiebreakOrders?: OrganizerBracketTiebreakOrders;
   },
 ) {
   const automaticQualifiers = groups.flatMap((group) =>
@@ -168,14 +175,14 @@ export function selectTournamentQualifiers(
   const wildcardQualifiers = selectWildcardQualifiers(
     wildcardCandidates,
     options.wildcardQualifiers,
-    options.organizerTiebreakOrder,
+    options.organizerTiebreakOrders?.['wildcard-cutoff'] ?? options.organizerTiebreakOrder,
   );
+  const knockoutSeedingOrder =
+    options.organizerTiebreakOrders?.['knockout-seeding'] ?? options.organizerTiebreakOrder;
 
   return seedQualifiers(
     [...automaticQualifiers, ...wildcardQualifiers],
-    options.organizerTiebreakOrder
-      ? { organizerTiebreakOrder: options.organizerTiebreakOrder }
-      : {},
+    knockoutSeedingOrder ? { organizerTiebreakOrder: knockoutSeedingOrder } : {},
   );
 }
 

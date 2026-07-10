@@ -216,8 +216,11 @@ async function processEvent(event: ClaimedEvent) {
   if (event.topic === 'tournament.progress') {
     const matchId = event.payload.matchId;
     const tournamentId = event.payload.tournamentId;
-    if (typeof matchId === 'string' && typeof tournamentId === 'string') {
-      const knockout = await advanceKnockoutWinner(matchId);
+    if (typeof tournamentId === 'string') {
+      const knockout =
+        typeof matchId === 'string'
+          ? await advanceKnockoutWinner(matchId)
+          : { progressed: false as const };
       if (!knockout.progressed) await progressTournament(tournamentId);
     }
     return;

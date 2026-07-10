@@ -216,6 +216,47 @@ export const tournamentGroupFixtureSchema = z.object({
   }),
 });
 
+export const organizerTiebreakContextSchema = z.enum([
+  'group-standings',
+  'wildcard-cutoff',
+  'knockout-seeding',
+]);
+
+export const organizerTiebreakRequirementSchema = z.object({
+  context: organizerTiebreakContextSchema,
+  group: z
+    .object({
+      id: idSchema,
+      name: z.string(),
+    })
+    .nullable(),
+  players: z
+    .array(
+      z.object({
+        id: userIdSchema,
+        name: z.string(),
+        image: z.string().nullable(),
+      }),
+    )
+    .min(2),
+  requirementKey: z.string().regex(/^[a-f0-9]{64}$/),
+});
+
+export const organizerTiebreakDecisionInputSchema = z
+  .object({
+    requirementKey: z.string().regex(/^[a-f0-9]{64}$/),
+    orderedPlayerIds: z.array(userIdSchema).min(2),
+  })
+  .superRefine((value, context) => {
+    if (new Set(value.orderedPlayerIds).size !== value.orderedPlayerIds.length) {
+      context.addIssue({
+        code: 'custom',
+        path: ['orderedPlayerIds'],
+        message: 'Each tied Player must appear exactly once',
+      });
+    }
+  });
+
 export const tournamentManagementSchema = z.object({
   id: idSchema,
   clubId: idSchema,
@@ -232,6 +273,7 @@ export const tournamentManagementSchema = z.object({
   invitations: z.array(tournamentInvitationSchema),
   participations: z.array(tournamentParticipationSchema),
   groupFixtures: z.array(tournamentGroupFixtureSchema),
+  organizerTiebreakRequirement: organizerTiebreakRequirementSchema.nullable(),
 });
 
 export const tournamentPlayerCandidateSchema = z.object({
@@ -576,6 +618,9 @@ export type TournamentEntryRequest = z.infer<typeof tournamentEntryRequestSchema
 export type TournamentInvitation = z.infer<typeof tournamentInvitationSchema>;
 export type TournamentParticipation = z.infer<typeof tournamentParticipationSchema>;
 export type TournamentGroupFixture = z.infer<typeof tournamentGroupFixtureSchema>;
+export type OrganizerTiebreakContext = z.infer<typeof organizerTiebreakContextSchema>;
+export type OrganizerTiebreakRequirement = z.infer<typeof organizerTiebreakRequirementSchema>;
+export type OrganizerTiebreakDecisionInput = z.infer<typeof organizerTiebreakDecisionInputSchema>;
 export type TournamentManagement = z.infer<typeof tournamentManagementSchema>;
 export type TournamentPlayerCandidate = z.infer<typeof tournamentPlayerCandidateSchema>;
 export type RecurringAvailabilityInput = z.infer<typeof recurringAvailabilitySchema>;

@@ -12,14 +12,27 @@ type MutableStanding = Omit<
 
 type StandingMetric = 'wins' | 'setsWon' | 'setDifferential' | 'pointDifferential';
 
+export type OrganizerTiebreakContext = 'group-standings' | 'wildcard-cutoff' | 'knockout-seeding';
+
 export class OrganizerTiebreakRequiredError extends Error {
   constructor(
     message: string,
     readonly playerIds: readonly string[],
+    readonly context: OrganizerTiebreakContext = 'group-standings',
   ) {
     super(message);
     this.name = 'OrganizerTiebreakRequiredError';
   }
+}
+
+export function isExactOrganizerTiebreakOrder(
+  requiredPlayerIds: readonly string[],
+  orderedPlayerIds: readonly string[],
+) {
+  if (requiredPlayerIds.length !== orderedPlayerIds.length) return false;
+  if (new Set(orderedPlayerIds).size !== orderedPlayerIds.length) return false;
+  const required = new Set(requiredPlayerIds);
+  return orderedPlayerIds.every((playerId) => required.has(playerId));
 }
 
 function ratio(numerator: number, denominator: number) {
@@ -151,6 +164,7 @@ function resolveTwoPlayerTie(
   throw new OrganizerTiebreakRequiredError(
     'An Organizer Tiebreak Decision is required.',
     playerIds,
+    'group-standings',
   );
 }
 
@@ -198,6 +212,7 @@ function orderTiedPlayers(
       throw new OrganizerTiebreakRequiredError(
         'An Organizer Tiebreak Decision is required.',
         partition,
+        'group-standings',
       );
     }
     return ordered;

@@ -1,5 +1,7 @@
 import type {
   CreateTournamentInput,
+  OrganizerTiebreakDecisionInput,
+  OrganizerTiebreakRequirement,
   TournamentEntryRequest,
   TournamentGroupFixture,
   TournamentInvitation,
@@ -13,9 +15,12 @@ import {
   clubMemberships,
   clubResponsibilities,
   clubs,
+  auditLogs,
   matches,
   matchParticipants,
   matchRuleSnapshots,
+  organizerTiebreakDecisions,
+  outboxEvents,
   tournamentEntryRequests,
   tournamentFixtures,
   tournamentGroupMembers,
@@ -26,12 +31,17 @@ import {
   tournaments,
   users,
 } from '@squash/db/schema';
-import { assignPlayersToGroups, createRoundRobinPairs } from '@squash/domain';
+import {
+  assignPlayersToGroups,
+  createRoundRobinPairs,
+  isExactOrganizerTiebreakOrder,
+} from '@squash/domain';
 import { and, asc, eq, exists, ilike, inArray, isNull, or } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { getClubAuthorization } from './authorization';
 import { db } from './database';
 import { forbidden, notFound, ServiceError } from './errors';
+import { inspectTournamentProgression, progressTournament } from './services';
 
 type ReadDatabase = Pick<typeof db, 'select'>;
 
@@ -988,6 +998,39 @@ export async function getTournamentManagement(
       left.round - right.round ||
       left.position - right.position,
   );
+  const progressionState = await inspectTournamentProgression(tournamentId);
+  let organizerTiebreakRequirement: OrganizerTiebreakRequirement | null = null;
+  if (progressionState.status === 'manual-tiebreak-required') {
+    const playerRows = await db
+      .select({ id: users.id, name: users.name, image: users.image })
+      .from(users)
+      .where(inArray(users.id, [...progressionState.requirement.playerIds]));
+    const playersById = new Map(playerRows.map((player) => [player.id, player]));
+    const players = progressionState.requirement.playerIds.map((playerId) => {
+      const player = playersById.get(playerId);
+      if (!player) throw new Error('A tied Player could not be loaded.');
+      return player;
+    });
+    const groupFixture = progressionState.requirement.groupId
+      ? orderedGroupFixtures.find(
+          (fixture) => fixture.groupId === progressionState.requirement.groupId,
+        )
+      : null;
+    if (progressionState.requirement.groupId && !groupFixture) {
+      throw new Error('The tied Group could not be loaded.');
+    }
+    organizerTiebreakRequirement = {
+      context: progressionState.requirement.context,
+      group: progressionState.requirement.groupId
+        ? {
+            id: progressionState.requirement.groupId,
+            name: groupFixture?.groupName as string,
+          }
+        : null,
+      players,
+      requirementKey: progressionState.requirement.requirementKey,
+    };
+  }
   return {
     id: tournament.id,
     clubId: tournament.clubId,
@@ -1004,6 +1047,85 @@ export async function getTournamentManagement(
     invitations: invitations.map(serializeInvitation),
     participations: participations.map(serializeParticipation),
     groupFixtures: orderedGroupFixtures.map(serializeGroupFixture),
+    organizerTiebreakRequirement,
+  };
+}
+
+function requireCurrentValidTiebreakRequirement(
+  progressionState: Awaited<ReturnType<typeof inspectTournamentProgression>>,
+  input: OrganizerTiebreakDecisionInput,
+) {
+  if (
+    progressionState.status !== 'manual-tiebreak-required' ||
+    progressionState.requirement.requirementKey !== input.requirementKey
+  ) {
+    throw new ServiceError('ORGANIZER_TIEBREAK_STALE', 'error.invalidRequest', 409);
+  }
+  if (
+    !isExactOrganizerTiebreakOrder(progressionState.requirement.playerIds, input.orderedPlayerIds)
+  ) {
+    throw new ServiceError('ORGANIZER_TIEBREAK_ORDER_INVALID', 'error.invalidRequest', 400);
+  }
+  return progressionState.requirement;
+}
+
+export async function submitOrganizerTiebreakDecision(
+  actorId: string,
+  tournamentId: string,
+  input: OrganizerTiebreakDecisionInput,
+) {
+  const tournament = await requireTournamentManager(actorId, tournamentId);
+  requireCurrentValidTiebreakRequirement(await inspectTournamentProgression(tournamentId), input);
+
+  const decision = await db.transaction(
+    async (tx) => {
+      const requirement = requireCurrentValidTiebreakRequirement(
+        await inspectTournamentProgression(tournamentId, tx),
+        input,
+      );
+      const [inserted] = await tx
+        .insert(organizerTiebreakDecisions)
+        .values({
+          tournamentId,
+          context: requirement.context,
+          groupId: requirement.groupId,
+          orderedPlayerIds: [...input.orderedPlayerIds],
+          requirementKey: requirement.requirementKey,
+          decidedById: actorId,
+        })
+        .returning();
+      if (!inserted) throw new Error('Failed to record Organizer Tiebreak Decision.');
+      await tx.insert(auditLogs).values({
+        actorId,
+        clubId: tournament.clubId,
+        action: 'tournament.organizer-tiebreak-decide',
+        entityType: 'organizer-tiebreak-decision',
+        entityId: inserted.id,
+        metadata: {
+          tournamentId,
+          context: requirement.context,
+          groupId: requirement.groupId,
+          orderedPlayerIds: input.orderedPlayerIds,
+          requirementKey: requirement.requirementKey,
+        },
+      });
+      await tx.insert(outboxEvents).values({
+        topic: 'tournament.progress',
+        aggregateId: inserted.id,
+        payload: { tournamentId },
+      });
+      return inserted;
+    },
+    { isolationLevel: 'serializable' },
+  );
+
+  const progression = await progressTournament(tournamentId);
+  return {
+    decision: {
+      ...decision,
+      decidedAt: decision.decidedAt.toISOString(),
+    },
+    progression,
   };
 }
 

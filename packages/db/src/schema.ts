@@ -78,6 +78,11 @@ export const tournamentParticipationSource = pgEnum('tournament_participation_so
   'direct',
 ]);
 export const tournamentStage = pgEnum('tournament_stage', ['group', 'knockout']);
+export const organizerTiebreakContext = pgEnum('organizer_tiebreak_context', [
+  'group-standings',
+  'wildcard-cutoff',
+  'knockout-seeding',
+]);
 export const seedingMethod = pgEnum('seeding_method', ['random', 'manual']);
 export const mediaPurpose = pgEnum('media_purpose', ['avatar', 'racket', 'club-logo']);
 export const outboxStatus = pgEnum('outbox_status', [
@@ -757,6 +762,35 @@ export const tournamentAdvancements = pgTable(
   (table) => [
     uniqueIndex('tournament_advancement_player_idx').on(table.tournamentId, table.userId),
     uniqueIndex('tournament_advancement_seed_idx').on(table.tournamentId, table.bracketSeed),
+  ],
+);
+
+export const organizerTiebreakDecisions = pgTable(
+  'organizer_tiebreak_decisions',
+  {
+    id: id(),
+    tournamentId: uuid('tournament_id')
+      .notNull()
+      .references(() => tournaments.id, { onDelete: 'cascade' }),
+    context: organizerTiebreakContext('context').notNull(),
+    groupId: uuid('group_id').references(() => tournamentGroups.id),
+    orderedPlayerIds: jsonb('ordered_player_ids').$type<string[]>().notNull(),
+    requirementKey: text('requirement_key').notNull(),
+    decidedById: text('decided_by_id')
+      .notNull()
+      .references(() => users.id),
+    decidedAt: timestamp('decided_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('organizer_tiebreak_requirement_idx').on(table.tournamentId, table.requirementKey),
+    check(
+      'organizer_tiebreak_group_context_check',
+      sql`(${table.context} = 'group-standings' AND ${table.groupId} IS NOT NULL) OR (${table.context} <> 'group-standings' AND ${table.groupId} IS NULL)`,
+    ),
+    check(
+      'organizer_tiebreak_player_order_check',
+      sql`jsonb_typeof(${table.orderedPlayerIds}) = 'array' AND jsonb_array_length(${table.orderedPlayerIds}) >= 2`,
+    ),
   ],
 );
 

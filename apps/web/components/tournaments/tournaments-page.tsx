@@ -1,12 +1,13 @@
 'use client';
 
 import type {
+  OrganizerTiebreakRequirement,
   TournamentGroupFixture,
   TournamentManagement,
   TournamentVisibility,
 } from '@squash/contracts';
 import type { MessageKey } from '@squash/i18n';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -364,12 +365,128 @@ function TournamentCard({
             </div>
           ))}
         </section>
+        {tournament.organizerTiebreakRequirement ? (
+          <OrganizerTiebreakDecisionSection
+            clubId={clubId}
+            requirement={tournament.organizerTiebreakRequirement}
+            tournamentId={tournament.id}
+          />
+        ) : null}
         <GroupStageFixturesSection tournament={tournament} />
         {action.isError ? (
           <p className="text-sm text-destructive">{t('tournaments.actionError')}</p>
         ) : null}
       </CardContent>
     </Card>
+  );
+}
+
+const organizerTiebreakContextMessageKeys: Record<
+  OrganizerTiebreakRequirement['context'],
+  MessageKey
+> = {
+  'group-standings': 'tournaments.tiebreak.groupStandings',
+  'wildcard-cutoff': 'tournaments.tiebreak.wildcardCutoff',
+  'knockout-seeding': 'tournaments.tiebreak.knockoutSeeding',
+};
+
+export function OrganizerTiebreakDecisionSection({
+  clubId,
+  requirement,
+  tournamentId,
+}: {
+  clubId: string;
+  requirement: OrganizerTiebreakRequirement;
+  tournamentId: string;
+}) {
+  const action = useTournamentAction(clubId);
+  const { t } = useLocale();
+  const [orderedPlayers, setOrderedPlayers] = useState(requirement.players);
+  useEffect(() => {
+    setOrderedPlayers(requirement.players);
+  }, [requirement.players, requirement.requirementKey]);
+
+  const move = (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    if (target < 0 || target >= orderedPlayers.length) return;
+    setOrderedPlayers((current) => {
+      const next = [...current];
+      [next[index], next[target]] = [
+        next[target] as (typeof next)[number],
+        next[index] as (typeof next)[number],
+      ];
+      return next;
+    });
+  };
+
+  return (
+    <section className="grid gap-3 rounded-md border border-amber-500/50 bg-amber-500/5 p-4">
+      <div>
+        <h3 className="font-semibold">{t('tournaments.tiebreak.heading')}</h3>
+        <p className="text-sm text-muted-foreground">{t('tournaments.tiebreak.description')}</p>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="font-medium">
+          {t(organizerTiebreakContextMessageKeys[requirement.context])}
+        </span>
+        {requirement.group ? <span>{requirement.group.name}</span> : null}
+      </div>
+      <ol className="grid gap-2">
+        {orderedPlayers.map((player, index) => (
+          <li
+            className="flex items-center justify-between gap-3 rounded-md border bg-background p-3"
+            data-testid="tiebreak-player"
+            key={player.id}
+          >
+            <span>
+              {index + 1}. {player.name}
+            </span>
+            <div className="flex gap-2">
+              <Button
+                aria-label={`${t('tournaments.tiebreak.moveUp')} ${player.name}`}
+                disabled={index === 0 || action.isPending}
+                onClick={() => move(index, -1)}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                ↑
+              </Button>
+              <Button
+                aria-label={`${t('tournaments.tiebreak.moveDown')} ${player.name}`}
+                disabled={index === orderedPlayers.length - 1 || action.isPending}
+                onClick={() => move(index, 1)}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                ↓
+              </Button>
+            </div>
+          </li>
+        ))}
+      </ol>
+      <div>
+        <Button
+          disabled={action.isPending}
+          onClick={() =>
+            action.mutate({
+              path: `/tournaments/${tournamentId}/organizer-tiebreak-decision`,
+              data: {
+                requirementKey: requirement.requirementKey,
+                orderedPlayerIds: orderedPlayers.map((player) => player.id),
+              },
+            })
+          }
+          type="button"
+        >
+          {t('tournaments.tiebreak.submit')}
+        </Button>
+      </div>
+      {action.isError ? (
+        <p className="text-sm text-destructive">{t('tournaments.tiebreak.error')}</p>
+      ) : null}
+    </section>
   );
 }
 

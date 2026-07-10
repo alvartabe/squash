@@ -1,6 +1,6 @@
 # Current Code Gaps
 
-Last reviewed: 2026-07-09.
+Last reviewed: 2026-07-10.
 
 This document identifies known differences between intended product behavior and the current repository. It is not an automatic backlog and does not authorize implementing Later features. Agents must verify each gap against current code before acting.
 
@@ -53,6 +53,14 @@ managers can view finalized Group Stage fixtures with Match status and Player id
 details. Participation is independent of Club Membership, and management routes use the
 isolated management-authentication boundary.
 
+The Organizer Tiebreak Decision workflow is implemented for statistically inseparable
+Group standings, Wildcard qualification cutoffs, and Knockout seeding. The management
+read model exposes the current tied Players and context; an authorized Tournament
+Organizer can order exactly those Players in English or Spanish web management. The
+immutable decision records its Tournament context, selected order, deciding organizer,
+and timestamp, rejects stale or invalid submissions, and resumes progression without an
+ID-based fallback.
+
 The legacy direct-registration table was pre-release/dev-only and intentionally removed
 without migration because it had no production participation data to preserve. The new
 Entry Request, Invitation, and accepted Tournament Participation model is the first
@@ -62,13 +70,12 @@ The Junior Club Participation Permission cannot yet be enforced for Tournament e
 because the repository has no Guardian, Junior age, consent, or permission model. This
 slice does not invent a bypass, denial rule, or consent mechanism.
 
-| Intended behavior                                | Current evidence                 | Gap                                                                                                                                   |
-| ------------------------------------------------ | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Official and Social Tournament ownership models  | `tournaments.clubId` is required | Current schema supports Official Club ownership only; Social Tournaments remain Later                                                 |
-| Organizer Tiebreak Decision workflow             | Tournament progression service   | Domain detects inseparable standings, Wildcard, and bracket-seed ties, but no web workflow records the audited organizer decision yet |
-| Organizer-controlled Official Results            | `submitMatchResult`              | Participants currently submit initial Tournament results                                                                              |
-| Dependency-based Result Locks                    | Revision logic                   | Current corrections do not model agreed phase/dependency locks                                                                        |
-| Separate Official and Social Competition Records | `tournamentStats`                | All Tournament statistics share one category                                                                                          |
+| Intended behavior                                | Current evidence                 | Gap                                                                                   |
+| ------------------------------------------------ | -------------------------------- | ------------------------------------------------------------------------------------- |
+| Official and Social Tournament ownership models  | `tournaments.clubId` is required | Current schema supports Official Club ownership only; Social Tournaments remain Later |
+| Organizer-controlled Official Results            | `submitMatchResult`              | Participants currently submit initial Tournament results                              |
+| Dependency-based Result Locks                    | Revision logic                   | Current corrections do not model agreed phase/dependency locks                        |
+| Separate Official and Social Competition Records | `tournamentStats`                | All Tournament statistics share one category                                          |
 
 Social Tournaments remain Later.
 

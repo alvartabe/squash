@@ -111,8 +111,8 @@ test('selects Automatic Qualifiers plus Wildcards by normalized percentages', ()
   expect(qualifiers.find((item) => item.playerId === 'b2')?.qualification).toBe('wildcard');
 });
 
-test('requires an Organizer Tiebreak Decision when a Wildcard cutoff is inseparable', () => {
-  expect(() =>
+test('requires a wildcard-cutoff Organizer Tiebreak Decision for exactly the cutoff Players', () => {
+  try {
     selectTournamentQualifiers(
       [
         {
@@ -167,8 +167,122 @@ test('requires an Organizer Tiebreak Decision when a Wildcard cutoff is insepara
         },
       ],
       { automaticQualifiersPerGroup: 1, wildcardQualifiers: 1 },
-    ),
-  ).toThrow(OrganizerTiebreakRequiredError);
+    );
+    throw new Error('Expected an Organizer Tiebreak Decision requirement.');
+  } catch (error) {
+    expect(error).toBeInstanceOf(OrganizerTiebreakRequiredError);
+    expect(error).toMatchObject({
+      context: 'wildcard-cutoff',
+      playerIds: ['a2', 'b2'],
+    });
+  }
+});
+
+test('does not reuse a Wildcard cutoff decision as a Knockout seeding decision', () => {
+  const groups = ['a', 'b'].map((groupId) => ({
+    groupId,
+    standings: [
+      standing({
+        playerId: `${groupId}1`,
+        rank: 1,
+        wins: 2,
+        played: 2,
+        setsWon: 6,
+        setsLost: 0,
+        pointsFor: 66,
+        pointsAgainst: 20,
+      }),
+      standing({
+        playerId: `${groupId}2`,
+        rank: 2,
+        wins: 1,
+        played: 2,
+        setsWon: 3,
+        setsLost: 3,
+        pointsFor: 50,
+        pointsAgainst: 50,
+      }),
+    ],
+  }));
+
+  try {
+    selectTournamentQualifiers(groups, {
+      automaticQualifiersPerGroup: 1,
+      wildcardQualifiers: 1,
+      organizerTiebreakOrders: { 'wildcard-cutoff': ['b2', 'a2'] },
+    });
+    throw new Error('Expected a Knockout seeding decision requirement.');
+  } catch (error) {
+    expect(error).toBeInstanceOf(OrganizerTiebreakRequiredError);
+    expect(error).toMatchObject({
+      context: 'knockout-seeding',
+      playerIds: ['a1', 'b1'],
+    });
+  }
+});
+
+test('uses the Wildcard cutoff decision to select the qualifying Player', () => {
+  const qualifiers = selectTournamentQualifiers(
+    [
+      {
+        groupId: 'a',
+        standings: [
+          standing({
+            playerId: 'a1',
+            rank: 1,
+            wins: 2,
+            played: 2,
+            setsWon: 6,
+            setsLost: 0,
+            pointsFor: 66,
+            pointsAgainst: 20,
+          }),
+          standing({
+            playerId: 'a2',
+            rank: 2,
+            wins: 1,
+            played: 2,
+            setsWon: 3,
+            setsLost: 3,
+            pointsFor: 50,
+            pointsAgainst: 50,
+          }),
+        ],
+      },
+      {
+        groupId: 'b',
+        standings: [
+          standing({
+            playerId: 'b1',
+            rank: 1,
+            wins: 2,
+            played: 2,
+            setsWon: 5,
+            setsLost: 1,
+            pointsFor: 60,
+            pointsAgainst: 30,
+          }),
+          standing({
+            playerId: 'b2',
+            rank: 2,
+            wins: 1,
+            played: 2,
+            setsWon: 3,
+            setsLost: 3,
+            pointsFor: 50,
+            pointsAgainst: 50,
+          }),
+        ],
+      },
+    ],
+    {
+      automaticQualifiersPerGroup: 1,
+      wildcardQualifiers: 1,
+      organizerTiebreakOrders: { 'wildcard-cutoff': ['b2', 'a2'] },
+    },
+  );
+
+  expect(qualifiers.map((item) => item.playerId)).toEqual(['a1', 'b1', 'b2']);
 });
 
 test('seeds group winners before other Automatic Qualifiers and Wildcards', () => {
@@ -204,7 +318,7 @@ test('seeds group winners before other Automatic Qualifiers and Wildcards', () =
 });
 
 test('requires an Organizer Tiebreak Decision for inseparable bracket seeds', () => {
-  expect(() =>
+  try {
     seedQualifiers([
       qualifier({
         playerId: 'a1',
@@ -222,8 +336,41 @@ test('requires an Organizer Tiebreak Decision for inseparable bracket seeds', ()
         gameWinPercentage: 1,
         pointWinPercentage: 1,
       }),
-    ]),
-  ).toThrow(OrganizerTiebreakRequiredError);
+    ]);
+    throw new Error('Expected an Organizer Tiebreak Decision requirement.');
+  } catch (error) {
+    expect(error).toBeInstanceOf(OrganizerTiebreakRequiredError);
+    expect(error).toMatchObject({
+      context: 'knockout-seeding',
+      playerIds: ['a1', 'b1'],
+    });
+  }
+});
+
+test('uses the Knockout seeding decision for statistically inseparable qualifiers', () => {
+  const seeded = seedQualifiers(
+    [
+      qualifier({
+        playerId: 'a1',
+        groupId: 'a',
+        groupRank: 1,
+        matchWinPercentage: 1,
+        gameWinPercentage: 1,
+        pointWinPercentage: 1,
+      }),
+      qualifier({
+        playerId: 'b1',
+        groupId: 'b',
+        groupRank: 1,
+        matchWinPercentage: 1,
+        gameWinPercentage: 1,
+        pointWinPercentage: 1,
+      }),
+    ],
+    { organizerTiebreakOrder: ['b1', 'a1'] },
+  );
+
+  expect(seeded.map((item) => item.playerId)).toEqual(['b1', 'a1']);
 });
 
 test('gives required byes to the highest Knockout Seeds', () => {

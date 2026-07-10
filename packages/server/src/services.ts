@@ -4,6 +4,7 @@ import type {
   PlayerStatistics,
   SetScoreInput,
 } from '@squash/contracts';
+import { createHash } from 'node:crypto';
 import {
   challengeStats,
   challenges,
@@ -23,6 +24,7 @@ import {
   playerRackets,
   recurringAvailability,
   notifications,
+  organizerTiebreakDecisions,
   tournamentAdvancements,
   tournamentFixtures,
   tournamentGroupMembers,
@@ -39,6 +41,7 @@ import {
   calculateMatchResult,
   calculateStandings,
   createFirstRound,
+  isExactOrganizerTiebreakOrder,
   isAcceptedFriendship,
   nextPowerOfTwo,
   OrganizerTiebreakRequiredError,
@@ -521,42 +524,143 @@ export async function disputeChallenge(actorId: string, challengeId: string, rea
 
 type GroupQualifiersResult =
   | { status: 'pending' }
-  | { status: 'manual-tiebreak-required'; groupId: string; playerIds: readonly string[] }
-  | { status: 'ready'; qualifiers: Qualifier[] };
+  | { status: 'manual-tiebreak-required'; requirement: TournamentProgressionRequirement }
+  | {
+      status: 'ready';
+      qualifiers: Qualifier[];
+      groupStandings: Array<{
+        groupId: string;
+        standings: ReturnType<typeof calculateStandings>;
+      }>;
+      organizerSeedingOrder?: readonly string[];
+    };
+
+type ProgressionReadDatabase = Pick<typeof db, 'select'>;
+
+export type TournamentProgressionRequirement = {
+  tournamentId: string;
+  context: 'group-standings' | 'wildcard-cutoff' | 'knockout-seeding';
+  groupId: string | null;
+  playerIds: readonly string[];
+  requirementKey: string;
+};
+
+function progressionRequirement(input: {
+  tournamentId: string;
+  context: TournamentProgressionRequirement['context'];
+  groupId: string | null;
+  playerIds: readonly string[];
+  snapshot: unknown;
+}): TournamentProgressionRequirement {
+  const requirementKey = createHash('sha256')
+    .update(
+      JSON.stringify({
+        tournamentId: input.tournamentId,
+        context: input.context,
+        groupId: input.groupId,
+        playerIds: [...input.playerIds].sort(),
+        snapshot: input.snapshot,
+      }),
+    )
+    .digest('hex');
+  return {
+    tournamentId: input.tournamentId,
+    context: input.context,
+    groupId: input.groupId,
+    playerIds: input.playerIds,
+    requirementKey,
+  };
+}
+
+async function decisionOrderFor(
+  requirement: TournamentProgressionRequirement,
+  database: ProgressionReadDatabase,
+) {
+  const [decision] = await database
+    .select({
+      context: organizerTiebreakDecisions.context,
+      groupId: organizerTiebreakDecisions.groupId,
+      orderedPlayerIds: organizerTiebreakDecisions.orderedPlayerIds,
+    })
+    .from(organizerTiebreakDecisions)
+    .where(
+      and(
+        eq(organizerTiebreakDecisions.tournamentId, requirement.tournamentId),
+        eq(organizerTiebreakDecisions.requirementKey, requirement.requirementKey),
+      ),
+    )
+    .limit(1);
+  if (
+    !decision ||
+    decision.context !== requirement.context ||
+    decision.groupId !== requirement.groupId ||
+    !isExactOrganizerTiebreakOrder(requirement.playerIds, decision.orderedPlayerIds)
+  ) {
+    return null;
+  }
+  return decision.orderedPlayerIds;
+}
+
+function appendTiebreakOrder(current: readonly string[], additional: readonly string[]) {
+  const existing = new Set(current);
+  return [...current, ...additional.filter((playerId) => !existing.has(playerId))];
+}
 
 async function groupQualifiers(input: {
   tournamentId: string;
   qualifiersPerGroup: number;
   wildcardQualifiers: number;
+  database: ProgressionReadDatabase;
 }): Promise<GroupQualifiersResult> {
-  const groups = await db
+  const groups = await input.database
     .select()
     .from(tournamentGroups)
     .where(eq(tournamentGroups.tournamentId, input.tournamentId));
+  const orderedGroups = [...groups].sort(
+    (left, right) => left.position - right.position || left.id.localeCompare(right.id),
+  );
   const groupStandings: Array<{
     groupId: string;
     standings: ReturnType<typeof calculateStandings>;
   }> = [];
-  for (const group of groups) {
-    const members = await db
+  const tournamentSnapshot: Array<{
+    groupId: string;
+    matchId: string | null;
+    revision: number;
+    status: string;
+  }> = [];
+  for (const group of orderedGroups) {
+    const members = await input.database
       .select({ userId: tournamentGroupMembers.userId })
       .from(tournamentGroupMembers)
       .where(eq(tournamentGroupMembers.groupId, group.id));
-    const fixtures = await db
+    const fixtures = await input.database
       .select({
         matchId: tournamentFixtures.matchId,
         playerOneId: tournamentFixtures.playerOneId,
         playerTwoId: tournamentFixtures.playerTwoId,
         status: matches.status,
+        revision: matches.currentRevision,
       })
       .from(tournamentFixtures)
       .innerJoin(matches, eq(matches.id, tournamentFixtures.matchId))
       .where(and(eq(tournamentFixtures.groupId, group.id), eq(tournamentFixtures.stage, 'group')));
     if (fixtures.some((fixture) => fixture.status !== 'completed')) return { status: 'pending' };
+    tournamentSnapshot.push(
+      ...fixtures.map((fixture) => ({
+        groupId: group.id,
+        matchId: fixture.matchId,
+        revision: fixture.revision,
+        status: fixture.status,
+      })),
+    );
     const groupMatches: GroupMatch[] = [];
     for (const fixture of fixtures) {
       if (!fixture.matchId || !fixture.playerOneId || !fixture.playerTwoId) continue;
-      const sets = await db.select().from(matchSets).where(eq(matchSets.matchId, fixture.matchId));
+      const sets = await input.database
+        .select()
+        .from(matchSets)
+        .where(eq(matchSets.matchId, fixture.matchId));
       groupMatches.push({
         playerOneId: fixture.playerOneId,
         playerTwoId: fixture.playerTwoId,
@@ -566,55 +670,114 @@ async function groupQualifiers(input: {
         playerTwoPoints: sets.reduce((total, set) => total + set.playerTwoPoints, 0),
       });
     }
-    let standings: ReturnType<typeof calculateStandings>;
-    try {
-      standings = calculateStandings(
-        members.map((member) => member.userId),
-        groupMatches,
-      );
-    } catch (error) {
-      if (error instanceof OrganizerTiebreakRequiredError) {
-        return {
-          status: 'manual-tiebreak-required',
+    let standings: ReturnType<typeof calculateStandings> | null = null;
+    let organizerTiebreakOrder: readonly string[] = [];
+    while (!standings) {
+      try {
+        standings = calculateStandings(
+          members.map((member) => member.userId),
+          groupMatches,
+          organizerTiebreakOrder.length > 0 ? { organizerTiebreakOrder } : {},
+        );
+      } catch (error) {
+        if (!(error instanceof OrganizerTiebreakRequiredError)) throw error;
+        const requirement = progressionRequirement({
+          tournamentId: input.tournamentId,
+          context: error.context,
           groupId: group.id,
           playerIds: error.playerIds,
-        };
+          snapshot: fixtures
+            .map((fixture) => ({
+              matchId: fixture.matchId,
+              revision: fixture.revision,
+              status: fixture.status,
+            }))
+            .sort((left, right) => (left.matchId ?? '').localeCompare(right.matchId ?? '')),
+        });
+        const recordedOrder = await decisionOrderFor(requirement, input.database);
+        if (!recordedOrder) {
+          return { status: 'manual-tiebreak-required', requirement };
+        }
+        organizerTiebreakOrder = appendTiebreakOrder(organizerTiebreakOrder, recordedOrder);
       }
-      throw error;
     }
-    await db.transaction(async (tx) => {
-      for (const standing of standings) {
-        await tx
-          .update(tournamentGroupMembers)
-          .set({ finalRank: standing.rank })
-          .where(
-            and(
-              eq(tournamentGroupMembers.groupId, group.id),
-              eq(tournamentGroupMembers.userId, standing.playerId),
-            ),
-          );
-      }
-    });
     groupStandings.push({ groupId: group.id, standings });
   }
-  try {
-    return {
-      status: 'ready',
-      qualifiers: selectTournamentQualifiers(groupStandings, {
+  const organizerTiebreakOrders: Partial<
+    Record<'wildcard-cutoff' | 'knockout-seeding', readonly string[]>
+  > = {};
+  for (;;) {
+    try {
+      const qualifiers = selectTournamentQualifiers(groupStandings, {
         automaticQualifiersPerGroup: input.qualifiersPerGroup,
         wildcardQualifiers: input.wildcardQualifiers,
-      }),
-    };
-  } catch (error) {
-    if (error instanceof OrganizerTiebreakRequiredError) {
+        organizerTiebreakOrders,
+      });
       return {
-        status: 'manual-tiebreak-required',
-        groupId: '',
-        playerIds: error.playerIds,
+        status: 'ready',
+        qualifiers,
+        groupStandings,
+        ...(organizerTiebreakOrders['knockout-seeding']
+          ? { organizerSeedingOrder: organizerTiebreakOrders['knockout-seeding'] }
+          : {}),
       };
+    } catch (error) {
+      if (!(error instanceof OrganizerTiebreakRequiredError)) throw error;
+      if (error.context === 'group-standings') throw error;
+      const requirement = progressionRequirement({
+        tournamentId: input.tournamentId,
+        context: error.context,
+        groupId: null,
+        playerIds: error.playerIds,
+        snapshot: {
+          groupStandings: groupStandings.map((group) => ({
+            groupId: group.groupId,
+            standings: [...group.standings].sort((left, right) =>
+              left.playerId.localeCompare(right.playerId),
+            ),
+          })),
+          tournamentSnapshot: [...tournamentSnapshot].sort(
+            (left, right) =>
+              left.groupId.localeCompare(right.groupId) ||
+              (left.matchId ?? '').localeCompare(right.matchId ?? ''),
+          ),
+        },
+      });
+      const organizerTiebreakOrder = await decisionOrderFor(requirement, input.database);
+      if (!organizerTiebreakOrder) {
+        return { status: 'manual-tiebreak-required', requirement };
+      }
+      organizerTiebreakOrders[error.context] = appendTiebreakOrder(
+        organizerTiebreakOrders[error.context] ?? [],
+        organizerTiebreakOrder,
+      );
     }
-    throw error;
   }
+}
+
+export async function inspectTournamentProgression(
+  tournamentId: string,
+  database: ProgressionReadDatabase = db,
+) {
+  const [tournament] = await database
+    .select({
+      id: tournaments.id,
+      status: tournaments.status,
+      qualifiersPerGroup: tournaments.qualifiersPerGroup,
+      wildcardQualifiers: tournaments.wildcardQualifiers,
+    })
+    .from(tournaments)
+    .where(eq(tournaments.id, tournamentId))
+    .limit(1);
+  if (!tournament || tournament.status !== 'group-stage') {
+    return { status: 'inactive' as const };
+  }
+  return groupQualifiers({
+    tournamentId,
+    qualifiersPerGroup: tournament.qualifiersPerGroup,
+    wildcardQualifiers: tournament.wildcardQualifiers ?? 0,
+    database,
+  });
 }
 
 export async function progressTournament(tournamentId: string) {
@@ -628,19 +791,44 @@ export async function progressTournament(tournamentId: string) {
     tournamentId,
     qualifiersPerGroup: tournament.qualifiersPerGroup,
     wildcardQualifiers: tournament.wildcardQualifiers ?? 0,
+    database: db,
   });
   if (qualifierResult.status !== 'ready') {
-    return { progressed: false, reason: qualifierResult.status };
+    return qualifierResult.status === 'manual-tiebreak-required'
+      ? {
+          progressed: false,
+          reason: qualifierResult.status,
+          requirement: qualifierResult.requirement,
+        }
+      : { progressed: false, reason: qualifierResult.status };
   }
   if (qualifierResult.qualifiers.length < 2) {
     return { progressed: false, reason: 'not-enough-qualifiers' };
   }
   const seeded = qualifierResult.qualifiers;
-  const firstRound = createFirstRound(seeded);
+  const firstRound = createFirstRound(
+    seeded,
+    qualifierResult.organizerSeedingOrder
+      ? { organizerTiebreakOrder: qualifierResult.organizerSeedingOrder }
+      : {},
+  );
   const bracketSize = nextPowerOfTwo(seeded.length);
   const totalRounds = Math.log2(bracketSize);
 
   await db.transaction(async (tx) => {
+    for (const group of qualifierResult.groupStandings) {
+      for (const standing of group.standings) {
+        await tx
+          .update(tournamentGroupMembers)
+          .set({ finalRank: standing.rank })
+          .where(
+            and(
+              eq(tournamentGroupMembers.groupId, group.groupId),
+              eq(tournamentGroupMembers.userId, standing.playerId),
+            ),
+          );
+      }
+    }
     await tx.insert(tournamentAdvancements).values(
       seeded.map((qualifier, index) => ({
         tournamentId,

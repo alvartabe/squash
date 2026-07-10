@@ -1,5 +1,6 @@
 import {
   createTournamentSchema,
+  organizerTiebreakDecisionInputSchema,
   tournamentManagementSchema,
   tournamentPlayerSchema,
 } from '@squash/contracts';
@@ -81,6 +82,7 @@ describe('Official Tournament contracts', () => {
       entryRequests: [],
       invitations: [],
       participations: [],
+      organizerTiebreakRequirement: null,
       groupFixtures: [
         {
           id: '4cb49f8a-a584-4424-9e39-274df6d7f8d7',
@@ -110,5 +112,25 @@ describe('Official Tournament contracts', () => {
     expect(parsed.groupFixtures[0]?.playerOne.image).toBe('https://example.test/ana.png');
     expect(JSON.stringify(shape)).not.toContain('social');
     expect(JSON.stringify(shape)).not.toContain('winner');
+  });
+
+  it('accepts only a unique, complete ordering for an exposed tie requirement', () => {
+    const input = {
+      requirementKey: 'a'.repeat(64),
+      orderedPlayerIds: ['player-2', 'player-1'],
+    };
+    expect(organizerTiebreakDecisionInputSchema.parse(input)).toEqual(input);
+    expect(
+      organizerTiebreakDecisionInputSchema.safeParse({
+        ...input,
+        orderedPlayerIds: ['player-1', 'player-1'],
+      }).success,
+    ).toBe(false);
+    expect(
+      organizerTiebreakDecisionInputSchema.safeParse({
+        ...input,
+        orderedPlayerIds: ['player-1'],
+      }).success,
+    ).toBe(false);
   });
 });

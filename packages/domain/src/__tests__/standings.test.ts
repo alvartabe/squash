@@ -58,12 +58,19 @@ test('returns to head-to-head whenever a larger tie is reduced to two Players', 
 });
 
 test('requires an Organizer Tiebreak Decision when statistics cannot separate Players', () => {
-  expect(() =>
+  try {
     calculateStandings(
       ['c', 'b', 'a'],
       [match('a', 'b', 3, 2, 11, 10), match('b', 'c', 3, 2, 11, 10), match('c', 'a', 3, 2, 11, 10)],
-    ),
-  ).toThrow(OrganizerTiebreakRequiredError);
+    );
+    throw new Error('Expected an Organizer Tiebreak Decision requirement.');
+  } catch (error) {
+    expect(error).toBeInstanceOf(OrganizerTiebreakRequiredError);
+    expect(error).toMatchObject({
+      context: 'group-standings',
+      playerIds: ['c', 'b', 'a'],
+    });
+  }
 });
 
 test('uses the Organizer Tiebreak Decision without requiring a written reason', () => {

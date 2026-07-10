@@ -345,12 +345,215 @@ describe('tournament progression', () => {
     mockWhereSelect([{ playerOnePoints: 11, playerTwoPoints: 10 }]);
     mockWhereSelect([{ playerOnePoints: 11, playerTwoPoints: 10 }]);
     mockWhereSelect([{ playerOnePoints: 11, playerTwoPoints: 10 }]);
+    mockSelect([]);
 
     await expect(progressTournament('tournament-id')).resolves.toMatchObject({
       progressed: false,
       reason: 'manual-tiebreak-required',
+      requirement: {
+        context: 'group-standings',
+        groupId: 'group-id',
+        playerIds: ['a', 'b', 'c'],
+        requirementKey: expect.stringMatching(/^[a-f0-9]{64}$/),
+      },
     });
     expect(mockDb.transaction).not.toHaveBeenCalled();
+  });
+
+  it('applies a recorded Group-standing decision and resumes Knockout progression', async () => {
+    mockSelect([
+      {
+        id: 'tournament-id',
+        clubId: 'club-id',
+        rulesId: 'rules-id',
+        status: 'group-stage',
+        qualifiersPerGroup: 2,
+        wildcardQualifiers: 0,
+      },
+    ]);
+    mockWhereSelect([{ id: 'group-id' }]);
+    mockWhereSelect([{ userId: 'a' }, { userId: 'b' }, { userId: 'c' }]);
+    mockJoinedWhereSelect([
+      { matchId: 'match-ab', playerOneId: 'a', playerTwoId: 'b', status: 'completed', revision: 1 },
+      { matchId: 'match-bc', playerOneId: 'b', playerTwoId: 'c', status: 'completed', revision: 1 },
+      { matchId: 'match-ca', playerOneId: 'c', playerTwoId: 'a', status: 'completed', revision: 1 },
+    ]);
+    mockWhereSelect([{ playerOnePoints: 11, playerTwoPoints: 10 }]);
+    mockWhereSelect([{ playerOnePoints: 11, playerTwoPoints: 10 }]);
+    mockWhereSelect([{ playerOnePoints: 11, playerTwoPoints: 10 }]);
+    mockSelect([
+      {
+        context: 'group-standings',
+        groupId: 'group-id',
+        orderedPlayerIds: ['b', 'c', 'a'],
+      },
+    ]);
+
+    const participantInserts: unknown[] = [];
+    const tx = {
+      update: jest.fn(() => ({ set: () => ({ where: jest.fn() }) })),
+      insert: jest.fn((table: unknown) => ({
+        values: (values: unknown) => {
+          if (table === tournamentFixtures) {
+            return { returning: async () => [{ id: 'fixture-1', position: 1 }] };
+          }
+          if (table === matches) {
+            return { returning: async () => [{ id: 'knockout-match-1' }] };
+          }
+          if (table === matchParticipants) participantInserts.push(values);
+          return {};
+        },
+      })),
+    };
+    mockDb.transaction.mockImplementationOnce(async (callback: (database: typeof tx) => unknown) =>
+      callback(tx),
+    );
+
+    await expect(progressTournament('tournament-id')).resolves.toMatchObject({
+      progressed: true,
+      qualifiers: 2,
+      rounds: 1,
+    });
+    expect(participantInserts).toContainEqual([
+      { matchId: 'knockout-match-1', userId: 'b', position: 1 },
+      { matchId: 'knockout-match-1', userId: 'c', position: 2 },
+    ]);
+  });
+
+  it('exposes the next unresolved Group-standing tie after applying an earlier decision', async () => {
+    mockSelect([
+      {
+        id: 'tournament-id',
+        status: 'group-stage',
+        qualifiersPerGroup: 2,
+        wildcardQualifiers: 0,
+      },
+    ]);
+    mockWhereSelect([{ id: 'group-id', position: 1 }]);
+    const top = ['t1', 't2', 't3'];
+    const bottom = ['b1', 'b2', 'b3'];
+    mockWhereSelect([...top, ...bottom].map((userId) => ({ userId })));
+    const results: Array<[string, string]> = [
+      ['t1', 't2'],
+      ['t2', 't3'],
+      ['t3', 't1'],
+      ...top.flatMap((winner) => bottom.map((loser) => [winner, loser] as [string, string])),
+      ['b1', 'b2'],
+      ['b2', 'b3'],
+      ['b3', 'b1'],
+    ];
+    mockJoinedWhereSelect(
+      results.map(([playerOneId, playerTwoId], index) => ({
+        matchId: `match-${index + 1}`,
+        playerOneId,
+        playerTwoId,
+        status: 'completed',
+        revision: 1,
+      })),
+    );
+    for (const _result of results) {
+      mockWhereSelect([{ playerOnePoints: 11, playerTwoPoints: 10 }]);
+    }
+    mockSelect([
+      {
+        context: 'group-standings',
+        groupId: 'group-id',
+        orderedPlayerIds: ['t2', 't3', 't1'],
+      },
+    ]);
+    mockSelect([]);
+
+    await expect(progressTournament('tournament-id')).resolves.toMatchObject({
+      progressed: false,
+      reason: 'manual-tiebreak-required',
+      requirement: {
+        context: 'group-standings',
+        groupId: 'group-id',
+        playerIds: bottom,
+      },
+    });
+    expect(mockDb.transaction).not.toHaveBeenCalled();
+  });
+
+  it('applies independent Knockout-seeding decisions across multiple qualifying tiers', async () => {
+    mockSelect([
+      {
+        id: 'tournament-id',
+        clubId: 'club-id',
+        rulesId: 'rules-id',
+        status: 'group-stage',
+        qualifiersPerGroup: 2,
+        wildcardQualifiers: 0,
+      },
+    ]);
+    mockWhereSelect([
+      { id: 'group-a', position: 1 },
+      { id: 'group-b', position: 2 },
+    ]);
+    for (const group of ['a', 'b']) {
+      mockWhereSelect([1, 2, 3].map((position) => ({ userId: `${group}${position}` })));
+      mockJoinedWhereSelect([
+        {
+          matchId: `match-${group}-1-2`,
+          playerOneId: `${group}1`,
+          playerTwoId: `${group}2`,
+          status: 'completed',
+          revision: 1,
+        },
+        {
+          matchId: `match-${group}-1-3`,
+          playerOneId: `${group}1`,
+          playerTwoId: `${group}3`,
+          status: 'completed',
+          revision: 1,
+        },
+        {
+          matchId: `match-${group}-2-3`,
+          playerOneId: `${group}2`,
+          playerTwoId: `${group}3`,
+          status: 'completed',
+          revision: 1,
+        },
+      ]);
+      mockWhereSelect([{ playerOnePoints: 11, playerTwoPoints: 5 }]);
+      mockWhereSelect([{ playerOnePoints: 11, playerTwoPoints: 5 }]);
+      mockWhereSelect([{ playerOnePoints: 11, playerTwoPoints: 5 }]);
+    }
+    mockSelect([{ context: 'knockout-seeding', groupId: null, orderedPlayerIds: ['b1', 'a1'] }]);
+    mockSelect([{ context: 'knockout-seeding', groupId: null, orderedPlayerIds: ['a2', 'b2'] }]);
+
+    let matchNumber = 0;
+    const tx = {
+      update: jest.fn(() => ({ set: () => ({ where: jest.fn() }) })),
+      insert: jest.fn((table: unknown) => ({
+        values: (values: unknown) => {
+          if (table === tournamentFixtures) {
+            return {
+              returning: async () =>
+                (Array.isArray(values) ? values : [values]).map(
+                  (fixture: { round: number; position: number }) => ({
+                    id: `round-${fixture.round}-position-${fixture.position}`,
+                    position: fixture.position,
+                  }),
+                ),
+            };
+          }
+          if (table === matches) {
+            return { returning: async () => [{ id: `match-${(matchNumber += 1)}` }] };
+          }
+          return {};
+        },
+      })),
+    };
+    mockDb.transaction.mockImplementationOnce(async (callback: (database: typeof tx) => unknown) =>
+      callback(tx),
+    );
+
+    await expect(progressTournament('tournament-id')).resolves.toMatchObject({
+      progressed: true,
+      qualifiers: 4,
+      rounds: 2,
+    });
   });
 
   it('creates a later-round Knockout Match when both Players arrive by first-round byes', async () => {
@@ -413,21 +616,6 @@ describe('tournament progression', () => {
     mockWhereSelect([{ playerOnePoints: 11, playerTwoPoints: 4 }]);
     mockWhereSelect([{ playerOnePoints: 11, playerTwoPoints: 1 }]);
     mockWhereSelect([{ playerOnePoints: 11, playerTwoPoints: 1 }]);
-
-    const rankTransaction = {
-      update: jest.fn(() => ({
-        set: () => ({
-          where: jest.fn(),
-        }),
-      })),
-    };
-    mockDb.transaction
-      .mockImplementationOnce(async (callback: (database: typeof rankTransaction) => unknown) =>
-        callback(rankTransaction),
-      )
-      .mockImplementationOnce(async (callback: (database: typeof rankTransaction) => unknown) =>
-        callback(rankTransaction),
-      );
 
     const participantInserts: unknown[] = [];
     const targetFixtures = [

@@ -11,6 +11,7 @@ import {
 } from '@squash/db/schema';
 import { getClubAuthorization } from '../authorization';
 import { db } from '../database';
+import { inspectTournamentProgression } from '../services';
 import {
   decideTournamentEntryRequest,
   directlyAddTournamentPlayer,
@@ -34,8 +35,14 @@ jest.mock('../authorization', () => ({
   getClubAuthorization: jest.fn(),
 }));
 
+jest.mock('../services', () => ({
+  inspectTournamentProgression: jest.fn(),
+  progressTournament: jest.fn(),
+}));
+
 const mockDb = db as unknown as { select: jest.Mock; transaction: jest.Mock };
 const mockAuthorization = getClubAuthorization as jest.Mock;
+const mockInspectProgression = inspectTournamentProgression as jest.Mock;
 
 const tournament = {
   id: 'tournament-id',
@@ -179,7 +186,10 @@ function startTransactionWith(
 }
 
 describe('Official Tournament Player participation', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockInspectProgression.mockResolvedValue({ status: 'inactive' });
+  });
 
   it('allows a clubless or cross-Club Player to request a Public Tournament', async () => {
     const request = { id: 'request-id', tournamentId: tournament.id, playerId: 'player-id' };
@@ -294,7 +304,10 @@ describe('Official Tournament Player participation', () => {
 });
 
 describe('Official Tournament accepted-roster management', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockInspectProgression.mockResolvedValue({ status: 'inactive' });
+  });
 
   it('directly adds any registered Player and invalidates the Draft Draw', async () => {
     managerLocator();
@@ -350,7 +363,10 @@ describe('Official Tournament accepted-roster management', () => {
 });
 
 describe('Official Tournament Start', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockInspectProgression.mockResolvedValue({ status: 'inactive' });
+  });
 
   const startReadyTournament = {
     ...tournament,
@@ -481,7 +497,10 @@ describe('Official Tournament Start', () => {
 });
 
 describe('Official Tournament management fixture read', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockInspectProgression.mockResolvedValue({ status: 'inactive' });
+  });
 
   const startedTournament = {
     ...tournament,
@@ -632,6 +651,43 @@ describe('Official Tournament management fixture read', () => {
           playerTwo: { name: 'Elena Mora', image: null },
         },
       ],
+    });
+  });
+
+  it('exposes the unresolved tie context and only its tied Players', async () => {
+    managerLocator();
+    queueManagementPayload();
+    mockInspectProgression.mockResolvedValueOnce({
+      status: 'manual-tiebreak-required',
+      requirement: {
+        tournamentId: tournament.id,
+        context: 'group-standings',
+        groupId: 'group-1',
+        playerIds: ['player-3', 'player-1'],
+        requirementKey: 'a'.repeat(64),
+      },
+    });
+    queueSelectRows([
+      [
+        { id: 'player-1', name: 'Ana Vega', image: null },
+        { id: 'player-3', name: 'Camila Solano', image: 'https://example.test/camila.png' },
+      ],
+    ]);
+
+    await expect(getTournamentManagement('owner-id', tournament.id)).resolves.toMatchObject({
+      organizerTiebreakRequirement: {
+        context: 'group-standings',
+        group: { id: 'group-1', name: 'A' },
+        players: [
+          {
+            id: 'player-3',
+            name: 'Camila Solano',
+            image: 'https://example.test/camila.png',
+          },
+          { id: 'player-1', name: 'Ana Vega', image: null },
+        ],
+        requirementKey: 'a'.repeat(64),
+      },
     });
   });
 });
