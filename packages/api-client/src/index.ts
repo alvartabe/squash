@@ -14,6 +14,7 @@ import type {
   PaginatedData,
   PlayerStatistics,
   TournamentPlayer,
+  TournamentPlayerDetail,
   UpdateClubInput,
 } from '@squash/contracts';
 import Axios, { type AxiosInstance } from 'axios';
@@ -127,6 +128,10 @@ export function squashApi(client: AxiosInstance) {
       (await client.post('/tournaments', input)).data,
     getDiscoverableTournaments: async (): Promise<{ data: TournamentPlayer[] }> =>
       (await client.get('/tournaments')).data,
+    getOfficialTournament: async (
+      tournamentId: string,
+    ): Promise<{ data: TournamentPlayerDetail }> =>
+      (await client.get(`/tournaments/${tournamentId}`)).data,
     requestTournamentEntry: async (tournamentId: string) =>
       (await client.post(`/tournaments/${tournamentId}/entry-requests`)).data,
     acceptTournamentInvitation: async (tournamentId: string, invitationId: string) =>
@@ -160,5 +165,6 @@ export const queryKeys = {
   clubPlaySession: (sessionId: string) => ['club-play-sessions', sessionId] as const,
   challenges: () => ['challenges'] as const,
   tournaments: () => ['tournaments'] as const,
+  tournament: (tournamentId: string) => ['tournaments', tournamentId] as const,
   statistics: (playerId: string) => ['statistics', playerId] as const,
 };

@@ -3,6 +3,7 @@ import {
   officialResultInputSchema,
   organizerTiebreakDecisionInputSchema,
   tournamentManagementSchema,
+  tournamentPlayerDetailSchema,
   tournamentPlayerSchema,
 } from '@squash/contracts';
 
@@ -65,6 +66,22 @@ describe('Official Tournament contracts', () => {
         playerEmail: 'private@example.com',
       }),
     ).not.toHaveProperty('playerEmail');
+
+    expect(
+      tournamentPlayerSchema.parse({
+        id: '91f6704a-c62c-4676-93a1-72d5b3fd6b7a',
+        clubId: '2a9e01c1-f2ca-4f66-88ca-3fdd5349c46c',
+        clubName: 'Central',
+        name: 'Official Open',
+        visibility: 'club-only',
+        status: 'completed',
+        startsAt: '2026-08-01T15:00:00.000Z',
+        timeZone: 'America/Costa_Rica',
+        relationship: 'accepted',
+        entryRequestId: null,
+        invitationId: null,
+      }).status,
+    ).toBe('completed');
   });
 
   it('models Official participation without Social Tournament states', () => {
@@ -120,6 +137,106 @@ describe('Official Tournament contracts', () => {
     expect(parsed.groupFixtures[0]?.playerOne.name).toBe('Ana Vega');
     expect(parsed.groupFixtures[0]?.playerOne.image).toBe('https://example.test/ana.png');
     expect(JSON.stringify(shape)).not.toContain('social');
+  });
+
+  it('exposes a read-only Player detail projection without management or audit controls', () => {
+    const parsed = tournamentPlayerDetailSchema.parse({
+      id: '91f6704a-c62c-4676-93a1-72d5b3fd6b7a',
+      club: { id: '2a9e01c1-f2ca-4f66-88ca-3fdd5349c46c', name: 'Central' },
+      name: 'Official Open',
+      visibility: 'public',
+      status: 'completed',
+      startsAt: '2026-08-01T15:00:00.000Z',
+      timeZone: 'America/Costa_Rica',
+      configuration: {
+        groupSize: 4,
+        automaticQualifiersPerGroup: 2,
+        wildcardQualifiers: 1,
+        seedingMethod: 'manual',
+        scoringRules: { bestOf: 5, pointsToWin: 11, winByTwo: true },
+      },
+      groups: [
+        {
+          id: 'd7e5d16a-ee4f-4c57-b94f-eaf94ad2975d',
+          name: 'A',
+          position: 1,
+          assignments: [
+            { id: 'player-1', name: 'Ana Vega', image: null },
+            { id: 'player-2', name: 'Bruno Castro', image: null },
+          ],
+          standings: [
+            {
+              rank: 1,
+              tied: false,
+              player: { id: 'player-1', name: 'Ana Vega', image: null },
+              played: 1,
+              wins: 1,
+              losses: 0,
+              gamesWon: 3,
+              gamesLost: 1,
+              gameDifferential: 2,
+              pointsFor: 43,
+              pointsAgainst: 35,
+              pointDifferential: 8,
+            },
+          ],
+          fixtures: [],
+        },
+      ],
+      knockoutDraw: [
+        {
+          id: '4cb49f8a-a584-4424-9e39-274df6d7f8d7',
+          matchId: '71ba8d8f-c323-4e64-ae4f-7b6bb969f32c',
+          status: 'completed',
+          round: 1,
+          position: 1,
+          playerOne: { id: 'player-1', name: 'Ana Vega', image: null },
+          playerTwo: { id: 'player-2', name: 'Bruno Castro', image: null },
+          games: [
+            { playerOnePoints: 11, playerTwoPoints: 7 },
+            { playerOnePoints: 11, playerTwoPoints: 8 },
+            { playerOnePoints: 11, playerTwoPoints: 9 },
+          ],
+          winnerId: 'player-1',
+        },
+      ],
+      champion: { id: 'player-1', name: 'Ana Vega', image: null },
+    });
+
+    expect(parsed.champion?.name).toBe('Ana Vega');
+    expect(parsed.groups[0]?.standings[0]?.gamesWon).toBe(3);
+    expect(JSON.stringify(parsed)).not.toMatch(
+      /currentRevision|correction|reason|audit|mayBegin|mayRecord|manage/i,
+    );
+  });
+
+  it('never declares a champion for a Cancelled Tournament', () => {
+    const base = {
+      id: '91f6704a-c62c-4676-93a1-72d5b3fd6b7a',
+      club: { id: '2a9e01c1-f2ca-4f66-88ca-3fdd5349c46c', name: 'Central' },
+      name: 'Official Open',
+      visibility: 'club-only',
+      status: 'cancelled',
+      startsAt: '2026-08-01T15:00:00.000Z',
+      timeZone: 'America/Costa_Rica',
+      configuration: {
+        groupSize: 4,
+        automaticQualifiersPerGroup: 2,
+        wildcardQualifiers: 0,
+        seedingMethod: 'random',
+        scoringRules: { bestOf: 3, pointsToWin: 11, winByTwo: true },
+      },
+      groups: [],
+      knockoutDraw: [],
+    } as const;
+
+    expect(tournamentPlayerDetailSchema.safeParse({ ...base, champion: null }).success).toBe(true);
+    expect(
+      tournamentPlayerDetailSchema.safeParse({
+        ...base,
+        champion: { id: 'player-1', name: 'Ana Vega', image: null },
+      }).success,
+    ).toBe(false);
   });
 
   it('requires a reason for corrections and rejects malformed Official Result Games', () => {

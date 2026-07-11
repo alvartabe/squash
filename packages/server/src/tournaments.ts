@@ -36,7 +36,7 @@ import {
   createRoundRobinPairs,
   isExactOrganizerTiebreakOrder,
 } from '@squash/domain';
-import { and, asc, eq, exists, ilike, inArray, isNull, or } from 'drizzle-orm';
+import { and, asc, eq, exists, ilike, inArray, isNull, ne, or } from 'drizzle-orm';
 import { getClubAuthorization, requireLockedActiveClub } from './authorization';
 import { db } from './database';
 import { forbidden, notFound, ServiceError } from './errors';
@@ -446,7 +446,7 @@ export async function listDiscoverableTournaments(actorId: string): Promise<Tour
     )
     .where(
       and(
-        eq(tournaments.status, 'registration'),
+        ne(tournaments.status, 'draft'),
         isNull(clubs.archivedAt),
         or(
           eq(tournaments.visibility, 'public'),
@@ -458,18 +458,22 @@ export async function listDiscoverableTournaments(actorId: string): Promise<Tour
       ),
     )
     .orderBy(asc(tournaments.startsAt), asc(tournaments.name));
-  return rows.map((row) => ({
-    ...row,
-    status: 'registration',
-    startsAt: row.startsAt.toISOString(),
-    relationship: row.participantId
-      ? 'accepted'
-      : row.entryRequestId
-        ? 'request-pending'
-        : row.invitationId
-          ? 'invited'
-          : 'none',
-  }));
+  return rows.map((row) => {
+    if (row.status === 'draft') throw new Error('A Draft Tournament cannot be discoverable.');
+    const status = row.status;
+    return {
+      ...row,
+      status,
+      startsAt: row.startsAt.toISOString(),
+      relationship: row.participantId
+        ? 'accepted'
+        : row.entryRequestId
+          ? 'request-pending'
+          : row.invitationId
+            ? 'invited'
+            : 'none',
+    };
+  });
 }
 
 export async function requestTournamentEntry(actorId: string, tournamentId: string) {

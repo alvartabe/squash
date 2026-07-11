@@ -17,6 +17,7 @@ import {
   directlyAddTournamentPlayer,
   getTournamentManagement,
   inviteTournamentPlayer,
+  listDiscoverableTournaments,
   removeTournamentPlayer,
   requestTournamentEntry,
   respondToTournamentInvitation,
@@ -54,6 +55,40 @@ const tournament = {
   timeZone: 'America/Costa_Rica',
   draftDrawGeneratedAt: null,
 };
+
+describe('Official Tournament Player discovery through completion', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('keeps authorized completed Tournaments in the mobile list', async () => {
+    mockDb.select.mockReturnValueOnce(selectRows([{ id: 'player-id' }]));
+    mockDb.select.mockReturnValueOnce(selectRows([]));
+    mockDb.select.mockReturnValueOnce(
+      selectRows([
+        {
+          id: tournament.id,
+          clubId: tournament.clubId,
+          clubName: 'Central',
+          name: tournament.name,
+          visibility: 'club-only',
+          status: 'completed',
+          startsAt: tournament.startsAt,
+          timeZone: tournament.timeZone,
+          participantId: 'player-id',
+          entryRequestId: null,
+          invitationId: null,
+        },
+      ]),
+    );
+
+    await expect(listDiscoverableTournaments('player-id')).resolves.toEqual([
+      expect.objectContaining({
+        id: tournament.id,
+        status: 'completed',
+        relationship: 'accepted',
+      }),
+    ]);
+  });
+});
 
 function selectRows(rows: unknown[]) {
   const query = {

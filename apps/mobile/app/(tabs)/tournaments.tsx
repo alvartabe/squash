@@ -2,7 +2,7 @@ import { queryKeys } from '@squash/api-client';
 import type { TournamentPlayer } from '@squash/contracts';
 import { colors, radii, spacing } from '@squash/design-tokens';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Redirect } from 'expo-router';
+import { Redirect, useRouter, type Href } from 'expo-router';
 import {
   ActivityIndicator,
   FlatList,
@@ -17,7 +17,13 @@ import { api } from '@/src/lib/api';
 import { authClient } from '@/src/lib/auth-client';
 import { t } from '@/src/lib/i18n';
 
-function TournamentCard({ tournament }: { tournament: TournamentPlayer }) {
+export function TournamentCard({
+  tournament,
+  onOpen,
+}: {
+  tournament: TournamentPlayer;
+  onOpen: (tournamentId: string) => void;
+}) {
   const client = useQueryClient();
   const invalidate = () => client.invalidateQueries({ queryKey: queryKeys.tournaments() });
   const requestEntry = useMutation({
@@ -65,7 +71,7 @@ function TournamentCard({ tournament }: { tournament: TournamentPlayer }) {
           timeZone: tournament.timeZone,
         }).format(new Date(tournament.startsAt))}
       </Text>
-      {tournament.relationship === 'none' ? (
+      {tournament.status !== 'registration' ? null : tournament.relationship === 'none' ? (
         <ActionButton
           disabled={busy}
           label={t('tournaments.requestEntry')}
@@ -104,6 +110,12 @@ function TournamentCard({ tournament }: { tournament: TournamentPlayer }) {
           {t('tournaments.actionError')}
         </Text>
       ) : null}
+      <ActionButton
+        disabled={false}
+        label={t('tournaments.openDetail')}
+        onPress={() => onOpen(tournament.id)}
+        secondary
+      />
     </View>
   );
 }
@@ -132,6 +144,7 @@ function ActionButton({
 }
 
 export default function TournamentsScreen() {
+  const router = useRouter();
   const session = authClient.useSession();
   const playerId = session.data?.user.id;
   const tournaments = useQuery({
@@ -170,7 +183,12 @@ export default function TournamentsScreen() {
             tintColor={colors.primary}
           />
         }
-        renderItem={({ item }) => <TournamentCard tournament={item} />}
+        renderItem={({ item }) => (
+          <TournamentCard
+            onOpen={(tournamentId) => router.push(`/tournaments/${tournamentId}` as Href)}
+            tournament={item}
+          />
+        )}
       />
     </SafeAreaView>
   );

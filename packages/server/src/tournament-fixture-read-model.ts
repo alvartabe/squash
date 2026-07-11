@@ -42,6 +42,7 @@ function serializeGroupFixture(
     groupPosition: number;
     round: number;
     position: number;
+    scheduledAt: Date | null;
     playerOneId: string;
     playerOneName: string;
     playerOneImage: string | null;
@@ -67,6 +68,7 @@ function serializeGroupFixture(
     groupPosition: row.groupPosition,
     round: row.round,
     position: row.position,
+    scheduledAt: row.scheduledAt?.toISOString() ?? null,
     playerOne: { id: row.playerOneId, name: row.playerOneName, image: row.playerOneImage },
     playerTwo: { id: row.playerTwoId, name: row.playerTwoName, image: row.playerTwoImage },
     scoringRules: {
@@ -91,6 +93,7 @@ function serializeKnockoutFixture(
     advancesToFixtureId: string | null;
     round: number;
     position: number;
+    scheduledAt: Date | null;
     playerOneId: string | null;
     playerOneName: string | null;
     playerOneImage: string | null;
@@ -112,6 +115,7 @@ function serializeKnockoutFixture(
     currentRevision: row.currentRevision ?? 0,
     round: row.round,
     position: row.position,
+    scheduledAt: row.scheduledAt?.toISOString() ?? null,
     playerOne:
       row.playerOneId && row.playerOneName
         ? { id: row.playerOneId, name: row.playerOneName, image: row.playerOneImage }
@@ -156,6 +160,7 @@ export async function getTournamentFixtureReadModel(tournament: TournamentFixtur
           groupPosition: tournamentGroups.position,
           round: tournamentFixtures.round,
           position: tournamentFixtures.position,
+          scheduledAt: matches.scheduledAt,
           playerOneId: fixturePlayerOne.id,
           playerOneName: fixturePlayerOne.name,
           playerOneImage: fixturePlayerOne.image,
@@ -204,6 +209,7 @@ export async function getTournamentFixtureReadModel(tournament: TournamentFixtur
           advancesToFixtureId: tournamentFixtures.advancesToFixtureId,
           round: tournamentFixtures.round,
           position: tournamentFixtures.position,
+          scheduledAt: matches.scheduledAt,
           playerOneId: fixturePlayerOne.id,
           playerOneName: fixturePlayerOne.name,
           playerOneImage: fixturePlayerOne.image,
