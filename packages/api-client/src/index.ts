@@ -12,10 +12,12 @@ import type {
   MembershipRequest,
   MembershipRequestStatus,
   PaginatedData,
+  PlayerProfile,
   PlayerStatistics,
   TournamentPlayer,
   TournamentPlayerDetail,
   UpdateClubInput,
+  UpdatePlayerProfile,
 } from '@squash/contracts';
 import Axios, { type AxiosInstance } from 'axios';
 
@@ -49,6 +51,9 @@ export function createApiClient(options: ApiClientOptions): AxiosInstance {
 export function squashApi(client: AxiosInstance) {
   return {
     getMe: async () => (await client.get('/me')).data,
+    getProfile: async (): Promise<{ data: PlayerProfile }> => (await client.get('/profile')).data,
+    updateProfile: async (input: UpdatePlayerProfile): Promise<{ data: PlayerProfile }> =>
+      (await client.put('/profile', input)).data,
     discoverClubs: async (params: {
       page?: number;
       pageSize?: number;
