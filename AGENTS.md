@@ -36,3 +36,24 @@ Use this order when sources disagree:
 5. Existing code and tests
 
 Do not silently resolve a genuine product-document conflict. Report it and request a product decision.
+
+## Feature workflow
+
+- Product documents under `docs/product/` remain the source of truth. Files under `.scratch/` are temporary execution tickets and must link to their product sources rather than duplicate them.
+- Before implementation, identify the bounded behavior, product-document source, explicit non-goals, testing seams, and review fixed point.
+- Implement one bounded ticket or behavior at a time. Do not include adjacent items from `docs/product/current-code-gaps.md`.
+- `/implement` includes the primary review. Any additional review must use the same fixed point and product source.
+- Treat specification misses and documented-standard violations as blocking.
+- Treat code smells as judgment calls and unrelated product gaps as separate future work.
+- Follow-up reviews must verify corrections without expanding the active scope.
+
+## Testing workflow
+
+- Do not invoke `/tdd` automatically. Use test-first development only when the user or active ticket explicitly requests it.
+- Before implementation, identify the observable behavior and public testing seams. When a ticket already records them, no separate confirmation is required.
+- For new features, tests may be written after implementing each bounded vertical slice.
+- Do not defer tests across multiple tickets or until the end of an entire feature.
+- A ticket is not complete until its behavior tests are implemented and passing.
+- For bug fixes, first reproduce the defect with a failing regression test when practical.
+- Test through public interfaces and observable behavior rather than implementation details.
+- Run relevant tests during implementation and the full applicable test suite before final review.
