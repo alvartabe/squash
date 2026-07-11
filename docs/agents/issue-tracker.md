@@ -1,7 +1,7 @@
-# Local issue tracker
+# Prompt-driven work
 
-Temporary execution tickets live under `.scratch/<feature>/issues/`.
+This repository does not use an issue tracker or local execution tickets for routine feature work.
 
-Each ticket must link to the relevant source under `docs/product/` and record its review fixed point. Tickets organize implementation work; they do not define or change product behavior.
+Select candidate work from `docs/product/current-code-gaps.md`, verify it against the current code and Initial scope, and define the bounded task directly in the user prompt. Product documents under `docs/product/` remain the source of truth.
 
-When product behavior changes, update the relevant product document. Do not preserve accepted product decisions only in `.scratch/`.
+Skip ticket-oriented skills such as `/to-spec`, `/to-tickets`, `/triage`, and `/wayfinder` unless the user explicitly requests a persistent planning workflow. `/implement` and `/code-review` must use the product source and review fixed point named in the task prompt.
