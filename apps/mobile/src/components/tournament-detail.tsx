@@ -1,4 +1,4 @@
-import type { MatchStatus, TournamentPlayerDetail, TournamentStatus } from '@squash/contracts';
+import type { TournamentPlayerDetail, TournamentStatus } from '@squash/contracts';
 import { colors, radii, spacing } from '@squash/design-tokens';
 import { StyleSheet, Text, View } from 'react-native';
 import { mobileLocale, t } from '@/src/lib/i18n';
@@ -11,15 +11,15 @@ const tournamentStatusKeys: Record<Exclude<TournamentStatus, 'draft'>, Parameter
   cancelled: 'tournaments.status.cancelled',
 };
 
-const matchStatusKeys: Record<MatchStatus, Parameters<typeof t>[0]> = {
+type PlayerFixture = TournamentPlayerDetail['knockoutDraw'][number];
+type PlayerMatchStatus = NonNullable<PlayerFixture['status']>;
+
+const matchStatusKeys: Record<PlayerMatchStatus, Parameters<typeof t>[0]> = {
   scheduled: 'tournaments.matchStatus.scheduled',
   'in-progress': 'tournaments.matchStatus.inProgress',
   completed: 'tournaments.matchStatus.completed',
-  disputed: 'tournaments.matchStatus.disputed',
   void: 'tournaments.matchStatus.void',
 };
-
-type PlayerFixture = TournamentPlayerDetail['knockoutDraw'][number];
 
 function MatchCard({ fixture }: { fixture: PlayerFixture }) {
   const playerOne = fixture.playerOne?.name ?? t('tournaments.officialResult.awaitingPlayers');

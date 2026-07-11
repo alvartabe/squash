@@ -1,5 +1,20 @@
 import type { GroupMatch, Standing } from './types';
 
+export type GroupGameMatch = {
+  playerOneId: string;
+  playerTwoId: string;
+  playerOneGames: number;
+  playerTwoGames: number;
+  playerOnePoints: number;
+  playerTwoPoints: number;
+};
+
+export type GameStanding = Omit<Standing, 'setsWon' | 'setsLost' | 'setDifferential'> & {
+  gamesWon: number;
+  gamesLost: number;
+  gameDifferential: number;
+};
+
 type MutableStanding = Omit<
   Standing,
   | 'rank'
@@ -252,4 +267,28 @@ export function calculateStandings(
     if (!row) throw new Error('Missing standing for player.');
     return { ...row, rank: index + 1 };
   });
+}
+
+export function calculateGameStandings(
+  playerIds: readonly string[],
+  matches: readonly GroupGameMatch[],
+  options: { organizerTiebreakOrder?: readonly string[] } = {},
+): GameStanding[] {
+  return calculateStandings(
+    playerIds,
+    matches.map((match) => ({
+      playerOneId: match.playerOneId,
+      playerTwoId: match.playerTwoId,
+      playerOneSets: match.playerOneGames,
+      playerTwoSets: match.playerTwoGames,
+      playerOnePoints: match.playerOnePoints,
+      playerTwoPoints: match.playerTwoPoints,
+    })),
+    options,
+  ).map(({ setsWon, setsLost, setDifferential, ...standing }) => ({
+    ...standing,
+    gamesWon: setsWon,
+    gamesLost: setsLost,
+    gameDifferential: setDifferential,
+  }));
 }

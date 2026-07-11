@@ -61,15 +61,21 @@ isolated management-authentication boundary.
 
 The mobile Player Tournament list retains authorized Official Tournaments from Registration
 Open through Completed or Cancelled. A Player-authenticated detail endpoint and mobile screen
-expose Player-relevant identity, lifecycle, locked configuration, finalized Groups, canonical
+expose the currently persisted Player-relevant identity, lifecycle, locked configuration,
+finalized Groups, canonical
 current standings, Group fixtures, finalized Official Results with Game scores, the Knockout
 Draw, and the champion only for a Completed Tournament. Public access is available to every
 registered Player; Club-only access requires an Active Membership in the owning Club or a direct
-Tournament relationship, and accepted Tournament Participation continues to grant event access
-after the Membership that originally established eligibility changes. The Player projection does
-not expose Draft Draws, organizer audit data, correction reasons, revisions, Result Locks, or any
-result-management action. English and Latin American Spanish mobile copy cover the delivered
-experience.
+Registration Open Entry Request or Invitation, and accepted Tournament Participation continues to
+grant event access after the Membership that originally established eligibility changes. The
+Player projection does not expose Draft Draws, organizer audit data, correction reasons,
+revisions, Result Locks, or any result-management action. English and Latin American Spanish
+mobile copy cover the delivered experience.
+
+Tournament description and informational venue, plus per-Match venue text and court label, are not
+persisted by the current Tournament schema. The Player detail can expose the configured start time
+but cannot yet show those other documented informational fields; delivering them requires the
+corresponding management configuration and persistence slice.
 
 The Organizer Tiebreak Decision workflow is implemented for statistically inseparable
 Group standings, Wildcard qualification cutoffs, and Knockout seeding. The management

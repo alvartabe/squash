@@ -13,10 +13,10 @@ import {
   users,
 } from '@squash/db/schema';
 import {
-  calculateStandings,
+  calculateGameStandings,
   OrganizerTiebreakRequiredError,
-  type GroupMatch,
-  type Standing,
+  type GameStanding,
+  type GroupGameMatch,
 } from '@squash/domain';
 import { and, asc, eq, sql } from 'drizzle-orm';
 import { requireRegisteredPlayer } from './authorization';
@@ -52,33 +52,33 @@ function hasPlayerViewAccess(tournament: {
 
 function completedGroupMatches(
   fixtures: Awaited<ReturnType<typeof getTournamentFixtureReadModel>>['groupFixtures'],
-): GroupMatch[] {
+): GroupGameMatch[] {
   return fixtures
     .filter((fixture) => fixture.matchStatus === 'completed')
     .map((fixture) => ({
       playerOneId: fixture.playerOne.id,
       playerTwoId: fixture.playerTwo.id,
-      playerOneSets: fixture.games.filter((game) => game.playerOnePoints > game.playerTwoPoints)
+      playerOneGames: fixture.games.filter((game) => game.playerOnePoints > game.playerTwoPoints)
         .length,
-      playerTwoSets: fixture.games.filter((game) => game.playerTwoPoints > game.playerOnePoints)
+      playerTwoGames: fixture.games.filter((game) => game.playerTwoPoints > game.playerOnePoints)
         .length,
       playerOnePoints: fixture.games.reduce((total, game) => total + game.playerOnePoints, 0),
       playerTwoPoints: fixture.games.reduce((total, game) => total + game.playerTwoPoints, 0),
     }));
 }
 
-function currentStandings(members: GroupMemberRow[], matches: GroupMatch[]) {
+function currentStandings(members: GroupMemberRow[], matches: GroupGameMatch[]) {
   const finalOrder = members
     .filter((member) => member.finalRank !== null)
     .sort((left, right) => (left.finalRank ?? 0) - (right.finalRank ?? 0))
     .map((member) => member.id);
   let organizerTiebreakOrder = finalOrder;
   const unresolvedTies: string[][] = [];
-  let standings: Standing[];
+  let standings: GameStanding[];
 
   for (;;) {
     try {
-      standings = calculateStandings(
+      standings = calculateGameStandings(
         members.map((member) => member.id),
         matches,
         organizerTiebreakOrder.length > 0 ? { organizerTiebreakOrder } : {},
@@ -115,9 +115,9 @@ function currentStandings(members: GroupMemberRow[], matches: GroupMatch[]) {
         played: standing.played,
         wins: standing.wins,
         losses: standing.losses,
-        gamesWon: standing.setsWon,
-        gamesLost: standing.setsLost,
-        gameDifferential: standing.setDifferential,
+        gamesWon: standing.gamesWon,
+        gamesLost: standing.gamesLost,
+        gameDifferential: standing.gameDifferential,
         pointsFor: standing.pointsFor,
         pointsAgainst: standing.pointsAgainst,
         pointDifferential: standing.pointDifferential,
@@ -130,7 +130,7 @@ function currentStandings(members: GroupMemberRow[], matches: GroupMatch[]) {
     );
 }
 
-function playerFixture(fixture: {
+function toPlayerFixture(fixture: {
   id: string;
   matchId: string | null;
   matchStatus: 'scheduled' | 'in-progress' | 'completed' | 'disputed' | 'void' | null;
@@ -247,10 +247,10 @@ export async function getOfficialTournamentPlayerDetail(
       position: first.groupPosition,
       assignments: members.map(({ id, name, image }) => ({ id, name, image })),
       standings: currentStandings(members, completedGroupMatches(fixtures)),
-      fixtures: fixtures.map(playerFixture),
+      fixtures: fixtures.map(toPlayerFixture),
     };
   });
-  const knockoutDraw = fixtureReadModel.knockoutFixtures.map(playerFixture);
+  const knockoutDraw = fixtureReadModel.knockoutFixtures.map(toPlayerFixture);
   const playerById = new Map<string, PlayerIdentity>();
   for (const fixture of [...fixtureReadModel.groupFixtures, ...fixtureReadModel.knockoutFixtures]) {
     if (fixture.playerOne) playerById.set(fixture.playerOne.id, fixture.playerOne);

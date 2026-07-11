@@ -281,7 +281,7 @@ const tournamentPlayerIdentitySchema = z.object({
 const tournamentPlayerFixtureSchema = z.object({
   id: idSchema,
   matchId: idSchema.nullable(),
-  status: matchStatusSchema.nullable(),
+  status: z.enum(['scheduled', 'in-progress', 'completed', 'void']).nullable(),
   round: z.number().int().positive(),
   position: z.number().int().positive(),
   scheduledAt: z.string().nullable().optional(),
@@ -348,6 +348,13 @@ export const tournamentPlayerDetailSchema = z
         code: 'custom',
         path: ['champion'],
         message: 'Only a Completed Tournament can declare a champion',
+      });
+    }
+    if (value.status === 'completed' && value.champion === null) {
+      context.addIssue({
+        code: 'custom',
+        path: ['champion'],
+        message: 'A Completed Tournament must declare a champion',
       });
     }
   });

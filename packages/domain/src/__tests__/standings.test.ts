@@ -1,4 +1,8 @@
-import { calculateStandings, OrganizerTiebreakRequiredError } from '../standings';
+import {
+  calculateGameStandings,
+  calculateStandings,
+  OrganizerTiebreakRequiredError,
+} from '../standings';
 import type { GroupMatch } from '../types';
 
 const match = (
@@ -81,4 +85,27 @@ test('uses the Organizer Tiebreak Decision without requiring a written reason', 
   );
 
   expect(standings.map((row) => row.playerId)).toEqual(['b', 'c', 'a']);
+});
+
+test('exposes canonical Game terminology for new standings consumers', () => {
+  expect(
+    calculateGameStandings(
+      ['a', 'b'],
+      [
+        {
+          playerOneId: 'a',
+          playerTwoId: 'b',
+          playerOneGames: 3,
+          playerTwoGames: 1,
+          playerOnePoints: 43,
+          playerTwoPoints: 35,
+        },
+      ],
+    )[0],
+  ).toMatchObject({
+    playerId: 'a',
+    gamesWon: 3,
+    gamesLost: 1,
+    gameDifferential: 2,
+  });
 });
