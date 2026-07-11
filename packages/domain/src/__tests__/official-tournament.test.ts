@@ -2,6 +2,8 @@ import {
   canListOfficialTournamentForPlayer,
   canManageOfficialTournament,
   canRequestOfficialTournamentEntry,
+  canViewOfficialTournamentForPlayer,
+  isOfficialTournamentChampionValid,
   isOfficialTournamentRosterMutable,
 } from '../official-tournament';
 
@@ -46,22 +48,50 @@ describe('Official Tournament discovery and entry policy', () => {
     ).toBe(false);
   });
 
-  it.each(['invited', 'request-pending', 'accepted'] as const)(
-    'keeps a %s relationship reachable after visibility or Membership changes',
-    (relationship) => {
+  it('keeps accepted Tournament Participation reachable through completion', () => {
+    expect(
+      canViewOfficialTournamentForPlayer({
+        status: 'completed',
+        visibility: 'club-only',
+        hasActiveOwningClubMembership: false,
+        relationship: 'accepted',
+      }),
+    ).toBe(true);
+  });
+
+  it('does not authorize detail through a pending registration relationship', () => {
+    for (const relationship of ['invited', 'request-pending'] as const) {
       expect(
-        canListOfficialTournamentForPlayer({
+        canViewOfficialTournamentForPlayer({
           status: 'registration',
           visibility: 'club-only',
           hasActiveOwningClubMembership: false,
           relationship,
         }),
-      ).toBe(true);
-    },
-  );
+      ).toBe(false);
+    }
+  });
+
+  it('keeps a direct invitation reachable in the Registration Open list for response', () => {
+    expect(
+      canListOfficialTournamentForPlayer({
+        status: 'registration',
+        visibility: 'club-only',
+        hasActiveOwningClubMembership: false,
+        relationship: 'invited',
+      }),
+    ).toBe(true);
+  });
 });
 
 describe('Official Tournament management and roster lock policy', () => {
+  it('allows a champion only for a Completed Tournament', () => {
+    expect(isOfficialTournamentChampionValid('completed', 'player-1')).toBe(true);
+    expect(isOfficialTournamentChampionValid('completed', null)).toBe(false);
+    expect(isOfficialTournamentChampionValid('cancelled', null)).toBe(true);
+    expect(isOfficialTournamentChampionValid('cancelled', 'player-1')).toBe(false);
+  });
+
   it('allows Owners and Administrators implicitly but Coaches only when appointed', () => {
     expect(
       canManageOfficialTournament({

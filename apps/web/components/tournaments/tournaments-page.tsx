@@ -49,6 +49,8 @@ function CreateTournamentForm({ clubId }: { clubId: string }) {
     const data = new FormData(event.currentTarget);
     create.mutate({
       name: String(data.get('name')),
+      description: String(data.get('description')).trim() || null,
+      venue: String(data.get('venue')).trim() || null,
       visibility,
       startsAt: String(data.get('startsAt')),
       timeZone: String(data.get('timeZone')),
@@ -71,6 +73,8 @@ function CreateTournamentForm({ clubId }: { clubId: string }) {
       <CardContent>
         <form className="grid gap-4 md:grid-cols-2" onSubmit={submit}>
           <Field label={t('tournaments.name')} name="name" required />
+          <Field label={t('tournaments.descriptionLabel')} name="description" />
+          <Field label={t('tournaments.venue')} name="venue" />
           <label className="grid gap-2 text-sm">
             <span>{t('tournaments.visibility')}</span>
             <select
@@ -209,6 +213,10 @@ function TournamentCard({
             <CardDescription>
               {tournament.status} · {new Date(tournament.startsAt).toLocaleString()}
             </CardDescription>
+            {tournament.description ? (
+              <CardDescription>{tournament.description}</CardDescription>
+            ) : null}
+            {tournament.venue ? <CardDescription>{tournament.venue}</CardDescription> : null}
           </div>
           <select
             className="h-10 rounded-md border bg-background px-3 text-sm"

@@ -545,6 +545,8 @@ describe('Official Tournament management fixture read', () => {
 
   const startedTournament = {
     ...tournament,
+    description: 'Costa Rica championship event.',
+    venue: 'Central Squash Club',
     status: 'group-stage' as const,
     draftDrawGeneratedAt: new Date('2026-08-01T15:00:00.000Z'),
   };
@@ -786,6 +788,8 @@ describe('Official Tournament management fixture read', () => {
     ]);
 
     await expect(getTournamentManagement('owner-id', tournament.id)).resolves.toMatchObject({
+      description: startedTournament.description,
+      venue: startedTournament.venue,
       knockoutFixtures: [
         {
           id: 'knockout-1',

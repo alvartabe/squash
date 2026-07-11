@@ -24,6 +24,7 @@ const matchStatusKeys: Record<PlayerMatchStatus, Parameters<typeof t>[0]> = {
 function MatchCard({ fixture }: { fixture: PlayerFixture }) {
   const playerOne = fixture.playerOne?.name ?? t('tournaments.officialResult.awaitingPlayers');
   const playerTwo = fixture.playerTwo?.name ?? t('tournaments.officialResult.awaitingPlayers');
+  const location = [fixture.venueText, fixture.courtLabel].filter(Boolean).join(' · ');
   return (
     <View style={styles.matchCard}>
       <View style={styles.rowBetween}>
@@ -47,6 +48,7 @@ function MatchCard({ fixture }: { fixture: PlayerFixture }) {
           }).format(new Date(fixture.scheduledAt))}
         </Text>
       ) : null}
+      {location ? <Text style={styles.muted}>{location}</Text> : null}
       {fixture.games.length > 0 ? (
         <View style={styles.games}>
           {fixture.games.map((game, index) => (
@@ -82,6 +84,8 @@ export function TournamentDetail({ tournament }: { tournament: TournamentPlayerD
         <Text style={styles.muted}>
           {t(tournament.visibility === 'public' ? 'tournaments.public' : 'tournaments.clubOnly')}
         </Text>
+        {tournament.description ? <Text style={styles.body}>{tournament.description}</Text> : null}
+        {tournament.venue ? <Text style={styles.body}>{tournament.venue}</Text> : null}
       </View>
 
       <View style={styles.section}>

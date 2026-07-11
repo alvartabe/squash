@@ -43,6 +43,8 @@ function serializeGroupFixture(
     round: number;
     position: number;
     scheduledAt: Date | null;
+    venueText: string | null;
+    courtLabel: string | null;
     playerOneId: string;
     playerOneName: string;
     playerOneImage: string | null;
@@ -69,6 +71,8 @@ function serializeGroupFixture(
     round: row.round,
     position: row.position,
     scheduledAt: row.scheduledAt?.toISOString() ?? null,
+    venueText: row.venueText,
+    courtLabel: row.courtLabel,
     playerOne: { id: row.playerOneId, name: row.playerOneName, image: row.playerOneImage },
     playerTwo: { id: row.playerTwoId, name: row.playerTwoName, image: row.playerTwoImage },
     scoringRules: {
@@ -94,6 +98,8 @@ function serializeKnockoutFixture(
     round: number;
     position: number;
     scheduledAt: Date | null;
+    venueText: string | null;
+    courtLabel: string | null;
     playerOneId: string | null;
     playerOneName: string | null;
     playerOneImage: string | null;
@@ -116,6 +122,8 @@ function serializeKnockoutFixture(
     round: row.round,
     position: row.position,
     scheduledAt: row.scheduledAt?.toISOString() ?? null,
+    venueText: row.venueText,
+    courtLabel: row.courtLabel,
     playerOne:
       row.playerOneId && row.playerOneName
         ? { id: row.playerOneId, name: row.playerOneName, image: row.playerOneImage }
@@ -161,6 +169,8 @@ export async function getTournamentFixtureReadModel(tournament: TournamentFixtur
           round: tournamentFixtures.round,
           position: tournamentFixtures.position,
           scheduledAt: matches.scheduledAt,
+          venueText: matches.venueText,
+          courtLabel: matches.courtLabel,
           playerOneId: fixturePlayerOne.id,
           playerOneName: fixturePlayerOne.name,
           playerOneImage: fixturePlayerOne.image,
@@ -210,6 +220,8 @@ export async function getTournamentFixtureReadModel(tournament: TournamentFixtur
           round: tournamentFixtures.round,
           position: tournamentFixtures.position,
           scheduledAt: matches.scheduledAt,
+          venueText: matches.venueText,
+          courtLabel: matches.courtLabel,
           playerOneId: fixturePlayerOne.id,
           playerOneName: fixturePlayerOne.name,
           playerOneImage: fixturePlayerOne.image,

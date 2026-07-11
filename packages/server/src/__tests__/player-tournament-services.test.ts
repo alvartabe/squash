@@ -26,6 +26,8 @@ const tournament = {
   clubId: '2a9e01c1-f2ca-4f66-88ca-3fdd5349c46c',
   clubName: 'Central',
   name: 'Official Open',
+  description: 'Costa Rica championship event.',
+  venue: 'Central Squash Club',
   visibility: 'club-only' as const,
   status: 'group-stage' as const,
   startsAt: new Date('2026-08-01T15:00:00.000Z'),
@@ -63,6 +65,23 @@ describe('Official Tournament Player detail authorization', () => {
       selectRows([
         {
           ...tournament,
+          hasPendingInvitation: true,
+          hasPendingEntryRequest: true,
+        },
+      ]),
+    );
+
+    await expect(
+      getOfficialTournamentPlayerDetail('player-id', tournament.id),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN', status: 403 });
+  });
+
+  it('does not authorize Club-only detail through a pending Registration Open relationship', async () => {
+    mockDb.select.mockReturnValueOnce(
+      selectRows([
+        {
+          ...tournament,
+          status: 'registration',
           hasPendingInvitation: true,
           hasPendingEntryRequest: true,
         },
@@ -180,6 +199,9 @@ describe('Official Tournament Player detail authorization', () => {
           groupPosition: 1,
           round: 1,
           position: 1,
+          scheduledAt: new Date('2026-08-01T16:00:00.000Z'),
+          venueText: 'Glass Court',
+          courtLabel: 'Court 1',
           playerOneId: 'player-1',
           playerOneName: 'Ana Vega',
           playerOneImage: null,
@@ -203,6 +225,9 @@ describe('Official Tournament Player detail authorization', () => {
           advancesToFixtureId: null,
           round: 1,
           position: 1,
+          scheduledAt: new Date('2026-08-02T16:00:00.000Z'),
+          venueText: 'Championship Court',
+          courtLabel: 'Court 2',
           playerOneId: 'player-1',
           playerOneName: 'Ana Vega',
           playerOneImage: null,
@@ -240,6 +265,14 @@ describe('Official Tournament Player detail authorization', () => {
     ]);
     expect(detail.groups[0]?.fixtures[0]?.games).toHaveLength(3);
     expect(detail.knockoutDraw[0]?.games).toHaveLength(2);
+    expect(detail).toMatchObject({
+      description: 'Costa Rica championship event.',
+      venue: 'Central Squash Club',
+    });
+    expect(detail.knockoutDraw[0]).toMatchObject({
+      venueText: 'Championship Court',
+      courtLabel: 'Court 2',
+    });
     expect(detail.champion).toEqual({ id: 'player-1', name: 'Ana Vega', image: null });
     expect(JSON.stringify(detail)).not.toMatch(
       /revision|correction|reason|audit|mayBegin|mayRecord/i,

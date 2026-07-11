@@ -142,6 +142,8 @@ export const createTournamentSchema = z
   .object({
     clubId: idSchema,
     name: z.string().trim().min(1).max(160),
+    description: z.string().trim().nullable().optional(),
+    venue: z.string().trim().nullable().optional(),
     visibility: tournamentVisibilitySchema,
     startsAt: isoDateTimeSchema,
     timeZone: z.string().trim().min(1).max(100),
@@ -232,6 +234,8 @@ export const tournamentGroupFixtureSchema = z.object({
   round: z.number().int().positive(),
   position: z.number().int().positive(),
   scheduledAt: z.string().nullable().optional(),
+  venueText: z.string().nullable().optional(),
+  courtLabel: z.string().nullable().optional(),
   playerOne: z.object({
     id: userIdSchema,
     name: z.string(),
@@ -258,6 +262,8 @@ export const tournamentKnockoutFixtureSchema = z.object({
   round: z.number().int().positive(),
   position: z.number().int().positive(),
   scheduledAt: z.string().nullable().optional(),
+  venueText: z.string().nullable().optional(),
+  courtLabel: z.string().nullable().optional(),
   playerOne: z
     .object({ id: userIdSchema, name: z.string(), image: z.string().nullable() })
     .nullable(),
@@ -285,79 +291,59 @@ const tournamentPlayerFixtureSchema = z.object({
   round: z.number().int().positive(),
   position: z.number().int().positive(),
   scheduledAt: z.string().nullable().optional(),
+  venueText: z.string().nullable().optional(),
+  courtLabel: z.string().nullable().optional(),
   playerOne: tournamentPlayerIdentitySchema.nullable(),
   playerTwo: tournamentPlayerIdentitySchema.nullable(),
   games: z.array(gameScoreSchema),
   winnerId: userIdSchema.nullable(),
 });
 
-export const tournamentPlayerDetailSchema = z
-  .object({
-    id: idSchema,
-    club: z.object({ id: idSchema, name: z.string() }),
-    name: z.string(),
-    visibility: tournamentVisibilitySchema,
-    status: tournamentStatusSchema.exclude(['draft']),
-    startsAt: z.string(),
-    timeZone: z.string(),
-    configuration: z.object({
-      groupSize: z.number().int().min(2),
-      automaticQualifiersPerGroup: z.number().int().min(1),
-      wildcardQualifiers: z.number().int().nonnegative(),
-      seedingMethod: seedingMethodSchema,
-      scoringRules: matchRulesSchema,
+export const tournamentPlayerDetailSchema = z.object({
+  id: idSchema,
+  club: z.object({ id: idSchema, name: z.string() }),
+  name: z.string(),
+  description: z.string().nullable(),
+  venue: z.string().nullable(),
+  visibility: tournamentVisibilitySchema,
+  status: tournamentStatusSchema.exclude(['draft']),
+  startsAt: z.string(),
+  timeZone: z.string(),
+  configuration: z.object({
+    groupSize: z.number().int().min(2),
+    automaticQualifiersPerGroup: z.number().int().min(1),
+    wildcardQualifiers: z.number().int().nonnegative(),
+    seedingMethod: seedingMethodSchema,
+    scoringRules: matchRulesSchema,
+  }),
+  groups: z.array(
+    z.object({
+      id: idSchema,
+      name: z.string(),
+      position: z.number().int().positive(),
+      assignments: z.array(tournamentPlayerIdentitySchema),
+      standings: z.array(
+        z.object({
+          rank: z.number().int().positive(),
+          tied: z.boolean(),
+          player: tournamentPlayerIdentitySchema,
+          played: z.number().int().nonnegative(),
+          wins: z.number().int().nonnegative(),
+          losses: z.number().int().nonnegative(),
+          gamesWon: z.number().int().nonnegative(),
+          gamesLost: z.number().int().nonnegative(),
+          gameDifferential: z.number().int(),
+          pointsFor: z.number().int().nonnegative(),
+          pointsAgainst: z.number().int().nonnegative(),
+          pointDifferential: z.number().int(),
+        }),
+      ),
+      fixtures: z.array(tournamentPlayerFixtureSchema.extend({ matchId: idSchema })),
     }),
-    groups: z.array(
-      z.object({
-        id: idSchema,
-        name: z.string(),
-        position: z.number().int().positive(),
-        assignments: z.array(tournamentPlayerIdentitySchema),
-        standings: z.array(
-          z.object({
-            rank: z.number().int().positive(),
-            tied: z.boolean(),
-            player: tournamentPlayerIdentitySchema,
-            played: z.number().int().nonnegative(),
-            wins: z.number().int().nonnegative(),
-            losses: z.number().int().nonnegative(),
-            gamesWon: z.number().int().nonnegative(),
-            gamesLost: z.number().int().nonnegative(),
-            gameDifferential: z.number().int(),
-            pointsFor: z.number().int().nonnegative(),
-            pointsAgainst: z.number().int().nonnegative(),
-            pointDifferential: z.number().int(),
-          }),
-        ),
-        fixtures: z.array(tournamentPlayerFixtureSchema.extend({ matchId: idSchema })),
-      }),
-    ),
-    knockoutDraw: z.array(tournamentPlayerFixtureSchema),
-    champion: tournamentPlayerIdentitySchema.nullable(),
-  })
-  .superRefine((value, context) => {
-    if (value.status === 'cancelled' && value.champion !== null) {
-      context.addIssue({
-        code: 'custom',
-        path: ['champion'],
-        message: 'A Cancelled Tournament cannot declare a champion',
-      });
-    }
-    if (value.status !== 'completed' && value.champion !== null) {
-      context.addIssue({
-        code: 'custom',
-        path: ['champion'],
-        message: 'Only a Completed Tournament can declare a champion',
-      });
-    }
-    if (value.status === 'completed' && value.champion === null) {
-      context.addIssue({
-        code: 'custom',
-        path: ['champion'],
-        message: 'A Completed Tournament must declare a champion',
-      });
-    }
-  });
+  ),
+  knockoutDraw: z.array(tournamentPlayerFixtureSchema),
+  champion: tournamentPlayerIdentitySchema.nullable(),
+});
 
 export const organizerTiebreakContextSchema = z.enum([
   'group-standings',
@@ -404,6 +390,8 @@ export const tournamentManagementSchema = z.object({
   id: idSchema,
   clubId: idSchema,
   name: z.string(),
+  description: z.string().nullable().optional(),
+  venue: z.string().nullable().optional(),
   visibility: tournamentVisibilitySchema,
   status: tournamentStatusSchema,
   startsAt: z.string(),

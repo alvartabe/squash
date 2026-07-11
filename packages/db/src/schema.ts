@@ -495,6 +495,8 @@ export const matches = pgTable(
       .notNull()
       .references(() => matchRuleSnapshots.id),
     scheduledAt: timestamp('scheduled_at', { withTimezone: true }),
+    venueText: text('venue_text'),
+    courtLabel: text('court_label'),
     completedAt: timestamp('completed_at', { withTimezone: true }),
     submittedById: text('submitted_by_id').references(() => users.id),
     winnerId: text('winner_id').references(() => users.id),
@@ -588,6 +590,8 @@ export const tournaments = pgTable(
       .notNull()
       .references(() => users.id),
     name: text('name').notNull(),
+    description: text('description'),
+    venue: text('venue'),
     visibility: tournamentVisibility('visibility').notNull(),
     status: tournamentStatus('status').notNull().default('draft'),
     startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),

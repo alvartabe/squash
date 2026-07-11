@@ -61,21 +61,23 @@ isolated management-authentication boundary.
 
 The mobile Player Tournament list retains authorized Official Tournaments from Registration
 Open through Completed or Cancelled. A Player-authenticated detail endpoint and mobile screen
-expose the currently persisted Player-relevant identity, lifecycle, locked configuration,
+expose Player-relevant identity, description, informational venue, lifecycle, locked configuration,
 finalized Groups, canonical
 current standings, Group fixtures, finalized Official Results with Game scores, the Knockout
-Draw, and the champion only for a Completed Tournament. Public access is available to every
-registered Player; Club-only access requires an Active Membership in the owning Club or a direct
-Registration Open Entry Request or Invitation, and accepted Tournament Participation continues to
-grant event access after the Membership that originally established eligibility changes. The
+Draw, persisted Fixture Schedule details, and the champion only for a Completed Tournament. Public
+access is available to every registered Player; Club-only detail access requires an Active
+Membership in the owning Club or accepted Tournament Participation. A direct pending Invitation
+remains reachable in the Registration Open list so the invited Player can respond, but pending
+relationships do not authorize the detail projection. Accepted Tournament Participation continues
+to grant event access after the Membership that originally established eligibility changes. Public
+and accepted-participant completed history remains in the mobile list after Club archival. The
 Player projection does not expose Draft Draws, organizer audit data, correction reasons,
 revisions, Result Locks, or any result-management action. English and Latin American Spanish
 mobile copy cover the delivered experience.
 
-Tournament description and informational venue, plus per-Match venue text and court label, are not
-persisted by the current Tournament schema. The Player detail can expose the configured start time
-but cannot yet show those other documented informational fields; delivering them requires the
-corresponding management configuration and persistence slice.
+Tournament creation persists description and informational venue. Match persistence and the shared
+fixture read model carry optional schedule date/time, venue text, and court label so the Player
+projection displays those values when configured.
 
 The Organizer Tiebreak Decision workflow is implemented for statistically inseparable
 Group standings, Wildcard qualification cutoffs, and Knockout seeding. The management

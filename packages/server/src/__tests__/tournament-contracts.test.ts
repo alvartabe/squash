@@ -12,6 +12,8 @@ describe('Official Tournament contracts', () => {
     const input = {
       clubId: '91f6704a-c62c-4676-93a1-72d5b3fd6b7a',
       name: 'Open',
+      description: 'Costa Rica championship event.',
+      venue: 'Central Squash Club',
       startsAt: '2026-08-01T09:00:00-06:00',
       timeZone: 'America/Costa_Rica',
       groupSize: 4,
@@ -33,6 +35,10 @@ describe('Official Tournament contracts', () => {
         visibility: 'public',
       }).wildcardQualifiers,
     ).toBe(0);
+    expect(createTournamentSchema.parse({ ...input, visibility: 'public' })).toMatchObject({
+      description: 'Costa Rica championship event.',
+      venue: 'Central Squash Club',
+    });
     expect(
       createTournamentSchema.safeParse({
         ...input,
@@ -89,6 +95,8 @@ describe('Official Tournament contracts', () => {
       id: '91f6704a-c62c-4676-93a1-72d5b3fd6b7a',
       clubId: '2a9e01c1-f2ca-4f66-88ca-3fdd5349c46c',
       name: 'Official Open',
+      description: 'Costa Rica championship event.',
+      venue: 'Central Squash Club',
       visibility: 'public',
       status: 'group-stage',
       startsAt: '2026-08-01T15:00:00.000Z',
@@ -144,6 +152,8 @@ describe('Official Tournament contracts', () => {
       id: '91f6704a-c62c-4676-93a1-72d5b3fd6b7a',
       club: { id: '2a9e01c1-f2ca-4f66-88ca-3fdd5349c46c', name: 'Central' },
       name: 'Official Open',
+      description: 'Costa Rica championship event.',
+      venue: 'Central Squash Club',
       visibility: 'public',
       status: 'completed',
       startsAt: '2026-08-01T15:00:00.000Z',
@@ -190,6 +200,9 @@ describe('Official Tournament contracts', () => {
           status: 'completed',
           round: 1,
           position: 1,
+          scheduledAt: '2026-08-02T15:00:00.000Z',
+          venueText: 'Glass Court',
+          courtLabel: 'Court 1',
           playerOne: { id: 'player-1', name: 'Ana Vega', image: null },
           playerTwo: { id: 'player-2', name: 'Bruno Castro', image: null },
           games: [
@@ -204,17 +217,24 @@ describe('Official Tournament contracts', () => {
     });
 
     expect(parsed.champion?.name).toBe('Ana Vega');
+    expect(parsed.description).toBe('Costa Rica championship event.');
+    expect(parsed.knockoutDraw[0]).toMatchObject({
+      venueText: 'Glass Court',
+      courtLabel: 'Court 1',
+    });
     expect(parsed.groups[0]?.standings[0]?.gamesWon).toBe(3);
     expect(JSON.stringify(parsed)).not.toMatch(
       /currentRevision|correction|reason|audit|mayBegin|mayRecord|manage/i,
     );
   });
 
-  it('never declares a champion for a Cancelled Tournament', () => {
+  it('structurally carries a null champion for a Cancelled Tournament', () => {
     const base = {
       id: '91f6704a-c62c-4676-93a1-72d5b3fd6b7a',
       club: { id: '2a9e01c1-f2ca-4f66-88ca-3fdd5349c46c', name: 'Central' },
       name: 'Official Open',
+      description: null,
+      venue: null,
       visibility: 'club-only',
       status: 'cancelled',
       startsAt: '2026-08-01T15:00:00.000Z',
@@ -231,19 +251,15 @@ describe('Official Tournament contracts', () => {
     } as const;
 
     expect(tournamentPlayerDetailSchema.safeParse({ ...base, champion: null }).success).toBe(true);
-    expect(
-      tournamentPlayerDetailSchema.safeParse({
-        ...base,
-        champion: { id: 'player-1', name: 'Ana Vega', image: null },
-      }).success,
-    ).toBe(false);
   });
 
-  it('requires a champion for a Completed Tournament', () => {
+  it('leaves champion lifecycle enforcement to the domain and server', () => {
     const completedWithoutChampion = {
       id: '91f6704a-c62c-4676-93a1-72d5b3fd6b7a',
       club: { id: '2a9e01c1-f2ca-4f66-88ca-3fdd5349c46c', name: 'Central' },
       name: 'Official Open',
+      description: null,
+      venue: null,
       visibility: 'public',
       status: 'completed',
       startsAt: '2026-08-01T15:00:00.000Z',
@@ -260,7 +276,7 @@ describe('Official Tournament contracts', () => {
       champion: null,
     } as const;
 
-    expect(tournamentPlayerDetailSchema.safeParse(completedWithoutChampion).success).toBe(false);
+    expect(tournamentPlayerDetailSchema.safeParse(completedWithoutChampion).success).toBe(true);
   });
 
   it('requires a reason for corrections and rejects malformed Official Result Games', () => {

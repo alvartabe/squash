@@ -22,5 +22,9 @@ describe('mobile locale', () => {
     expect(translate('es-419', 'tournaments.detail.cancelledNoChampion')).toContain(
       'No se declara campeón',
     );
+    expect(translate('es-419', 'tournaments.detail.games')).toBe('Juegos');
+    expect(translate('es-419', 'tournaments.detail.groupFixtures')).toBe(
+      'Partidos de Grupo y Resultados Oficiales',
+    );
   });
 });

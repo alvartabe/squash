@@ -10,6 +10,8 @@ const detail: TournamentPlayerDetail = {
   id: '91f6704a-c62c-4676-93a1-72d5b3fd6b7a',
   club: { id: '2a9e01c1-f2ca-4f66-88ca-3fdd5349c46c', name: 'Central' },
   name: 'Official Open',
+  description: 'Costa Rica championship event.',
+  venue: 'Central Squash Club',
   visibility: 'public',
   status: 'completed',
   startsAt: '2026-08-01T15:00:00.000Z',
@@ -50,6 +52,8 @@ const detail: TournamentPlayerDetail = {
           status: 'completed',
           round: 1,
           position: 1,
+          venueText: 'Glass Court',
+          courtLabel: 'Court 1',
           playerOne,
           playerTwo,
           games: [
@@ -86,12 +90,15 @@ describe('Official Tournament Player detail', () => {
 
     expect(screen.getByText('Official Open')).toBeTruthy();
     expect(screen.getByText('Central')).toBeTruthy();
+    expect(screen.getByText('Costa Rica championship event.')).toBeTruthy();
+    expect(screen.getByText('Central Squash Club')).toBeTruthy();
     expect(screen.getAllByText(t('tournaments.status.completed')).length).toBeGreaterThan(0);
     expect(screen.getByText(t('tournaments.detail.configuration'))).toBeTruthy();
     expect(screen.getByText(`${t('tournaments.group')} A`)).toBeTruthy();
     expect(screen.getByText(t('tournaments.detail.standings'))).toBeTruthy();
     expect(screen.getAllByText('11–7')).toHaveLength(2);
     expect(screen.getByText(t('tournaments.detail.knockoutDraw'))).toBeTruthy();
+    expect(screen.getByText('Glass Court · Court 1')).toBeTruthy();
     expect(screen.getByText(`${t('tournaments.detail.champion')}: Ana Vega`)).toBeTruthy();
   });
 

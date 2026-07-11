@@ -32,11 +32,12 @@ import {
 } from '@squash/db/schema';
 import {
   assignPlayersToGroups,
+  canListOfficialTournamentForPlayer,
   canPerformClubAction,
   createRoundRobinPairs,
   isExactOrganizerTiebreakOrder,
 } from '@squash/domain';
-import { and, asc, eq, exists, ilike, inArray, isNull, ne, or } from 'drizzle-orm';
+import { and, asc, eq, exists, ilike, inArray, ne, or } from 'drizzle-orm';
 import { getClubAuthorization, requireLockedActiveClub } from './authorization';
 import { db } from './database';
 import { forbidden, notFound, ServiceError } from './errors';
@@ -340,6 +341,8 @@ export async function createTournament(actorId: string, input: CreateTournamentI
         clubId: input.clubId,
         organizerId: actorId,
         name: input.name,
+        description: input.description ?? null,
+        venue: input.venue ?? null,
         visibility: input.visibility,
         startsAt: new Date(input.startsAt),
         timeZone: input.timeZone,
@@ -415,6 +418,7 @@ export async function listDiscoverableTournaments(actorId: string): Promise<Tour
       status: tournaments.status,
       startsAt: tournaments.startsAt,
       timeZone: tournaments.timeZone,
+      hasActiveMembership: exists(activeMembership),
       participantId: tournamentParticipations.playerId,
       entryRequestId: tournamentEntryRequests.id,
       invitationId: tournamentInvitations.id,
@@ -444,40 +448,37 @@ export async function listDiscoverableTournaments(actorId: string): Promise<Tour
         eq(tournamentInvitations.status, 'pending'),
       ),
     )
-    .where(
-      and(
-        ne(tournaments.status, 'draft'),
-        isNull(clubs.archivedAt),
-        or(
-          eq(tournaments.visibility, 'public'),
-          exists(activeMembership),
-          eq(tournamentParticipations.playerId, actorId),
-          and(
-            eq(tournaments.status, 'registration'),
-            or(
-              eq(tournamentEntryRequests.playerId, actorId),
-              eq(tournamentInvitations.playerId, actorId),
-            ),
-          ),
-        ),
-      ),
-    )
+    .where(ne(tournaments.status, 'draft'))
     .orderBy(asc(tournaments.startsAt), asc(tournaments.name));
-  return rows.map((row) => {
+  return rows.flatMap((row) => {
     if (row.status === 'draft') throw new Error('A Draft Tournament cannot be discoverable.');
     const status = row.status;
-    return {
-      ...row,
-      status,
-      startsAt: row.startsAt.toISOString(),
-      relationship: row.participantId
-        ? 'accepted'
-        : status === 'registration' && row.entryRequestId
-          ? 'request-pending'
-          : status === 'registration' && row.invitationId
-            ? 'invited'
-            : 'none',
-    };
+    const { hasActiveMembership, ...summary } = row;
+    const relationship = row.participantId
+      ? 'accepted'
+      : status === 'registration' && row.entryRequestId
+        ? 'request-pending'
+        : status === 'registration' && row.invitationId
+          ? 'invited'
+          : 'none';
+    if (
+      !canListOfficialTournamentForPlayer({
+        status,
+        visibility: row.visibility,
+        hasActiveOwningClubMembership: Boolean(hasActiveMembership),
+        relationship,
+      })
+    ) {
+      return [];
+    }
+    return [
+      {
+        ...summary,
+        status,
+        startsAt: row.startsAt.toISOString(),
+        relationship,
+      },
+    ];
   });
 }
 
@@ -1049,6 +1050,8 @@ export async function getTournamentManagement(
     id: tournament.id,
     clubId: tournament.clubId,
     name: tournament.name,
+    description: tournament.description,
+    venue: tournament.venue,
     visibility: tournament.visibility,
     status: tournament.status,
     startsAt: tournament.startsAt.toISOString(),

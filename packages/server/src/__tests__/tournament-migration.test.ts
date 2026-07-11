@@ -43,3 +43,17 @@ describe('Official Tournament participation migration', () => {
     expect(rewrite).toBeGreaterThan(recreate);
   });
 });
+
+describe('Official Tournament Player projection migration', () => {
+  const migration = readFileSync(
+    resolve(process.cwd(), '../db/migrations/0012_eminent_blob.sql'),
+    'utf8',
+  );
+
+  it('persists documented Tournament and Fixture Schedule information', () => {
+    expect(migration).toContain('ALTER TABLE "tournaments" ADD COLUMN "description" text');
+    expect(migration).toContain('ALTER TABLE "tournaments" ADD COLUMN "venue" text');
+    expect(migration).toContain('ALTER TABLE "matches" ADD COLUMN "venue_text" text');
+    expect(migration).toContain('ALTER TABLE "matches" ADD COLUMN "court_label" text');
+  });
+});

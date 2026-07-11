@@ -1,23 +1,19 @@
-import type {
-  TournamentPlayerDetail,
-  TournamentStatus,
-  TournamentVisibility,
-} from '@squash/contracts';
+import type { TournamentPlayerDetail } from '@squash/contracts';
 import { tournamentPlayerDetailSchema } from '@squash/contracts';
 import {
   clubMemberships,
   clubs,
   matchRuleSnapshots,
-  tournamentEntryRequests,
   tournamentGroupMembers,
   tournamentGroups,
-  tournamentInvitations,
   tournamentParticipations,
   tournaments,
   users,
 } from '@squash/db/schema';
 import {
   calculateGameStandings,
+  canViewOfficialTournamentForPlayer,
+  isOfficialTournamentChampionValid,
   OrganizerTiebreakRequiredError,
   type GameStanding,
   type GroupGameMatch,
@@ -36,23 +32,6 @@ type GroupMemberRow = PlayerIdentity & {
   seed: number | null;
   finalRank: number | null;
 };
-
-function hasPlayerViewAccess(tournament: {
-  visibility: TournamentVisibility;
-  status: TournamentStatus;
-  hasActiveMembership: boolean;
-  hasParticipation: boolean;
-  hasPendingInvitation: boolean;
-  hasPendingEntryRequest: boolean;
-}) {
-  return (
-    tournament.visibility === 'public' ||
-    tournament.hasActiveMembership ||
-    tournament.hasParticipation ||
-    (tournament.status === 'registration' &&
-      (tournament.hasPendingInvitation || tournament.hasPendingEntryRequest))
-  );
-}
 
 function completedGroupMatches(
   fixtures: Awaited<ReturnType<typeof getTournamentFixtureReadModel>>['groupFixtures'],
@@ -141,6 +120,8 @@ function toPlayerFixture(fixture: {
   round: number;
   position: number;
   scheduledAt?: string | null | undefined;
+  venueText?: string | null | undefined;
+  courtLabel?: string | null | undefined;
   playerOne: PlayerIdentity | null;
   playerTwo: PlayerIdentity | null;
   games: Array<{ playerOnePoints: number; playerTwoPoints: number }>;
@@ -153,6 +134,8 @@ function toPlayerFixture(fixture: {
     round: fixture.round,
     position: fixture.position,
     scheduledAt: fixture.scheduledAt ?? null,
+    venueText: fixture.venueText ?? null,
+    courtLabel: fixture.courtLabel ?? null,
     playerOne: fixture.playerOne,
     playerTwo: fixture.playerTwo,
     games: fixture.games,
@@ -171,6 +154,8 @@ export async function getOfficialTournamentPlayerDetail(
       clubId: tournaments.clubId,
       clubName: clubs.name,
       name: tournaments.name,
+      description: tournaments.description,
+      venue: tournaments.venue,
       visibility: tournaments.visibility,
       status: tournaments.status,
       startsAt: tournaments.startsAt,
@@ -194,18 +179,6 @@ export async function getOfficialTournamentPlayerDetail(
         where ${tournamentParticipations.tournamentId} = ${tournaments.id}
           and ${tournamentParticipations.playerId} = ${actorId}
       )`,
-      hasPendingInvitation: sql<boolean>`exists (
-        select 1 from ${tournamentInvitations}
-        where ${tournamentInvitations.tournamentId} = ${tournaments.id}
-          and ${tournamentInvitations.playerId} = ${actorId}
-          and ${tournamentInvitations.status} = 'pending'
-      )`,
-      hasPendingEntryRequest: sql<boolean>`exists (
-        select 1 from ${tournamentEntryRequests}
-        where ${tournamentEntryRequests.tournamentId} = ${tournaments.id}
-          and ${tournamentEntryRequests.playerId} = ${actorId}
-          and ${tournamentEntryRequests.status} = 'pending'
-      )`,
     })
     .from(tournaments)
     .innerJoin(clubs, eq(clubs.id, tournaments.clubId))
@@ -213,7 +186,16 @@ export async function getOfficialTournamentPlayerDetail(
     .where(eq(tournaments.id, tournamentId))
     .limit(1);
   if (!tournament || tournament.status === 'draft') throw notFound('TOURNAMENT_NOT_FOUND');
-  if (!hasPlayerViewAccess(tournament)) throw forbidden();
+  if (
+    !canViewOfficialTournamentForPlayer({
+      status: tournament.status,
+      visibility: tournament.visibility,
+      hasActiveOwningClubMembership: tournament.hasActiveMembership,
+      relationship: tournament.hasParticipation ? 'accepted' : 'none',
+    })
+  ) {
+    throw forbidden();
+  }
 
   const memberRows = await db
     .select({
@@ -267,11 +249,16 @@ export async function getOfficialTournamentPlayerDetail(
     tournament.status === 'completed' && finalFixture?.winnerId
       ? (playerById.get(finalFixture.winnerId) ?? null)
       : null;
+  if (!isOfficialTournamentChampionValid(tournament.status, champion?.id ?? null)) {
+    throw new Error('Official Tournament champion state is invalid.');
+  }
 
   return tournamentPlayerDetailSchema.parse({
     id: tournament.id,
     club: { id: tournament.clubId, name: tournament.clubName },
     name: tournament.name,
+    description: tournament.description,
+    venue: tournament.venue,
     visibility: tournament.visibility,
     status: tournament.status,
     startsAt: tournament.startsAt.toISOString(),

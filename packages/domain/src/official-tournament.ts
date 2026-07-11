@@ -21,10 +21,22 @@ export function canListOfficialTournamentForPlayer(input: {
   hasActiveOwningClubMembership: boolean;
   relationship: OfficialTournamentRelationship;
 }) {
-  if (input.status !== 'registration') return false;
+  return (
+    canViewOfficialTournamentForPlayer(input) ||
+    (input.status === 'registration' && input.relationship === 'invited')
+  );
+}
+
+export function canViewOfficialTournamentForPlayer(input: {
+  status: OfficialTournamentStatus;
+  visibility: OfficialTournamentVisibility;
+  hasActiveOwningClubMembership: boolean;
+  relationship: OfficialTournamentRelationship;
+}) {
+  if (input.status === 'draft') return false;
   return (
     isOfficialTournamentAudienceMember(input.visibility, input.hasActiveOwningClubMembership) ||
-    input.relationship !== 'none'
+    input.relationship === 'accepted'
   );
 }
 
@@ -54,4 +66,11 @@ export function canManageOfficialTournament(input: {
 
 export function isOfficialTournamentRosterMutable(status: OfficialTournamentStatus) {
   return status === 'draft' || status === 'registration';
+}
+
+export function isOfficialTournamentChampionValid(
+  status: OfficialTournamentStatus,
+  championId: string | null,
+) {
+  return status === 'completed' ? championId !== null : championId === null;
 }

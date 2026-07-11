@@ -112,6 +112,8 @@ export function useCreateTournament(clubId: string) {
   return useMutation({
     mutationFn: async (input: {
       name: string;
+      description: string | null;
+      venue: string | null;
       visibility: TournamentVisibility;
       startsAt: string;
       timeZone: string;
