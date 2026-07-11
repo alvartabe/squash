@@ -36,6 +36,7 @@ Mobile never switches into management mode.
 | Create Official Tournaments                 |   Yes |           Yes |           No |     No |
 | Manage every Official Tournament in Club    |   Yes |           Yes |           No |     No |
 | Manage an appointed Official Tournament     |   Yes |           Yes | If appointed |     No |
+| Begin a scheduled Knockout Match            |   Yes |           Yes | If appointed |     No |
 | Record or correct unlocked Official Results |   Yes |           Yes | If appointed |     No |
 
 A person with multiple responsibilities receives the union of their permissions. Club Responsibilities never grant authority in another Club.

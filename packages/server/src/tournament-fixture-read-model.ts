@@ -101,6 +101,7 @@ function serializeKnockoutFixture(
   rules: { bestOf: number; pointsToWin: number; winByTwo: boolean },
   games: Array<{ playerOnePoints: number; playerTwoPoints: number }>,
   mayRecord: boolean,
+  mayBeginMatch: boolean,
   correctionStatus: OfficialResultCorrectionStatus,
 ): TournamentKnockoutFixture {
   return {
@@ -123,6 +124,7 @@ function serializeKnockoutFixture(
     games,
     winnerId: row.winnerId,
     mayRecordInitialOfficialResult: mayRecord,
+    mayBeginMatch,
     officialResultCorrectionStatus: correctionStatus,
   };
 }
@@ -268,6 +270,10 @@ export async function getTournamentFixtureReadModel(tournament: TournamentFixtur
         fixture,
         tournamentRules,
         gamesFor(fixture.matchId),
+        tournament.status === 'knockout' &&
+          fixture.matchStatus === 'in-progress' &&
+          fixture.currentRevision === 0 &&
+          Boolean(fixture.matchId && fixture.playerOneId && fixture.playerTwoId),
         tournament.status === 'knockout' &&
           fixture.matchStatus === 'scheduled' &&
           fixture.currentRevision === 0 &&

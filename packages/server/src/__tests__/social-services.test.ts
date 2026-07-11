@@ -76,6 +76,22 @@ function mockUpdate(rows: unknown[]) {
   mockDb.update.mockReturnValueOnce({ set });
 }
 
+function progressionTransactionSelect(selections: unknown[][]) {
+  const remaining = [...selections];
+  return jest.fn(() => {
+    const rows = remaining.shift() ?? [];
+    const query = {
+      from: () => query,
+      innerJoin: () => query,
+      where: () => query,
+      limit: () => query,
+      for: async () => rows,
+      then: (resolve: (value: unknown[]) => unknown) => resolve(rows),
+    };
+    return query;
+  });
+}
+
 describe('friendship service authorization', () => {
   beforeEach(() => jest.clearAllMocks());
 
@@ -441,6 +457,14 @@ describe('tournament progression', () => {
 
     const participantInserts: unknown[] = [];
     const tx = {
+      select: progressionTransactionSelect([
+        [{ id: 'tournament-id', status: 'group-stage' }],
+        [
+          { groupId: 'group-id', matchId: 'match-ab', status: 'completed', revision: 1 },
+          { groupId: 'group-id', matchId: 'match-bc', status: 'completed', revision: 1 },
+          { groupId: 'group-id', matchId: 'match-ca', status: 'completed', revision: 1 },
+        ],
+      ]),
       update: jest.fn(() => ({ set: () => ({ where: jest.fn() }) })),
       insert: jest.fn((table: unknown) => ({
         values: (values: unknown) => {
@@ -459,7 +483,9 @@ describe('tournament progression', () => {
       callback(tx),
     );
 
-    await expect(progressTournament('tournament-id')).resolves.toMatchObject({
+    const progression = await progressTournament('tournament-id');
+    expect(mockDb.transaction).toHaveBeenCalledTimes(1);
+    expect(progression).toEqual({
       progressed: true,
       qualifiers: 2,
       rounds: 1,
@@ -468,6 +494,68 @@ describe('tournament progression', () => {
       { matchId: 'knockout-match-1', userId: 'b', position: 1 },
       { matchId: 'knockout-match-1', userId: 'c', position: 2 },
     ]);
+  });
+
+  it('does not create the Knockout bracket from stale Group result revisions', async () => {
+    mockSelect([
+      {
+        id: 'tournament-id',
+        clubId: 'club-id',
+        rulesId: 'rules-id',
+        status: 'group-stage',
+        qualifiersPerGroup: 2,
+        wildcardQualifiers: 0,
+      },
+    ]);
+    mockWhereSelect([{ id: 'group-id', position: 1 }]);
+    mockWhereSelect([{ userId: 'a' }, { userId: 'b' }]);
+    mockJoinedWhereSelect([
+      {
+        matchId: 'match-ab',
+        playerOneId: 'a',
+        playerTwoId: 'b',
+        status: 'completed',
+        revision: 1,
+      },
+    ]);
+    mockWhereSelect([{ playerOnePoints: 11, playerTwoPoints: 7 }]);
+
+    const inserts: unknown[] = [];
+    const lockedRows = [
+      [{ id: 'tournament-id', status: 'group-stage' }],
+      [{ matchId: 'match-ab', status: 'completed', revision: 2 }],
+    ];
+    const tx = {
+      select: jest.fn(() => {
+        const rows = lockedRows.shift() ?? [];
+        const query = {
+          from: () => query,
+          innerJoin: () => query,
+          where: () => query,
+          limit: () => query,
+          orderBy: () => query,
+          for: async () => rows,
+        };
+        return query;
+      }),
+      insert: jest.fn((table: unknown) => ({
+        values: (values: unknown) => {
+          inserts.push({ table, values });
+          return { returning: async () => [] };
+        },
+      })),
+      update: jest.fn(() => ({ set: () => ({ where: jest.fn() }) })),
+    };
+    mockDb.transaction.mockImplementationOnce(async (callback: (database: typeof tx) => unknown) =>
+      callback(tx),
+    );
+
+    await expect(progressTournament('tournament-id')).resolves.toEqual({
+      progressed: false,
+      reason: 'stale-results',
+    });
+    expect(inserts).toEqual([]);
+    expect(tx.update).not.toHaveBeenCalled();
   });
 
   it('exposes the next unresolved Group-standing tie after applying an earlier decision', async () => {
@@ -574,6 +662,29 @@ describe('tournament progression', () => {
 
     let matchNumber = 0;
     const tx = {
+      select: progressionTransactionSelect([
+        [{ id: 'tournament-id', status: 'group-stage' }],
+        ['a', 'b'].flatMap((group) => [
+          {
+            groupId: `group-${group}`,
+            matchId: `match-${group}-1-2`,
+            status: 'completed',
+            revision: 1,
+          },
+          {
+            groupId: `group-${group}`,
+            matchId: `match-${group}-1-3`,
+            status: 'completed',
+            revision: 1,
+          },
+          {
+            groupId: `group-${group}`,
+            matchId: `match-${group}-2-3`,
+            status: 'completed',
+            revision: 1,
+          },
+        ]),
+      ]),
       update: jest.fn(() => ({ set: () => ({ where: jest.fn() }) })),
       insert: jest.fn((table: unknown) => ({
         values: (values: unknown) => {
@@ -702,13 +813,24 @@ describe('tournament progression', () => {
           return {};
         },
       })),
-      select: jest.fn(() => ({
-        from: () => ({
-          where: () => ({
-            limit: async () => targetFixtures.shift() ?? [],
-          }),
-        }),
-      })),
+      select: progressionTransactionSelect([
+        [{ id: 'tournament-id', status: 'group-stage' }],
+        [
+          ...['a1-a2', 'a1-a3', 'a2-a3'].map((pair) => ({
+            groupId: 'group-a',
+            matchId: `match-${pair}`,
+            status: 'completed',
+            revision: undefined,
+          })),
+          ...['b1-b2', 'b1-b3', 'b2-b3'].map((pair) => ({
+            groupId: 'group-b',
+            matchId: `match-${pair}`,
+            status: 'completed',
+            revision: undefined,
+          })),
+        ],
+        ...targetFixtures,
+      ]),
       update: jest.fn(() => ({
         set: () => ({
           where: jest.fn(),

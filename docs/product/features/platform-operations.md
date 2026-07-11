@@ -79,7 +79,7 @@ Audit records cover:
 
 - Club creation, archival, restoration, and ownership transfer;
 - Club Responsibility and Membership changes;
-- Official Result corrections;
+- Knockout Match begins and Official Result corrections;
 - Organizer Tiebreak Decisions;
 - Moderation and Platform Suspension;
 - Guardian consent, permissions, and transfer;

@@ -763,12 +763,14 @@ describe('Official Tournament management fixture read', () => {
           ],
           winnerId: 'player-1',
           mayRecordInitialOfficialResult: false,
+          mayBeginMatch: false,
         },
         {
           id: 'knockout-2',
           stage: 'knockout',
           games: [],
-          mayRecordInitialOfficialResult: true,
+          mayRecordInitialOfficialResult: false,
+          mayBeginMatch: true,
         },
       ],
     });

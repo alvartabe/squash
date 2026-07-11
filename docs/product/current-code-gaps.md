@@ -81,7 +81,13 @@ Match and Game result, synchronously rebuild affected Official Tournament statis
 unstarted dependent Knockout fixture when its advancing winner changes, append immutable revision
 and audit evidence, and enqueue revision-addressed statistics and progression events atomically.
 Group results lock when Knockout Stage begins; Knockout results lock when their dependent next-round
-Match begins. Web management exposes the correction and lock states in English and Spanish.
+Match begins. An authorized Organizer explicitly begins each scheduled Knockout Match through web
+management, moving it to In Progress before its initial Official Result can be finalized and making
+the dependency lock enforceable. Web management exposes begin, correction, and lock states in
+English and Spanish. Group-to-Knockout progression locks the Tournament and rechecks the complete
+Group-result revision snapshot before creating the bracket, so stale qualification calculations
+cannot advance. Official Result request parsing returns the same stable invalid-Game error used by
+domain score validation.
 
 Tournament management mutations lock the Tournament and re-evaluate the Organizer's
 current Club responsibility or explicit Coach appointment in the same transaction as

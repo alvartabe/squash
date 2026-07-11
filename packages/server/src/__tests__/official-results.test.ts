@@ -9,7 +9,11 @@ import {
 } from '@squash/db/schema';
 import { getClubAuthorization } from '../authorization';
 import { db } from '../database';
-import { recordOfficialTournamentResult } from '../official-results';
+import {
+  beginOfficialTournamentMatch,
+  parseOfficialResultInput,
+  recordOfficialTournamentResult,
+} from '../official-results';
 
 jest.mock('../database', () => ({
   db: { select: jest.fn(), transaction: jest.fn() },
@@ -62,6 +66,14 @@ const fixture = {
   winByTwo: true,
 };
 
+const scheduledKnockoutFixture = {
+  ...fixture,
+  tournamentStatus: 'knockout' as const,
+  stage: 'knockout' as const,
+  groupId: null,
+  matchStatus: 'scheduled' as const,
+};
+
 function locateManager(responsibilities: string[] = ['owner']) {
   mockDb.select.mockReturnValueOnce(
     queryRows([{ id: 'tournament-id', clubId: 'club-id', archivedAt: null }]),
@@ -85,6 +97,7 @@ function successfulTransaction(
     .mockReturnValueOnce(queryRows([{ status: 'active' }]))
     .mockReturnValueOnce(queryRows([{ responsibility: 'owner' }]));
   if (appointmentRows) select.mockReturnValueOnce(queryRows(appointmentRows));
+  select.mockReturnValueOnce(queryRows([record]));
   if (dependency) {
     select.mockReturnValueOnce(queryRows([dependency.fixture]));
     if (dependency.fixture.matchId) {
@@ -132,6 +145,37 @@ function successfulTransaction(
   return { tx, writes, updates };
 }
 
+function beginMatchTransaction(appointmentRows?: unknown[]) {
+  const writes: Array<{ table: unknown; values: unknown }> = [];
+  const updates: Array<{ table: unknown; values: Record<string, unknown> }> = [];
+  const select = jest
+    .fn()
+    .mockReturnValueOnce(queryRows([scheduledKnockoutFixture]))
+    .mockReturnValueOnce(queryRows([{ id: 'organizer-id' }]))
+    .mockReturnValueOnce(queryRows([{ status: 'active' }]))
+    .mockReturnValueOnce(queryRows([{ responsibility: 'owner' }]));
+  if (appointmentRows !== undefined) select.mockReturnValueOnce(queryRows(appointmentRows));
+  const tx = {
+    select,
+    update: jest.fn((table: unknown) => ({
+      set: (values: Record<string, unknown>) => {
+        updates.push({ table, values });
+        return { where: () => ({ returning: async () => [{ id: 'match-id' }] }) };
+      },
+    })),
+    insert: jest.fn((table: unknown) => ({
+      values: (values: unknown) => {
+        writes.push({ table, values });
+        return Promise.resolve();
+      },
+    })),
+  };
+  mockDb.transaction.mockImplementationOnce(async (callback: (database: typeof tx) => unknown) =>
+    callback(tx),
+  );
+  return { tx, updates, writes };
+}
+
 const input = {
   expectedRevision: 0 as const,
   games: [
@@ -142,6 +186,22 @@ const input = {
 
 describe('Organizer-controlled Official Results', () => {
   beforeEach(() => jest.clearAllMocks());
+
+  it.each([
+    ['empty Games', { expectedRevision: 0, games: [] }],
+    [
+      'negative Game points',
+      { expectedRevision: 0, games: [{ playerOnePoints: -1, playerTwoPoints: 11 }] },
+    ],
+    [
+      'fractional Game points',
+      { expectedRevision: 0, games: [{ playerOnePoints: 10.5, playerTwoPoints: 11 }] },
+    ],
+  ])('returns the stable invalid-score code for %s at the API parsing boundary', (_label, body) => {
+    expect(() => parseOfficialResultInput(body)).toThrow(
+      expect.objectContaining({ code: 'OFFICIAL_RESULT_GAMES_INVALID', status: 400 }),
+    );
+  });
 
   it.each([['owner'], ['admin']])('allows an active Club %s', async (responsibility) => {
     locateManager([responsibility]);
@@ -222,6 +282,7 @@ describe('Organizer-controlled Official Results', () => {
       tournamentStatus: 'knockout',
       stage: 'knockout',
       groupId: null,
+      matchStatus: 'in-progress',
     });
 
     await expect(
@@ -235,6 +296,22 @@ describe('Organizer-controlled Official Results', () => {
         }),
       ]),
     );
+  });
+
+  it('requires a Knockout Match to begin before recording its initial Official Result', async () => {
+    locateManager();
+    const { tx } = successfulTransaction({
+      ...fixture,
+      tournamentStatus: 'knockout',
+      stage: 'knockout',
+      groupId: null,
+      matchStatus: 'scheduled',
+    });
+
+    await expect(
+      recordOfficialTournamentResult('organizer-id', 'tournament-id', 'fixture-id', input),
+    ).rejects.toMatchObject({ code: 'OFFICIAL_RESULT_NOT_RECORDABLE', status: 409 });
+    expect(tx.update).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -272,6 +349,51 @@ describe('Organizer-controlled Official Results', () => {
     expect(tx.update).not.toHaveBeenCalled();
   });
 
+  it('lets a current Organizer begin a scheduled Knockout Match atomically', async () => {
+    locateManager();
+    const { updates, writes } = beginMatchTransaction();
+
+    await expect(
+      beginOfficialTournamentMatch('organizer-id', 'tournament-id', 'fixture-id'),
+    ).resolves.toMatchObject({ matchId: 'match-id', status: 'in-progress' });
+    expect(updates.find(({ table }) => table === matches)?.values).toMatchObject({
+      status: 'in-progress',
+    });
+    expect(writes.find(({ table }) => table === auditLogs)?.values).toMatchObject({
+      actorId: 'organizer-id',
+      action: 'tournament.match-begin',
+      entityId: 'match-id',
+    });
+  });
+
+  it.each([
+    ['Club Administrator', ['admin'], undefined],
+    ['appointed Coach', ['coach'], [{ userId: 'organizer-id' }]],
+  ])(
+    'lets a current %s begin a scheduled Knockout Match',
+    async (_label, responsibilities, rows) => {
+      locateManager(responsibilities);
+      beginMatchTransaction(rows);
+
+      await expect(
+        beginOfficialTournamentMatch('organizer-id', 'tournament-id', 'fixture-id'),
+      ).resolves.toMatchObject({ status: 'in-progress' });
+    },
+  );
+
+  it.each([
+    ['a revoked or unappointed Coach', ['coach'], []],
+    ['a Player', [], undefined],
+  ])('does not let %s begin a Knockout Match', async (_label, responsibilities, rows) => {
+    locateManager(responsibilities);
+    const { tx } = beginMatchTransaction(rows);
+
+    await expect(
+      beginOfficialTournamentMatch('player-id', 'tournament-id', 'fixture-id'),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN', status: 403 });
+    expect(tx.update).not.toHaveBeenCalled();
+  });
+
   it.each([
     [
       'unrelated fixture',
@@ -290,7 +412,13 @@ describe('Organizer-controlled Official Results', () => {
     ],
     [
       'unavailable Knockout fixture',
-      { ...fixture, stage: 'knockout', tournamentStatus: 'knockout', playerTwoId: null },
+      {
+        ...fixture,
+        stage: 'knockout',
+        tournamentStatus: 'knockout',
+        matchStatus: 'in-progress',
+        playerTwoId: null,
+      },
       'OFFICIAL_RESULT_FIXTURE_UNAVAILABLE',
     ],
     ['stale submission', { ...fixture, currentRevision: 1 }, 'OFFICIAL_RESULT_STALE'],
@@ -317,6 +445,7 @@ describe('Organizer-controlled Official Results', () => {
       .mockReturnValueOnce(queryRows([{ id: 'organizer-id' }]))
       .mockReturnValueOnce(queryRows([{ status: 'active' }]))
       .mockReturnValueOnce(queryRows([{ responsibility: 'owner' }]))
+      .mockReturnValueOnce(queryRows([fixture]))
       .mockReturnValueOnce(
         queryRows([
           { userId: 'player-1', position: 1 },
@@ -372,8 +501,8 @@ describe('Organizer-controlled Official Results', () => {
     mockDb.transaction.mockRejectedValueOnce(
       Object.assign(new Error('serialization'), { code: '40001' }),
     );
-    mockDb.transaction.mockImplementationOnce(
-      async (callback: (database: typeof tx) => unknown) => callback(tx),
+    mockDb.transaction.mockImplementationOnce(async (callback: (database: typeof tx) => unknown) =>
+      callback(tx),
     );
 
     await expect(

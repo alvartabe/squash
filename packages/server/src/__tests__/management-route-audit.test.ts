@@ -79,6 +79,7 @@ describe('web-management API authentication audit', () => {
     'tournaments/[tournamentId]/visibility/route.ts',
     'tournaments/[tournamentId]/management/route.ts',
     'tournaments/[tournamentId]/fixtures/[fixtureId]/official-result/route.ts',
+    'tournaments/[tournamentId]/fixtures/[fixtureId]/begin/route.ts',
     'tournaments/[tournamentId]/entry-requests/[requestId]/approve/route.ts',
     'tournaments/[tournamentId]/entry-requests/[requestId]/reject/route.ts',
     'tournaments/[tournamentId]/invitations/route.ts',

@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import type { TournamentGroupFixture } from '@squash/contracts';
+import type { TournamentGroupFixture, TournamentKnockoutFixture } from '@squash/contracts';
 import { translate, type Locale } from '@squash/i18n';
 import { FixtureOfficialResult } from './official-result';
 
@@ -45,6 +45,24 @@ function renderEntry(value: TournamentGroupFixture = fixture) {
     <FixtureOfficialResult clubId="club-id" fixture={value} tournamentId="tournament-id" />,
   );
 }
+
+const scheduledKnockoutFixture = {
+  id: 'knockout-fixture-id',
+  matchId: 'knockout-match-id',
+  stage: 'knockout',
+  matchStatus: 'scheduled',
+  currentRevision: 0,
+  round: 1,
+  position: 1,
+  playerOne: { id: 'player-1', name: 'Ana Vega', image: null },
+  playerTwo: { id: 'player-2', name: 'Bruno Castro', image: null },
+  scoringRules: { bestOf: 3, pointsToWin: 11, winByTwo: true },
+  games: [],
+  winnerId: null,
+  mayRecordInitialOfficialResult: false,
+  mayBeginMatch: true,
+  officialResultCorrectionStatus: 'unlocked',
+} as TournamentKnockoutFixture;
 
 describe('Official Result score entry', () => {
   beforeEach(() => {
@@ -151,6 +169,22 @@ describe('Official Result score entry', () => {
     });
   });
 
+  it('begins a scheduled Knockout Match before offering Official Result entry', () => {
+    render(
+      <FixtureOfficialResult
+        clubId="club-id"
+        fixture={scheduledKnockoutFixture}
+        tournamentId="tournament-id"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Begin Match' }));
+    expect(mutate).toHaveBeenCalledWith({
+      path: '/tournaments/tournament-id/fixtures/knockout-fixture-id/begin',
+    });
+    expect(screen.queryByRole('button', { name: 'Finalize Official Result' })).toBeNull();
+  });
+
   it('returns to the finalized view when a successful correction refreshes the revision', () => {
     const completed = {
       ...fixture,
@@ -235,5 +269,17 @@ describe('Official Result score entry', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Corregir Resultado Oficial' }));
     expect(screen.getByLabelText('Motivo de la corrección')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Guardar corrección' })).toBeInTheDocument();
+  });
+
+  it('renders the Begin Match action in Costa Rican Spanish', () => {
+    locale = 'es-419';
+    render(
+      <FixtureOfficialResult
+        clubId="club-id"
+        fixture={scheduledKnockoutFixture}
+        tournamentId="tournament-id"
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Iniciar Partido' })).toBeInTheDocument();
   });
 });

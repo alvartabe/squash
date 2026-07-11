@@ -266,6 +266,7 @@ export const tournamentKnockoutFixtureSchema = z.object({
   games: z.array(gameScoreSchema),
   winnerId: userIdSchema.nullable(),
   mayRecordInitialOfficialResult: z.boolean(),
+  mayBeginMatch: z.boolean(),
   officialResultCorrectionStatus: officialResultCorrectionStatusSchema,
 });
 

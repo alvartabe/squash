@@ -92,6 +92,33 @@ export function FixtureOfficialResult({
   const playerOne = fixture.playerOne;
   const playerTwo = fixture.playerTwo;
   const isCorrection = fixture.matchStatus === 'completed';
+  if (fixture.stage === 'knockout' && fixture.mayBeginMatch) {
+    return (
+      <div className="grid gap-2">
+        <Button
+          disabled={action.isPending}
+          onClick={() =>
+            action.mutate({
+              path: `/tournaments/${tournamentId}/fixtures/${fixture.id}/begin`,
+            })
+          }
+          size="sm"
+          type="button"
+        >
+          {t(
+            action.isPending
+              ? 'tournaments.officialResult.beginningMatch'
+              : 'tournaments.officialResult.beginMatch',
+          )}
+        </Button>
+        {action.isError ? (
+          <p className="text-sm text-destructive" role="alert">
+            {t(officialResultErrorMessageKey(action.error))}
+          </p>
+        ) : null}
+      </div>
+    );
+  }
   if (isCorrection && !editing && playerOne && playerTwo) {
     const winner = fixture.winnerId === playerOne.id ? playerOne.name : playerTwo.name;
     return (

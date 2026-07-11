@@ -33,8 +33,16 @@ type GroupQualifiersResult =
         groupId: string;
         standings: ReturnType<typeof calculateStandings>;
       }>;
+      resultSnapshot: TournamentResultSnapshotItem[];
       organizerSeedingOrder?: readonly string[];
     };
+
+type TournamentResultSnapshotItem = {
+  groupId: string;
+  matchId: string | null;
+  revision: number;
+  status: string;
+};
 
 type ProgressionReadDatabase = Pick<typeof db, 'select'>;
 
@@ -124,12 +132,7 @@ async function groupQualifiers(input: {
     groupId: string;
     standings: ReturnType<typeof calculateStandings>;
   }> = [];
-  const tournamentSnapshot: Array<{
-    groupId: string;
-    matchId: string | null;
-    revision: number;
-    status: string;
-  }> = [];
+  const tournamentSnapshot: TournamentResultSnapshotItem[] = [];
   for (const group of orderedGroups) {
     const members = await input.database
       .select({ userId: tournamentGroupMembers.userId })
@@ -218,6 +221,7 @@ async function groupQualifiers(input: {
         status: 'ready',
         qualifiers,
         groupStandings,
+        resultSnapshot: tournamentSnapshot,
         ...(organizerTiebreakOrders['knockout-seeding']
           ? { organizerSeedingOrder: organizerTiebreakOrders['knockout-seeding'] }
           : {}),
@@ -273,12 +277,29 @@ export async function inspectTournamentProgression(
   if (!tournament || tournament.status !== 'group-stage') {
     return { status: 'inactive' as const };
   }
-  return groupQualifiers({
+  const result = await groupQualifiers({
     tournamentId,
     qualifiersPerGroup: tournament.qualifiersPerGroup,
     wildcardQualifiers: tournament.wildcardQualifiers ?? 0,
     database,
   });
+  if (result.status !== 'ready') return result;
+  const { resultSnapshot: _resultSnapshot, ...publicResult } = result;
+  return publicResult;
+}
+
+function sameResultSnapshot(
+  expected: readonly TournamentResultSnapshotItem[],
+  current: readonly TournamentResultSnapshotItem[],
+) {
+  const ordered = (items: readonly TournamentResultSnapshotItem[]) =>
+    items
+      .map((item) => [item.groupId, item.matchId, item.revision, item.status] as const)
+      .sort(
+        (left, right) =>
+          left[0].localeCompare(right[0]) || (left[1] ?? '').localeCompare(right[1] ?? ''),
+      );
+  return JSON.stringify(ordered(expected)) === JSON.stringify(ordered(current));
 }
 
 export async function progressTournament(tournamentId: string) {
@@ -316,7 +337,38 @@ export async function progressTournament(tournamentId: string) {
   const bracketSize = nextPowerOfTwo(seeded.length);
   const totalRounds = Math.log2(bracketSize);
 
-  await db.transaction(async (tx) => {
+  const bracketCreatedFromCurrentSnapshot = await db.transaction(async (tx) => {
+    const [lockedTournament] = await tx
+      .select({ id: tournaments.id, status: tournaments.status })
+      .from(tournaments)
+      .where(eq(tournaments.id, tournamentId))
+      .limit(1)
+      .for('update');
+    if (!lockedTournament || lockedTournament.status !== 'group-stage') return false;
+    const currentResultSnapshot = await tx
+      .select({
+        groupId: tournamentFixtures.groupId,
+        matchId: tournamentFixtures.matchId,
+        revision: matches.currentRevision,
+        status: matches.status,
+      })
+      .from(tournamentFixtures)
+      .innerJoin(matches, eq(matches.id, tournamentFixtures.matchId))
+      .where(
+        and(
+          eq(tournamentFixtures.tournamentId, tournamentId),
+          eq(tournamentFixtures.stage, 'group'),
+        ),
+      )
+      .for('update');
+    if (
+      !sameResultSnapshot(
+        qualifierResult.resultSnapshot,
+        currentResultSnapshot.map((item) => ({ ...item, groupId: item.groupId ?? '' })),
+      )
+    ) {
+      return false;
+    }
     for (const group of qualifierResult.groupStandings) {
       for (const standing of group.standings) {
         await tx
@@ -444,7 +496,9 @@ export async function progressTournament(tournamentId: string) {
       .update(tournaments)
       .set({ status: 'knockout', updatedAt: new Date() })
       .where(eq(tournaments.id, tournamentId));
+    return true;
   });
+  if (!bracketCreatedFromCurrentSnapshot) return { progressed: false, reason: 'stale-results' };
   return { progressed: true, qualifiers: seeded.length, rounds: totalRounds };
 }
 

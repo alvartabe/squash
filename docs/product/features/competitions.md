@@ -146,6 +146,8 @@ Tournament Participation does not grant access to Player Availability.
 
 Only an authorized Tournament Organizer records and finalizes an Official Result through web. Participants view results in mobile but do not submit or confirm them.
 
+Before a scheduled Knockout Match starts, an authorized Tournament Organizer explicitly marks it as begun through web management. The Match becomes In Progress, its directly dependent prior-round Official Results become locked, and its initial Official Result may then be finalized. Group Matches do not require this explicit begin action.
+
 An Organizer may correct:
 
 - a Group result until Knockout Stage begins;

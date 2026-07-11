@@ -1,4 +1,4 @@
-import type { OfficialResultInput } from '@squash/contracts';
+import { officialResultInputSchema, type OfficialResultInput } from '@squash/contracts';
 import {
   auditLogs,
   matches,
@@ -18,8 +18,22 @@ import { evaluateOfficialResultCorrectionStatus } from './official-result-locks'
 import { rebuildOfficialTournamentStatisticsForMatch } from './official-tournament-statistics';
 import { requireLockedTournamentAuthority } from './tournaments';
 
+type OfficialResultTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 function invalid(code: string, status = 409) {
   return new ServiceError(code, 'error.invalidRequest', status);
+}
+
+export function parseOfficialResultInput(input: unknown): OfficialResultInput {
+  const parsed = officialResultInputSchema.safeParse(input);
+  if (parsed.success) return parsed.data;
+  if (parsed.error.issues.some((issue) => issue.path[0] === 'games')) {
+    throw invalid('OFFICIAL_RESULT_GAMES_INVALID', 400);
+  }
+  if (parsed.error.issues.some((issue) => issue.path[0] === 'reason')) {
+    throw invalid('OFFICIAL_RESULT_REASON_REQUIRED', 400);
+  }
+  throw invalid('OFFICIAL_RESULT_REQUEST_INVALID', 400);
 }
 
 function correctionStatusError(status: ReturnType<typeof evaluateOfficialResultCorrectionStatus>) {
@@ -33,46 +47,76 @@ function isSerializableRetry(error: unknown) {
   return code === '40001' || code === '40P01';
 }
 
-export async function recordOfficialTournamentResult(
+async function runSerializableOfficialResultOperation<T>(
+  operation: (tx: OfficialResultTransaction) => Promise<T>,
+) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      return await db.transaction(operation, { isolationLevel: 'serializable' });
+    } catch (error) {
+      if (!isSerializableRetry(error)) throw error;
+    }
+  }
+  throw invalid('OFFICIAL_RESULT_CONFLICT');
+}
+
+async function lockOfficialTournamentFixture(tx: OfficialResultTransaction, fixtureId: string) {
+  const [fixture] = await tx
+    .select({
+      fixtureId: tournamentFixtures.id,
+      fixtureTournamentId: tournamentFixtures.tournamentId,
+      tournamentId: tournaments.id,
+      clubId: tournaments.clubId,
+      tournamentStatus: tournaments.status,
+      stage: tournamentFixtures.stage,
+      matchId: matches.id,
+      matchSource: matches.source,
+      matchStatus: matches.status,
+      currentRevision: matches.currentRevision,
+      playerOneId: tournamentFixtures.playerOneId,
+      playerTwoId: tournamentFixtures.playerTwoId,
+    })
+    .from(tournamentFixtures)
+    .innerJoin(tournaments, eq(tournaments.id, tournamentFixtures.tournamentId))
+    .innerJoin(matches, eq(matches.id, tournamentFixtures.matchId))
+    .where(eq(tournamentFixtures.id, fixtureId))
+    .limit(1)
+    .for('update');
+  if (!fixture) throw notFound('TOURNAMENT_FIXTURE_NOT_FOUND');
+  return fixture;
+}
+
+async function lockOfficialResultState(tx: OfficialResultTransaction, fixtureId: string) {
+  const [state] = await tx
+    .select({
+      round: tournamentFixtures.round,
+      position: tournamentFixtures.position,
+      groupId: tournamentFixtures.groupId,
+      advancesToFixtureId: tournamentFixtures.advancesToFixtureId,
+      advancesToPosition: tournamentFixtures.advancesToPosition,
+      completedAt: matches.completedAt,
+      currentWinnerId: matches.winnerId,
+      bestOf: matchRuleSnapshots.bestOf,
+      pointsToWin: matchRuleSnapshots.pointsToWin,
+      winByTwo: matchRuleSnapshots.winByTwo,
+    })
+    .from(tournamentFixtures)
+    .innerJoin(matches, eq(matches.id, tournamentFixtures.matchId))
+    .innerJoin(matchRuleSnapshots, eq(matchRuleSnapshots.id, matches.rulesId))
+    .where(eq(tournamentFixtures.id, fixtureId))
+    .limit(1)
+    .for('update');
+  if (!state) throw invalid('OFFICIAL_RESULT_TOURNAMENT_STATE_INVALID');
+  return state;
+}
+
+export async function beginOfficialTournamentMatch(
   organizerId: string,
   tournamentId: string,
   fixtureId: string,
-  input: OfficialResultInput,
 ) {
-  const operation = async (tx: Parameters<Parameters<typeof db.transaction>[0]>[0]) => {
-    const [fixture] = await tx
-      .select({
-        fixtureId: tournamentFixtures.id,
-        fixtureTournamentId: tournamentFixtures.tournamentId,
-        tournamentId: tournaments.id,
-        clubId: tournaments.clubId,
-        tournamentStatus: tournaments.status,
-        stage: tournamentFixtures.stage,
-        round: tournamentFixtures.round,
-        position: tournamentFixtures.position,
-        groupId: tournamentFixtures.groupId,
-        advancesToFixtureId: tournamentFixtures.advancesToFixtureId,
-        advancesToPosition: tournamentFixtures.advancesToPosition,
-        matchId: matches.id,
-        matchSource: matches.source,
-        matchStatus: matches.status,
-        completedAt: matches.completedAt,
-        currentRevision: matches.currentRevision,
-        currentWinnerId: matches.winnerId,
-        playerOneId: tournamentFixtures.playerOneId,
-        playerTwoId: tournamentFixtures.playerTwoId,
-        bestOf: matchRuleSnapshots.bestOf,
-        pointsToWin: matchRuleSnapshots.pointsToWin,
-        winByTwo: matchRuleSnapshots.winByTwo,
-      })
-      .from(tournamentFixtures)
-      .innerJoin(tournaments, eq(tournaments.id, tournamentFixtures.tournamentId))
-      .innerJoin(matches, eq(matches.id, tournamentFixtures.matchId))
-      .innerJoin(matchRuleSnapshots, eq(matchRuleSnapshots.id, matches.rulesId))
-      .where(eq(tournamentFixtures.id, fixtureId))
-      .limit(1)
-      .for('update');
-    if (!fixture) throw notFound('TOURNAMENT_FIXTURE_NOT_FOUND');
+  return runSerializableOfficialResultOperation(async (tx) => {
+    const fixture = await lockOfficialTournamentFixture(tx, fixtureId);
     await requireLockedTournamentAuthority(
       organizerId,
       { id: fixture.tournamentId, clubId: fixture.clubId },
@@ -81,19 +125,91 @@ export async function recordOfficialTournamentResult(
     if (fixture.fixtureTournamentId !== tournamentId) {
       throw invalid('OFFICIAL_RESULT_FIXTURE_MISMATCH');
     }
-    if (fixture.matchSource !== 'tournament') {
+    if (
+      fixture.stage !== 'knockout' ||
+      fixture.tournamentStatus !== 'knockout' ||
+      fixture.matchSource !== 'tournament' ||
+      !fixture.matchId ||
+      !fixture.playerOneId ||
+      !fixture.playerTwoId ||
+      fixture.currentRevision !== 0
+    ) {
+      throw invalid('OFFICIAL_RESULT_TOURNAMENT_STATE_INVALID');
+    }
+    if (fixture.matchStatus !== 'scheduled') {
+      throw invalid('OFFICIAL_MATCH_ALREADY_BEGUN');
+    }
+
+    const beganAt = new Date();
+    const [updated] = await tx
+      .update(matches)
+      .set({ status: 'in-progress', updatedAt: beganAt })
+      .where(
+        and(
+          eq(matches.id, fixture.matchId),
+          eq(matches.status, 'scheduled'),
+          eq(matches.currentRevision, 0),
+        ),
+      )
+      .returning({ id: matches.id });
+    if (!updated) throw invalid('OFFICIAL_RESULT_CONFLICT');
+
+    await tx.insert(auditLogs).values({
+      actorId: organizerId,
+      clubId: fixture.clubId,
+      action: 'tournament.match-begin',
+      entityType: 'match',
+      entityId: fixture.matchId,
+      metadata: { tournamentId, fixtureId, matchId: fixture.matchId, organizerId },
+    });
+    return {
+      tournamentId,
+      fixtureId,
+      matchId: fixture.matchId,
+      status: 'in-progress' as const,
+      beganAt: beganAt.toISOString(),
+    };
+  });
+}
+
+export async function recordOfficialTournamentResult(
+  organizerId: string,
+  tournamentId: string,
+  fixtureId: string,
+  input: OfficialResultInput,
+) {
+  const operation = async (tx: OfficialResultTransaction) => {
+    const lockedFixture = await lockOfficialTournamentFixture(tx, fixtureId);
+    await requireLockedTournamentAuthority(
+      organizerId,
+      { id: lockedFixture.tournamentId, clubId: lockedFixture.clubId },
+      tx,
+    );
+    if (lockedFixture.fixtureTournamentId !== tournamentId) {
+      throw invalid('OFFICIAL_RESULT_FIXTURE_MISMATCH');
+    }
+    if (lockedFixture.matchSource !== 'tournament') {
       throw invalid('OFFICIAL_RESULT_MATCH_INVALID');
     }
-    if (fixture.currentRevision !== input.expectedRevision) {
+    if (lockedFixture.currentRevision !== input.expectedRevision) {
       throw invalid('OFFICIAL_RESULT_STALE');
     }
+    const fixture = {
+      ...lockedFixture,
+      ...(await lockOfficialResultState(tx, fixtureId)),
+    };
 
     const isCorrection = fixture.currentRevision > 0;
     const correctionReason = input.reason?.trim() ?? null;
+    const initialMatchStatus = fixture.stage === 'group' ? 'scheduled' : 'in-progress';
     if (isCorrection && !correctionReason) {
       throw invalid('OFFICIAL_RESULT_REASON_REQUIRED', 400);
     }
-    if (isCorrection ? fixture.matchStatus !== 'completed' : fixture.matchStatus !== 'scheduled') {
+    if (
+      isCorrection
+        ? fixture.matchStatus !== 'completed'
+        : fixture.matchStatus !== initialMatchStatus
+    ) {
       throw invalid('OFFICIAL_RESULT_NOT_RECORDABLE');
     }
     if (
@@ -229,7 +345,7 @@ export async function recordOfficialTournamentResult(
       .where(
         and(
           eq(matches.id, fixture.matchId),
-          eq(matches.status, isCorrection ? 'completed' : 'scheduled'),
+          eq(matches.status, isCorrection ? 'completed' : initialMatchStatus),
           eq(matches.currentRevision, input.expectedRevision),
         ),
       )
@@ -337,12 +453,5 @@ export async function recordOfficialTournamentResult(
     };
   };
 
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    try {
-      return await db.transaction(operation, { isolationLevel: 'serializable' });
-    } catch (error) {
-      if (!isSerializableRetry(error)) throw error;
-    }
-  }
-  throw invalid('OFFICIAL_RESULT_CONFLICT');
+  return runSerializableOfficialResultOperation(operation);
 }
