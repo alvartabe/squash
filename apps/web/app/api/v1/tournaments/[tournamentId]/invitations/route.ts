@@ -1,19 +1,15 @@
 import { tournamentPlayerActionSchema } from '@squash/contracts';
 import { inviteTournamentPlayer } from '@squash/server';
-import { dataResponse, errorResponse, requireManagementUserId } from '@/src/http';
+import { dataResponse, managementRoute } from '@/src/http';
 
-export async function POST(
-  request: Request,
-  context: { params: Promise<{ tournamentId: string }> },
-) {
-  try {
+export const POST = managementRoute(
+  async (
+    actorId: string,
+    request: Request,
+    context: { params: Promise<{ tournamentId: string }> },
+  ) => {
     const { tournamentId } = await context.params;
     const { playerId } = tournamentPlayerActionSchema.parse(await request.json());
-    return dataResponse(
-      await inviteTournamentPlayer(await requireManagementUserId(), tournamentId, playerId),
-      201,
-    );
-  } catch (error) {
-    return errorResponse(error);
-  }
-}
+    return dataResponse(await inviteTournamentPlayer(actorId, tournamentId, playerId), 201);
+  },
+);

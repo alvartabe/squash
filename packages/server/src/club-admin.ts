@@ -511,14 +511,11 @@ export async function inviteClubMember(
   clubId: string,
   input: { email: string; responsibility: InviteClubResponsibility; locale: Locale },
 ) {
-  const authorization = await requireClubAction(actorId, clubId, 'members.manage');
-  if (
-    input.responsibility === 'admin' &&
-    authorization.platformRole !== 'platform-admin' &&
-    !authorization.responsibilities.includes('owner')
-  ) {
-    throw forbidden();
-  }
+  await requireClubAction(
+    actorId,
+    clubId,
+    input.responsibility === 'admin' ? 'members.manage-administrator' : 'members.manage',
+  );
   const [club] = await db
     .select({ id: clubs.id, name: clubs.name })
     .from(clubs)
@@ -545,12 +542,7 @@ export async function inviteClubMember(
   const hashed = tokenHash(rawToken);
   const expiresAt = new Date(Date.now() + INVITATION_LIFETIME_MS);
   const invitation = await db.transaction(async (tx) => {
-    const lockedAuthorization = await requireLockedClubAction(
-      tx,
-      actorId,
-      clubId,
-      'members.manage',
-    );
+    await requireLockedClubAction(tx, actorId, clubId, 'members.manage');
     const [pending] = await tx
       .select({
         id: clubInvitations.id,
@@ -567,12 +559,8 @@ export async function inviteClubMember(
       )
       .limit(1)
       .for('update');
-    if (
-      pending?.responsibility === 'admin' &&
-      lockedAuthorization.platformRole !== 'platform-admin' &&
-      !lockedAuthorization.responsibilities.includes('owner')
-    ) {
-      throw forbidden();
+    if (input.responsibility === 'admin' || pending?.responsibility === 'admin') {
+      await requireLockedClubAction(tx, actorId, clubId, 'members.manage-administrator');
     }
     const [record] = pending
       ? await tx
@@ -655,7 +643,7 @@ export async function resendClubInvitation(
 }
 
 export async function revokeClubInvitation(actorId: string, clubId: string, invitationId: string) {
-  const authorization = await requireClubAction(actorId, clubId, 'members.manage');
+  await requireClubAction(actorId, clubId, 'members.manage');
   return db.transaction(async (tx) => {
     await requireLockedClubAction(tx, actorId, clubId, 'members.manage');
     const [invitation] = await tx
@@ -675,13 +663,12 @@ export async function revokeClubInvitation(actorId: string, clubId: string, invi
       .limit(1)
       .for('update');
     if (!invitation) throw notFound('INVITATION_NOT_FOUND');
-    if (
-      invitation.responsibility === 'admin' &&
-      authorization.platformRole !== 'platform-admin' &&
-      !authorization.responsibilities.includes('owner')
-    ) {
-      throw forbidden();
-    }
+    await requireLockedClubAction(
+      tx,
+      actorId,
+      clubId,
+      invitation.responsibility === 'admin' ? 'members.manage-administrator' : 'members.manage',
+    );
 
     const revokedAt = new Date();
     const [record] = await tx
@@ -768,6 +755,13 @@ async function acceptClubInvitationTransaction(
             eq(clubInvitations.id, locator.invitationId),
             eq(clubInvitations.clubId, locator.clubId),
           );
+    const [invitationClub] = await tx
+      .select({ clubId: clubInvitations.clubId })
+      .from(clubInvitations)
+      .where(invitationCondition)
+      .limit(1);
+    if (!invitationClub) throw unavailableInvitation(locator);
+    await requireLockedActiveClub(tx, invitationClub.clubId);
     const [record] = await tx
       .select({
         id: clubInvitations.id,
@@ -891,50 +885,44 @@ export async function updateClubMembership(
   if (actorId === userId && !selfEndingMembership) {
     throw new ServiceError('CANNOT_CHANGE_OWN_MEMBERSHIP', 'error.invalidRequest', 409);
   }
-  const authorization = selfEndingMembership
-    ? null
-    : await requireClubAction(actorId, clubId, 'members.manage');
-  const [current] = await db
-    .select({
-      status: clubMemberships.status,
-      responsibilities: membershipResponsibilities,
-    })
-    .from(clubMemberships)
-    .where(and(eq(clubMemberships.clubId, clubId), eq(clubMemberships.userId, userId)))
-    .limit(1);
-  if (!current) throw notFound('MEMBERSHIP_NOT_FOUND');
-
-  const nextStatus = input.status ?? current.status;
-  const nextResponsibilities = input.responsibilities ?? current.responsibilities;
-  const isCurrentOwner = current.responsibilities.includes('owner');
-  const isNextOwner = nextResponsibilities.includes('owner');
-  if (isCurrentOwner && (nextStatus !== 'active' || !isNextOwner)) {
-    throw new ServiceError('OWNER_TRANSFER_REQUIRED', 'error.invalidRequest', 409);
-  }
-  if (!isCurrentOwner && isNextOwner) {
-    throw new ServiceError('OWNER_TRANSFER_REQUIRED', 'error.invalidRequest', 409);
-  }
-  if (current.status === 'ended' && nextStatus !== 'ended') {
-    throw new ServiceError('MEMBERSHIP_REJOIN_REQUIRED', 'error.invalidRequest', 409);
-  }
-  const actorIsOwner =
-    authorization?.platformRole === 'platform-admin' ||
-    authorization?.responsibilities.includes('owner');
-  if (
-    authorization &&
-    !actorIsOwner &&
-    (current.responsibilities.includes('admin') || nextResponsibilities.includes('admin'))
-  ) {
-    throw forbidden();
-  }
-
-  const storedResponsibilities = nextStatus === 'ended' ? [] : [...nextResponsibilities];
+  if (!selfEndingMembership) await requireClubAction(actorId, clubId, 'members.manage');
   return db.transaction(async (tx) => {
     if (selfEndingMembership) {
       await requireLockedActiveClub(tx, clubId);
     } else {
       await requireLockedClubAction(tx, actorId, clubId, 'members.manage');
     }
+    const [current] = await tx
+      .select({
+        status: clubMemberships.status,
+        responsibilities: membershipResponsibilities,
+      })
+      .from(clubMemberships)
+      .where(and(eq(clubMemberships.clubId, clubId), eq(clubMemberships.userId, userId)))
+      .limit(1);
+    if (!current) throw notFound('MEMBERSHIP_NOT_FOUND');
+
+    const nextStatus = input.status ?? current.status;
+    const nextResponsibilities = input.responsibilities ?? current.responsibilities;
+    const isCurrentOwner = current.responsibilities.includes('owner');
+    const isNextOwner = nextResponsibilities.includes('owner');
+    if (isCurrentOwner && (nextStatus !== 'active' || !isNextOwner)) {
+      throw new ServiceError('OWNER_TRANSFER_REQUIRED', 'error.invalidRequest', 409);
+    }
+    if (!isCurrentOwner && isNextOwner) {
+      throw new ServiceError('OWNER_TRANSFER_REQUIRED', 'error.invalidRequest', 409);
+    }
+    if (current.status === 'ended' && nextStatus !== 'ended') {
+      throw new ServiceError('MEMBERSHIP_REJOIN_REQUIRED', 'error.invalidRequest', 409);
+    }
+    const managementAction =
+      current.responsibilities.includes('admin') || nextResponsibilities.includes('admin')
+        ? 'members.manage-administrator'
+        : 'members.manage';
+    if (!selfEndingMembership && managementAction === 'members.manage-administrator') {
+      await requireLockedClubAction(tx, actorId, clubId, managementAction);
+    }
+    const storedResponsibilities = nextStatus === 'ended' ? [] : [...nextResponsibilities];
     const [membership] = await tx
       .update(clubMemberships)
       .set({ status: nextStatus, updatedAt: new Date() })
@@ -986,31 +974,25 @@ export async function removeClubMember(actorId: string, clubId: string, userId: 
 }
 
 export async function transferClubOwnership(actorId: string, clubId: string, newOwnerId: string) {
-  const authorization = await requireClubAccess(actorId, clubId);
-  if (
-    authorization.platformRole !== 'platform-admin' &&
-    !authorization.responsibilities.includes('owner')
-  ) {
-    throw forbidden();
-  }
+  await requireClubAction(actorId, clubId, 'club.transfer-ownership');
   if (actorId === newOwnerId) throw new ServiceError('ALREADY_OWNER', 'error.invalidRequest', 409);
-  const [target] = await db
-    .select({
-      status: clubMemberships.status,
-      responsibilities: membershipResponsibilities,
-    })
-    .from(clubMemberships)
-    .where(and(eq(clubMemberships.clubId, clubId), eq(clubMemberships.userId, newOwnerId)))
-    .limit(1);
-  if (!target) throw notFound('MEMBERSHIP_NOT_FOUND');
-  if (target.status !== 'active') {
-    throw new ServiceError('ACTIVE_MEMBERSHIP_REQUIRED', 'error.invalidRequest', 409);
-  }
-  if (target.responsibilities.includes('owner')) {
-    throw new ServiceError('ALREADY_OWNER', 'error.invalidRequest', 409);
-  }
   await db.transaction(async (tx) => {
-    await requireLockedClubAction(tx, actorId, clubId, 'members.manage');
+    await requireLockedClubAction(tx, actorId, clubId, 'club.transfer-ownership');
+    const [target] = await tx
+      .select({
+        status: clubMemberships.status,
+        responsibilities: membershipResponsibilities,
+      })
+      .from(clubMemberships)
+      .where(and(eq(clubMemberships.clubId, clubId), eq(clubMemberships.userId, newOwnerId)))
+      .limit(1);
+    if (!target) throw notFound('MEMBERSHIP_NOT_FOUND');
+    if (target.status !== 'active') {
+      throw new ServiceError('ACTIVE_MEMBERSHIP_REQUIRED', 'error.invalidRequest', 409);
+    }
+    if (target.responsibilities.includes('owner')) {
+      throw new ServiceError('ALREADY_OWNER', 'error.invalidRequest', 409);
+    }
     const [currentOwner] = await tx
       .select({ userId: clubResponsibilities.userId })
       .from(clubResponsibilities)

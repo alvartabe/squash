@@ -1,15 +1,10 @@
 import { deviceTokenSchema } from '@squash/contracts';
 import { registerDeviceToken } from '@squash/server';
-import { dataResponse, errorResponse, requireUserId } from '@/src/http';
+import { dataResponse, playerRoute } from '@/src/http';
 
-export async function POST(request: Request) {
-  try {
-    const actorId = await requireUserId();
-    return dataResponse(
-      await registerDeviceToken(actorId, deviceTokenSchema.parse(await request.json())),
-      201,
-    );
-  } catch (error) {
-    return errorResponse(error);
-  }
-}
+export const POST = playerRoute(async (actorId: string, request: Request) => {
+  return dataResponse(
+    await registerDeviceToken(actorId, deviceTokenSchema.parse(await request.json())),
+    201,
+  );
+});

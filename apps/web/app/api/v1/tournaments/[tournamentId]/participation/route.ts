@@ -1,14 +1,13 @@
 import { withdrawTournamentParticipation } from '@squash/server';
-import { dataResponse, errorResponse, requireUserId } from '@/src/http';
+import { dataResponse, playerRoute } from '@/src/http';
 
-export async function DELETE(
-  _request: Request,
-  context: { params: Promise<{ tournamentId: string }> },
-) {
-  try {
+export const DELETE = playerRoute(
+  async (
+    actorId: string,
+    _request: Request,
+    context: { params: Promise<{ tournamentId: string }> },
+  ) => {
     const { tournamentId } = await context.params;
-    return dataResponse(await withdrawTournamentParticipation(await requireUserId(), tournamentId));
-  } catch (error) {
-    return errorResponse(error);
-  }
-}
+    return dataResponse(await withdrawTournamentParticipation(actorId, tournamentId));
+  },
+);

@@ -32,6 +32,7 @@ import {
 } from '@squash/db/schema';
 import {
   assignPlayersToGroups,
+  canPerformClubAction,
   createRoundRobinPairs,
   isExactOrganizerTiebreakOrder,
 } from '@squash/domain';
@@ -43,6 +44,10 @@ import { getTournamentFixtureReadModel } from './tournament-fixture-read-model';
 import { inspectTournamentProgression, progressTournament } from './tournament-progression';
 
 type ReadDatabase = Pick<typeof db, 'select'>;
+type TournamentAuthorityTarget = {
+  id: string;
+  clubId: string;
+};
 
 const preStartStatuses = ['draft', 'registration'] as const;
 
@@ -90,23 +95,35 @@ export async function requireTournamentManager(
   database: ReadDatabase = db,
 ) {
   const [tournament] = await database
-    .select({ id: tournaments.id, clubId: tournaments.clubId, archivedAt: clubs.archivedAt })
+    .select({ id: tournaments.id, clubId: tournaments.clubId })
     .from(tournaments)
     .innerJoin(clubs, eq(clubs.id, tournaments.clubId))
     .where(eq(tournaments.id, tournamentId))
     .limit(1);
   if (!tournament) throw notFound('TOURNAMENT_NOT_FOUND');
-  if (tournament.archivedAt) {
-    throw new ServiceError('CLUB_ARCHIVED', 'error.invalidRequest', 409);
-  }
+  await requireTournamentAuthority(actorId, tournament, database);
+  return tournament;
+}
 
+export async function requireTournamentAuthority(
+  actorId: string,
+  tournament: TournamentAuthorityTarget,
+  database: ReadDatabase = db,
+) {
   const authorization = await getClubAuthorization(actorId, tournament.clubId, database);
   if (authorization?.membershipStatus !== 'active') throw forbidden();
+  if (authorization.clubArchivedAt) {
+    throw new ServiceError('CLUB_ARCHIVED', 'error.invalidRequest', 409);
+  }
   if (
-    authorization.responsibilities.includes('owner') ||
-    authorization.responsibilities.includes('admin')
+    canPerformClubAction(
+      authorization.platformRole,
+      authorization.membershipStatus,
+      authorization.responsibilities,
+      'tournament.manage',
+    )
   ) {
-    return tournament;
+    return;
   }
   if (!authorization.responsibilities.includes('coach')) throw forbidden();
   const [appointment] = await database
@@ -114,21 +131,24 @@ export async function requireTournamentManager(
     .from(tournamentOrganizers)
     .where(
       and(
-        eq(tournamentOrganizers.tournamentId, tournamentId),
+        eq(tournamentOrganizers.tournamentId, tournament.id),
         eq(tournamentOrganizers.userId, actorId),
       ),
     )
     .limit(1);
   if (!appointment) throw forbidden();
-  return tournament;
 }
 
 async function requireTournamentCreator(actorId: string, clubId: string, database: ReadDatabase) {
   const authorization = await getClubAuthorization(actorId, clubId, database);
   if (
-    authorization?.membershipStatus !== 'active' ||
-    (!authorization.responsibilities.includes('owner') &&
-      !authorization.responsibilities.includes('admin'))
+    !authorization?.clubId ||
+    !canPerformClubAction(
+      authorization.platformRole,
+      authorization.membershipStatus,
+      authorization.responsibilities,
+      'tournament.manage',
+    )
   ) {
     throw forbidden();
   }
@@ -149,6 +169,26 @@ async function lockTournament(
     .for('update');
   if (!tournament) throw notFound('TOURNAMENT_NOT_FOUND');
   return tournament;
+}
+
+async function lockAuthorizedTournament(
+  database: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  actorId: string,
+  tournamentId: string,
+) {
+  const tournament = await lockTournament(database, tournamentId);
+  await requireTournamentAuthority(
+    actorId,
+    { id: tournament.id, clubId: tournament.clubId },
+    database,
+  );
+  return tournament;
+}
+
+function tournamentManagementTransaction<T>(
+  operation: (database: Parameters<Parameters<typeof db.transaction>[0]>[0]) => Promise<T>,
+) {
+  return db.transaction(operation, { isolationLevel: 'serializable' });
 }
 
 async function assertNoTournamentRelationship(
@@ -261,9 +301,8 @@ export async function createTournament(actorId: string, input: CreateTournamentI
 }
 
 export async function openTournamentRegistration(actorId: string, tournamentId: string) {
-  await requireTournamentManager(actorId, tournamentId);
-  return db.transaction(async (tx) => {
-    const tournament = await lockTournament(tx, tournamentId);
+  return tournamentManagementTransaction(async (tx) => {
+    const tournament = await lockAuthorizedTournament(tx, actorId, tournamentId);
     if (tournament.status !== 'draft') {
       throw new ServiceError('TOURNAMENT_NOT_DRAFT', 'error.invalidRequest', 409);
     }
@@ -282,9 +321,8 @@ export async function updateTournamentVisibility(
   tournamentId: string,
   visibility: TournamentVisibility,
 ) {
-  await requireTournamentManager(actorId, tournamentId);
-  return db.transaction(async (tx) => {
-    const tournament = await lockTournament(tx, tournamentId);
+  return tournamentManagementTransaction(async (tx) => {
+    const tournament = await lockAuthorizedTournament(tx, actorId, tournamentId);
     assertPreStart(tournament.status);
     const [updated] = await tx
       .update(tournaments)
@@ -416,9 +454,8 @@ export async function inviteTournamentPlayer(
   tournamentId: string,
   playerId: string,
 ) {
-  await requireTournamentManager(actorId, tournamentId);
-  return db.transaction(async (tx) => {
-    const tournament = await lockTournament(tx, tournamentId);
+  return tournamentManagementTransaction(async (tx) => {
+    const tournament = await lockAuthorizedTournament(tx, actorId, tournamentId);
     assertRegistrationOpen(tournament.status);
     const [player] = await tx
       .select({ id: users.id })
@@ -505,9 +542,8 @@ export async function decideTournamentEntryRequest(
   requestId: string,
   approve: boolean,
 ) {
-  await requireTournamentManager(actorId, tournamentId);
-  return db.transaction(async (tx) => {
-    const tournament = await lockTournament(tx, tournamentId);
+  return tournamentManagementTransaction(async (tx) => {
+    const tournament = await lockAuthorizedTournament(tx, actorId, tournamentId);
     assertRegistrationOpen(tournament.status);
     const [request] = await tx
       .select()
@@ -558,9 +594,8 @@ export async function directlyAddTournamentPlayer(
   tournamentId: string,
   playerId: string,
 ) {
-  await requireTournamentManager(actorId, tournamentId);
-  return db.transaction(async (tx) => {
-    const tournament = await lockTournament(tx, tournamentId);
+  return tournamentManagementTransaction(async (tx) => {
+    const tournament = await lockAuthorizedTournament(tx, actorId, tournamentId);
     assertPreStart(tournament.status);
     const [player] = await tx
       .select({ id: users.id })
@@ -602,9 +637,8 @@ export async function removeTournamentPlayer(
   tournamentId: string,
   playerId: string,
 ) {
-  await requireTournamentManager(actorId, tournamentId);
-  return db.transaction(async (tx) => {
-    const tournament = await lockTournament(tx, tournamentId);
+  return tournamentManagementTransaction(async (tx) => {
+    const tournament = await lockAuthorizedTournament(tx, actorId, tournamentId);
     assertPreStart(tournament.status);
     const [removed] = await tx
       .delete(tournamentParticipations)
@@ -632,9 +666,8 @@ function shuffled<T>(items: readonly T[]): T[] {
 }
 
 export async function generateTournamentDraftDraw(actorId: string, tournamentId: string) {
-  await requireTournamentManager(actorId, tournamentId);
-  return db.transaction(async (tx) => {
-    const tournament = await lockTournament(tx, tournamentId);
+  return tournamentManagementTransaction(async (tx) => {
+    const tournament = await lockAuthorizedTournament(tx, actorId, tournamentId);
     if (tournament.status !== 'registration') {
       throw new ServiceError('TOURNAMENT_REGISTRATION_NOT_OPEN', 'error.invalidRequest', 409);
     }
@@ -688,9 +721,8 @@ export async function generateTournamentDraftDraw(actorId: string, tournamentId:
 }
 
 export async function startTournament(actorId: string, tournamentId: string) {
-  await requireTournamentManager(actorId, tournamentId);
-  return db.transaction(async (tx) => {
-    const tournament = await lockTournament(tx, tournamentId);
+  return tournamentManagementTransaction(async (tx) => {
+    const tournament = await lockAuthorizedTournament(tx, actorId, tournamentId);
     assertRegistrationOpen(tournament.status);
     if (!tournament.draftDrawGeneratedAt) {
       throw new ServiceError('TOURNAMENT_DRAFT_DRAW_REQUIRED', 'error.invalidRequest', 409);
@@ -992,10 +1024,9 @@ export async function submitOrganizerTiebreakDecision(
   tournamentId: string,
   input: OrganizerTiebreakDecisionInput,
 ) {
-  const tournament = await requireTournamentManager(actorId, tournamentId);
-
   const decision = await db.transaction(
     async (tx) => {
+      const tournament = await lockAuthorizedTournament(tx, actorId, tournamentId);
       const requirement = requireCurrentValidTiebreakRequirement(
         await inspectTournamentProgression(tournamentId, tx),
         input,
@@ -1049,9 +1080,12 @@ export async function submitOrganizerTiebreakDecision(
 export async function listClubTournaments(actorId: string, clubId: string) {
   const authorization = await getClubAuthorization(actorId, clubId);
   if (authorization?.membershipStatus !== 'active') throw forbidden();
-  const managesEveryTournament =
-    authorization.responsibilities.includes('owner') ||
-    authorization.responsibilities.includes('admin');
+  const managesEveryTournament = canPerformClubAction(
+    authorization.platformRole,
+    authorization.membershipStatus,
+    authorization.responsibilities,
+    'tournament.manage',
+  );
   if (!managesEveryTournament && !authorization.responsibilities.includes('coach')) {
     throw forbidden();
   }
@@ -1089,38 +1123,35 @@ export async function appointTournamentCoach(
   tournamentId: string,
   coachId: string,
 ) {
-  const tournament = await requireTournamentManager(actorId, tournamentId);
-  const authorization = await getClubAuthorization(actorId, tournament.clubId);
-  if (
-    !authorization?.responsibilities.includes('owner') &&
-    !authorization?.responsibilities.includes('admin')
-  ) {
-    throw forbidden();
-  }
-  const [coach] = await db
-    .select({ userId: clubMemberships.userId })
-    .from(clubMemberships)
-    .innerJoin(
-      clubResponsibilities,
-      and(
-        eq(clubResponsibilities.clubId, clubMemberships.clubId),
-        eq(clubResponsibilities.userId, clubMemberships.userId),
-      ),
-    )
-    .where(
-      and(
-        eq(clubMemberships.clubId, tournament.clubId),
-        eq(clubMemberships.userId, coachId),
-        eq(clubMemberships.status, 'active'),
-        eq(clubResponsibilities.responsibility, 'coach'),
-      ),
-    )
-    .limit(1);
-  if (!coach)
-    throw new ServiceError('TOURNAMENT_ORGANIZER_MUST_BE_COACH', 'error.invalidRequest', 409);
-  await db
-    .insert(tournamentOrganizers)
-    .values({ tournamentId, userId: coachId })
-    .onConflictDoNothing();
-  return { tournamentId, coachId };
+  return tournamentManagementTransaction(async (tx) => {
+    const tournament = await lockTournament(tx, tournamentId);
+    await requireTournamentCreator(actorId, tournament.clubId, tx);
+    const [coach] = await tx
+      .select({ userId: clubMemberships.userId })
+      .from(clubMemberships)
+      .innerJoin(
+        clubResponsibilities,
+        and(
+          eq(clubResponsibilities.clubId, clubMemberships.clubId),
+          eq(clubResponsibilities.userId, clubMemberships.userId),
+        ),
+      )
+      .where(
+        and(
+          eq(clubMemberships.clubId, tournament.clubId),
+          eq(clubMemberships.userId, coachId),
+          eq(clubMemberships.status, 'active'),
+          eq(clubResponsibilities.responsibility, 'coach'),
+        ),
+      )
+      .limit(1);
+    if (!coach) {
+      throw new ServiceError('TOURNAMENT_ORGANIZER_MUST_BE_COACH', 'error.invalidRequest', 409);
+    }
+    await tx
+      .insert(tournamentOrganizers)
+      .values({ tournamentId, userId: coachId })
+      .onConflictDoNothing();
+    return { tournamentId, coachId };
+  });
 }

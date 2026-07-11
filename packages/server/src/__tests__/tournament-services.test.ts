@@ -252,6 +252,9 @@ describe('Official Tournament Player participation', () => {
       inserted: { participation },
     });
     await decideTournamentEntryRequest('owner-id', tournament.id, request.id, approve);
+    expect(mockDb.transaction).toHaveBeenLastCalledWith(expect.any(Function), {
+      isolationLevel: 'serializable',
+    });
     expect(inserts.some(({ table }) => table === tournamentParticipations)).toBe(
       createsParticipation,
     );

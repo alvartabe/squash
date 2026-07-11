@@ -24,7 +24,20 @@ const mockDb = db as unknown as { select: jest.Mock; transaction: jest.Mock };
 const mockAuthorization = getClubAuthorization as jest.Mock;
 const mockInspect = inspectTournamentProgression as jest.Mock;
 const mockProgress = progressTournament as jest.Mock;
-const validationTx = { insert: jest.fn(), select: jest.fn() };
+
+function lockedTournamentQuery() {
+  const query = {
+    from: () => query,
+    where: () => query,
+    limit: () => query,
+    for: async () => [
+      { id: 'tournament-id', clubId: 'club-id', rulesId: 'rules-id', status: 'group-stage' },
+    ],
+  };
+  return query;
+}
+
+const validationTx = { insert: jest.fn(), select: jest.fn(() => lockedTournamentQuery()) };
 
 const requirement = {
   tournamentId: 'tournament-id',
@@ -34,24 +47,7 @@ const requirement = {
   requirementKey: 'a'.repeat(64),
 };
 
-function selectRows(rows: unknown[]) {
-  const query = {
-    from: () => query,
-    innerJoin: () => query,
-    where: () => query,
-    limit: async () => rows,
-  };
-  return query;
-}
-
-function locateTournament() {
-  mockDb.select.mockReturnValueOnce(
-    selectRows([{ id: 'tournament-id', clubId: 'club-id', archivedAt: null }]),
-  );
-}
-
 function authorizeOwner() {
-  locateTournament();
   mockAuthorization.mockResolvedValueOnce({
     membershipStatus: 'active',
     responsibilities: ['owner'],
@@ -69,7 +65,6 @@ describe('Organizer Tiebreak Decision service', () => {
   });
 
   it('requires current Tournament Organizer authority', async () => {
-    locateTournament();
     mockAuthorization.mockResolvedValueOnce({
       membershipStatus: 'active',
       responsibilities: [],
@@ -81,7 +76,7 @@ describe('Organizer Tiebreak Decision service', () => {
         orderedPlayerIds: ['player-1', 'player-2', 'player-3'],
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN', status: 403 });
-    expect(mockDb.transaction).not.toHaveBeenCalled();
+    expect(mockDb.transaction).toHaveBeenCalledTimes(1);
   });
 
   it('persists the exact order and deciding organizer, audits it, and resumes progression', async () => {
@@ -89,6 +84,7 @@ describe('Organizer Tiebreak Decision service', () => {
     const inserts: Array<{ table: unknown; values: unknown }> = [];
     const decidedAt = new Date('2026-07-10T18:00:00.000Z');
     const tx = {
+      select: jest.fn(() => lockedTournamentQuery()),
       insert: jest.fn((table: unknown) => ({
         values: (values: unknown) => {
           inserts.push({ table, values });
@@ -187,7 +183,7 @@ describe('Organizer Tiebreak Decision service', () => {
   it('rejects a decision when the transactional progression state is stale', async () => {
     authorizeOwner();
     mockInspect.mockResolvedValueOnce({ status: 'inactive' });
-    const tx = { insert: jest.fn(), select: jest.fn() };
+    const tx = { insert: jest.fn(), select: jest.fn(() => lockedTournamentQuery()) };
     mockDb.transaction.mockImplementationOnce(async (callback: (database: typeof tx) => unknown) =>
       callback(tx),
     );

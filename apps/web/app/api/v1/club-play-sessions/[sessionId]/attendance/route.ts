@@ -1,10 +1,13 @@
 import { idSchema, updateAttendanceResponseSchema } from '@squash/contracts';
 import { setClubPlaySessionAttendance } from '@squash/server';
-import { dataResponse, errorResponse, requireUserId } from '@/src/http';
+import { dataResponse, playerRoute } from '@/src/http';
 
-export async function PUT(request: Request, context: { params: Promise<{ sessionId: string }> }) {
-  try {
-    const actorId = await requireUserId();
+export const PUT = playerRoute(
+  async (
+    actorId: string,
+    request: Request,
+    context: { params: Promise<{ sessionId: string }> },
+  ) => {
     const { sessionId } = await context.params;
     return dataResponse(
       await setClubPlaySessionAttendance(
@@ -13,7 +16,5 @@ export async function PUT(request: Request, context: { params: Promise<{ session
         updateAttendanceResponseSchema.parse(await request.json()),
       ),
     );
-  } catch (error) {
-    return errorResponse(error);
-  }
-}
+  },
+);

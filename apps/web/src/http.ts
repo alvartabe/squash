@@ -24,6 +24,33 @@ export async function requireManagementUserId(): Promise<string> {
   return state.userId;
 }
 
+type AuthenticatedRouteHandler<Context> = (
+  actorId: string,
+  request: Request,
+  context: Context,
+) => Promise<Response>;
+
+function authenticatedRoute<Context>(
+  authenticate: () => Promise<string>,
+  handler: AuthenticatedRouteHandler<Context>,
+) {
+  return async (request: Request, context: Context) => {
+    try {
+      return await handler(await authenticate(), request, context);
+    } catch (error) {
+      return errorResponse(error);
+    }
+  };
+}
+
+export function managementRoute<Context>(handler: AuthenticatedRouteHandler<Context>) {
+  return authenticatedRoute(requireManagementUserId, handler);
+}
+
+export function playerRoute<Context>(handler: AuthenticatedRouteHandler<Context>) {
+  return authenticatedRoute(requireUserId, handler);
+}
+
 export function dataResponse<T>(data: T, status = 200) {
   return NextResponse.json({ data }, { status });
 }

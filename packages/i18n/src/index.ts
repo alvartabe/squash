@@ -152,6 +152,11 @@ const en = {
   'clubs.restoreDescription':
     'The Club will become operational and discoverable again. Cancelled requests, Sessions, and Tournaments and revoked invitations will remain unchanged.',
   'clubs.restoreError': 'The Club could not be restored. Try again.',
+  'clubs.transferOwnershipDescription':
+    'Recovery action: assign Ownership to an active Club member using their registered Player ID.',
+  'clubs.newOwnerId': 'New Club Owner ID',
+  'clubs.transferOwnershipSuccess': 'Club Ownership transferred.',
+  'clubs.transferOwnershipError': 'Club Ownership could not be transferred. Check the Player ID.',
   'playerClubs.heading': 'Clubs',
   'playerClubs.description': 'Find active Clubs and manage your Membership Requests.',
   'playerClubs.searchPlaceholder': 'Search active Clubs…',
@@ -598,6 +603,12 @@ const es: Record<MessageKey, string> = {
   'clubs.restoreDescription':
     'El Club volverá a estar operativo y visible. Las solicitudes, Sesiones y Torneos cancelados y las invitaciones revocadas no cambiarán.',
   'clubs.restoreError': 'No se pudo restaurar el Club. Inténtalo de nuevo.',
+  'clubs.transferOwnershipDescription':
+    'Acción de recuperación: asigna la propiedad a un miembro activo del Club usando su ID de Jugador registrado.',
+  'clubs.newOwnerId': 'ID del nuevo Propietario del Club',
+  'clubs.transferOwnershipSuccess': 'Propiedad del Club transferida.',
+  'clubs.transferOwnershipError':
+    'No se pudo transferir la propiedad del Club. Revisa el ID del Jugador.',
   'playerClubs.heading': 'Clubes',
   'playerClubs.description': 'Encuentra Clubes activos y gestiona tus Solicitudes de Membresía.',
   'playerClubs.searchPlaceholder': 'Buscar Clubes activos…',

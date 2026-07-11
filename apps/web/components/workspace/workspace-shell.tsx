@@ -75,15 +75,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
       clubTimeZone: routeClub.timeZone,
       membershipStatus: null,
       responsibilities: [],
-      permissions: routeClub.archivedAt
-        ? ['club.view', 'club.restore']
-        : [
-            'club.view',
-            'members.manage',
-            'availability.view',
-            'tournament.manage',
-            'results.correct',
-          ],
+      permissions: routeClub.archivedAt ? ['club.view', 'club.restore'] : ['club.view'],
     };
   }, [me?.memberships, me?.platformAdmin, routeClub, routeClubId]);
   const canManageMembers = selected?.permissions.includes('members.manage') ?? false;

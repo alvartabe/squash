@@ -1,21 +1,13 @@
 import { decideTournamentEntryRequest } from '@squash/server';
-import { dataResponse, errorResponse, requireManagementUserId } from '@/src/http';
+import { dataResponse, managementRoute } from '@/src/http';
 
-export async function POST(
-  _request: Request,
-  context: { params: Promise<{ tournamentId: string; requestId: string }> },
-) {
-  try {
+export const POST = managementRoute(
+  async (
+    actorId: string,
+    _request: Request,
+    context: { params: Promise<{ tournamentId: string; requestId: string }> },
+  ) => {
     const { tournamentId, requestId } = await context.params;
-    return dataResponse(
-      await decideTournamentEntryRequest(
-        await requireManagementUserId(),
-        tournamentId,
-        requestId,
-        true,
-      ),
-    );
-  } catch (error) {
-    return errorResponse(error);
-  }
-}
+    return dataResponse(await decideTournamentEntryRequest(actorId, tournamentId, requestId, true));
+  },
+);

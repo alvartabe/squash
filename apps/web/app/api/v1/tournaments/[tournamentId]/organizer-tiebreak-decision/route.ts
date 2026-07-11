@@ -1,19 +1,15 @@
 import { organizerTiebreakDecisionInputSchema } from '@squash/contracts';
 import { submitOrganizerTiebreakDecision } from '@squash/server';
-import { dataResponse, errorResponse, requireManagementUserId } from '@/src/http';
+import { dataResponse, managementRoute } from '@/src/http';
 
-export async function POST(
-  request: Request,
-  context: { params: Promise<{ tournamentId: string }> },
-) {
-  try {
+export const POST = managementRoute(
+  async (
+    actorId: string,
+    request: Request,
+    context: { params: Promise<{ tournamentId: string }> },
+  ) => {
     const { tournamentId } = await context.params;
     const input = organizerTiebreakDecisionInputSchema.parse(await request.json());
-    return dataResponse(
-      await submitOrganizerTiebreakDecision(await requireManagementUserId(), tournamentId, input),
-      201,
-    );
-  } catch (error) {
-    return errorResponse(error);
-  }
-}
+    return dataResponse(await submitOrganizerTiebreakDecision(actorId, tournamentId, input), 201);
+  },
+);

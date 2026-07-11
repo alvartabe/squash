@@ -14,6 +14,12 @@ This document identifies known differences between intended product behavior and
 | Moderation Reports and Platform Suspension            | Schema and services                                                               | No report workflow or account suspension lifecycle                     |
 | Anonymized Account Closure                            | Existing foreign-key deletion behavior                                            | No documented closure/anonymization service                            |
 
+Club management authorization is capability-based at the service and web-workspace
+boundaries. Platform Administrators have explicit Club view, restore, and Ownership
+transfer recovery capabilities, but no implicit Membership, Tournament, Session,
+Availability, or Result-management authority. Management eligibility excludes
+responsibilities in archived Clubs except for the Owner's restore path.
+
 ## Play
 
 One-time Club Play Sessions are implemented through `clubPlaySessions` and
@@ -67,6 +73,10 @@ Organizers finalize the initial result against the Match Scoring Rules snapshot;
 Game scores, immutable result revision, audit record, statistics rebuild event, and deterministic
 Tournament progression event are written atomically. Participants can view Official Results but
 the Player-authenticated result route rejects Tournament Matches.
+
+Tournament management mutations lock the Tournament and re-evaluate the Organizer's
+current Club responsibility or explicit Coach appointment in the same transaction as
+the write, so revoked authority cannot be reused from an earlier check.
 
 The legacy direct-registration table was pre-release/dev-only and intentionally removed
 without migration because it had no production participation data to preserve. The new

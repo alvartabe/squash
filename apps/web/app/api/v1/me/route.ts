@@ -1,10 +1,6 @@
 import { getCurrentWorkspaceUser } from '@squash/server';
-import { dataResponse, errorResponse, requireManagementUserId } from '@/src/http';
+import { dataResponse, managementRoute } from '@/src/http';
 
-export async function GET() {
-  try {
-    return dataResponse(await getCurrentWorkspaceUser(await requireManagementUserId()));
-  } catch (error) {
-    return errorResponse(error);
-  }
-}
+export const GET = managementRoute(async (actorId: string) => {
+  return dataResponse(await getCurrentWorkspaceUser(actorId));
+});

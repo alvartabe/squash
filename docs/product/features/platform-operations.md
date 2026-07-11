@@ -94,7 +94,8 @@ Retention durations require a documented policy approved by Costa Rican counsel 
 
 MFA is mandatory before every web-management action by a Platform Administrator or a person with
 an active Club Owner, Club Administrator, or Coach responsibility. Suspended and Ended Memberships
-do not create management authority.
+do not create management authority. Responsibilities in an archived Club do not create routine
+management eligibility; the Club Owner remains eligible only for the documented restoration path.
 
 Web management accepts only a credential-authenticated session completed with Better Auth TOTP,
 single-use backup-code recovery, or a currently valid Better Auth trusted-device grant. Google and

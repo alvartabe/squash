@@ -126,6 +126,22 @@ describe('MembersPage Membership Request integration', () => {
     workspaceHooks.useWorkspaceClub.mockReturnValue({
       data: club('active', [...responsibilities]),
     });
+    workspaceHooks.useWorkspaceMe.mockReturnValue({
+      data: {
+        ...me,
+        memberships: [
+          {
+            clubId,
+            clubName: 'Central Squash Club',
+            clubSlug: 'central-squash-club',
+            clubTimeZone: 'America/Costa_Rica',
+            membershipStatus: 'active',
+            responsibilities: [...responsibilities],
+            permissions: ['members.manage', 'membership-requests.review'],
+          },
+        ],
+      },
+    });
 
     render(<MembersPage clubId={clubId} />);
 
@@ -152,6 +168,20 @@ describe('MembersPage Membership Request integration', () => {
             ...me.user,
             role: platformAdmin ? 'platform-admin' : 'user',
           },
+          memberships:
+            membershipStatus === 'active'
+              ? [
+                  {
+                    clubId,
+                    clubName: 'Central Squash Club',
+                    clubSlug: 'central-squash-club',
+                    clubTimeZone: 'America/Costa_Rica',
+                    membershipStatus,
+                    responsibilities: [...responsibilities],
+                    permissions: [],
+                  },
+                ]
+              : [],
         },
       });
 

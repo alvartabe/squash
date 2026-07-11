@@ -6,7 +6,9 @@ export type ClubAction =
   | 'club.update'
   | 'club.archive'
   | 'club.restore'
+  | 'club.transfer-ownership'
   | 'members.manage'
+  | 'members.manage-administrator'
   | 'membership-requests.review'
   | 'availability.view'
   | 'tournament.manage'
@@ -21,7 +23,9 @@ const permissions: Record<ClubResponsibility, ReadonlySet<ClubAction>> = {
     'club.update',
     'club.archive',
     'club.restore',
+    'club.transfer-ownership',
     'members.manage',
+    'members.manage-administrator',
     'membership-requests.review',
     'availability.view',
     'tournament.manage',
@@ -46,7 +50,9 @@ export const clubActions: readonly ClubAction[] = [
   'club.update',
   'club.archive',
   'club.restore',
+  'club.transfer-ownership',
   'members.manage',
+  'members.manage-administrator',
   'membership-requests.review',
   'availability.view',
   'tournament.manage',
@@ -60,34 +66,15 @@ export function canPerformClubAction(
   responsibilities: readonly ClubResponsibility[],
   action: ClubAction,
 ): boolean {
-  if (action === 'club.archive') {
-    return membershipStatus === 'active' && responsibilities.includes('owner');
-  }
-  if (action === 'club.restore') {
-    return (
-      platformRole === 'platform-admin' ||
-      (membershipStatus === 'active' && responsibilities.includes('owner'))
-    );
-  }
-  if (
-    action === 'club.update' ||
-    action === 'membership-requests.review' ||
-    action === 'session.create'
-  ) {
-    return (
-      membershipStatus === 'active' &&
-      responsibilities.some(
-        (responsibility) =>
-          responsibility === 'owner' ||
-          responsibility === 'admin' ||
-          (action === 'session.create' && responsibility === 'coach'),
-      )
-    );
-  }
-  if (platformRole === 'platform-admin') return true;
-  if (membershipStatus !== 'active') return false;
+  const membershipAllows =
+    membershipStatus === 'active' &&
+    (memberPermissions.has(action) ||
+      responsibilities.some((responsibility) => permissions[responsibility].has(action)));
+  if (membershipAllows) return true;
   return (
-    memberPermissions.has(action) ||
-    responsibilities.some((responsibility) => permissions[responsibility].has(action))
+    platformRole === 'platform-admin' &&
+    (action === 'club.view' ||
+      action === 'club.restore' ||
+      action === 'club.transfer-ownership')
   );
 }

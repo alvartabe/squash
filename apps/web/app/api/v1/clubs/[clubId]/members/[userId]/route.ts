@@ -1,12 +1,11 @@
 import { idSchema, updateClubMemberSchema, userIdSchema } from '@squash/contracts';
 import { removeClubMember, updateClubMembership } from '@squash/server';
-import { dataResponse, errorResponse, requireManagementUserId } from '@/src/http';
+import { dataResponse, managementRoute } from '@/src/http';
 
 type Context = { params: Promise<{ clubId: string; userId: string }> };
 
-export async function PATCH(request: Request, { params }: Context) {
-  try {
-    const actorId = await requireManagementUserId();
+export const PATCH = managementRoute(
+  async (actorId: string, request: Request, { params }: Context) => {
     const { clubId, userId } = await params;
     const input = updateClubMemberSchema.parse(await request.json());
     const parsedClubId = idSchema.parse(clubId);
@@ -19,19 +18,14 @@ export async function PATCH(request: Request, { params }: Context) {
           : { responsibilities: input.responsibilities }),
       }),
     );
-  } catch (error) {
-    return errorResponse(error);
-  }
-}
+  },
+);
 
-export async function DELETE(_request: Request, { params }: Context) {
-  try {
-    const actorId = await requireManagementUserId();
+export const DELETE = managementRoute(
+  async (actorId: string, _request: Request, { params }: Context) => {
     const { clubId, userId } = await params;
     return dataResponse(
       await removeClubMember(actorId, idSchema.parse(clubId), userIdSchema.parse(userId)),
     );
-  } catch (error) {
-    return errorResponse(error);
-  }
-}
+  },
+);

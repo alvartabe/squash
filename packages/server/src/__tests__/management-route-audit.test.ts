@@ -89,21 +89,22 @@ describe('web-management API authentication audit', () => {
     'me/route.ts',
   ])('%s uses the centralized management-authentication guard', (path) => {
     const source = route(path);
-    expect(source).toContain('requireManagementUserId');
+    expect(source).toContain('managementRoute');
+    expect(source).not.toContain('requireManagementUserId');
     expect(source).not.toMatch(/await requireUserId\(\)/);
   });
 
   it('separates Tournament Player discovery from Draft creation in the shared route', () => {
     const source = route('tournaments/route.ts');
     const getHandler = source.slice(
-      source.indexOf('export async function GET'),
-      source.indexOf('export async function POST'),
+      source.indexOf('export const GET'),
+      source.indexOf('export const POST'),
     );
-    const postHandler = source.slice(source.indexOf('export async function POST'));
-    expect(getHandler).toContain('requireUserId');
-    expect(getHandler).not.toContain('requireManagementUserId');
-    expect(postHandler).toContain('requireManagementUserId');
-    expect(postHandler).not.toMatch(/await requireUserId\(\)/);
+    const postHandler = source.slice(source.indexOf('export const POST'));
+    expect(getHandler).toContain('playerRoute');
+    expect(getHandler).not.toContain('managementRoute');
+    expect(postHandler).toContain('managementRoute');
+    expect(postHandler).not.toContain('playerRoute');
   });
 
   it.each([
@@ -113,35 +114,35 @@ describe('web-management API authentication audit', () => {
     'tournaments/[tournamentId]/participation/route.ts',
   ])('%s uses only the Player authentication boundary', (path) => {
     const source = route(path);
-    expect(source).toContain('requireUserId');
-    expect(source).not.toContain('requireManagementUserId');
+    expect(source).toContain('playerRoute');
+    expect(source).not.toContain('managementRoute');
   });
 
   it('guards only the management operation in the shared Membership Request route', () => {
     const source = route('clubs/[clubId]/membership-requests/route.ts');
     const getHandler = source.slice(
-      source.indexOf('export async function GET'),
-      source.indexOf('export async function POST'),
+      source.indexOf('export const GET'),
+      source.indexOf('export const POST'),
     );
-    const postHandler = source.slice(source.indexOf('export async function POST'));
-    expect(getHandler).toContain('requireManagementUserId');
-    expect(postHandler).toContain('requireUserId');
+    const postHandler = source.slice(source.indexOf('export const POST'));
+    expect(getHandler).toContain('managementRoute');
+    expect(postHandler).toContain('playerRoute');
   });
 
   it('keeps Player detail reads while guarding Session coordination mutations', () => {
     const source = route('club-play-sessions/[sessionId]/route.ts');
     const getHandler = source.slice(
-      source.indexOf('export async function GET'),
-      source.indexOf('export async function PATCH'),
+      source.indexOf('export const GET'),
+      source.indexOf('export const PATCH'),
     );
     const patchHandler = source.slice(
-      source.indexOf('export async function PATCH'),
-      source.indexOf('export async function DELETE'),
+      source.indexOf('export const PATCH'),
+      source.indexOf('export const DELETE'),
     );
-    const deleteHandler = source.slice(source.indexOf('export async function DELETE'));
-    expect(getHandler).toContain('requireUserId');
-    expect(patchHandler).toContain('requireManagementUserId');
-    expect(deleteHandler).toContain('requireManagementUserId');
+    const deleteHandler = source.slice(source.indexOf('export const DELETE'));
+    expect(getHandler).toContain('playerRoute');
+    expect(patchHandler).toContain('managementRoute');
+    expect(deleteHandler).toContain('managementRoute');
   });
 
   it('guards Club logo uploads while preserving Player media uploads', () => {

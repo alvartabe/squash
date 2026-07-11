@@ -81,6 +81,9 @@ Equipment is not an inventory, marketplace, recommendation, or commerce feature.
   active Club Owners, Club Administrators, and Coaches. A signed-in session is authorized for
   management only when it was created through the credential-only management authentication
   boundary after TOTP or valid trusted-device verification.
+- A responsibility in an archived Club does not create routine web-management eligibility. The
+  Club Owner remains eligible only so the documented restoration path can be completed; archived
+  Club Administrator and Coach responsibilities do not provide management authority.
 - Google and Apple authentication remain available for mobile Player access. A session created by
   either provider is a Player session and cannot authorize web-management operations, including
   when the Player has enabled MFA.

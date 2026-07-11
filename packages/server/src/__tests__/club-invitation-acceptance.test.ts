@@ -4,7 +4,7 @@ import {
   clubMemberships,
   clubResponsibilities,
 } from '@squash/db/schema';
-import { requireRegisteredPlayer } from '../authorization';
+import { requireLockedActiveClub, requireRegisteredPlayer } from '../authorization';
 import { acceptPlayerClubInvitation } from '../club-admin';
 import { db } from '../database';
 
@@ -17,12 +17,14 @@ jest.mock('../database', () => ({
 jest.mock('../authorization', () => ({
   requireClubAccess: jest.fn(),
   requireClubAction: jest.fn(),
+  requireLockedActiveClub: jest.fn(),
   requirePlatformAdmin: jest.fn(),
   requireRegisteredPlayer: jest.fn(),
 }));
 
 const mockDb = db as unknown as { transaction: jest.Mock };
 const mockRequireRegisteredPlayer = requireRegisteredPlayer as jest.Mock;
+const mockRequireLockedActiveClub = requireLockedActiveClub as jest.Mock;
 
 type Responsibility = 'admin' | 'coach' | null;
 
@@ -68,6 +70,10 @@ function acceptanceHarness(input?: {
       from: (table: unknown) => {
         if (table === clubInvitations) {
           return {
+            where: () => ({
+              limit: async () =>
+                input?.invitationFound === false ? [] : [{ clubId: invitation.clubId }],
+            }),
             innerJoin: () => ({
               where: () => ({
                 limit: () => ({ for: invitationLock }),
@@ -149,6 +155,10 @@ describe('Player Club Invitation acceptance', () => {
       id: 'player-id',
       email: 'player@example.com',
     });
+    mockRequireLockedActiveClub.mockResolvedValue({
+      id: '2d44fd7a-eac8-4a72-84e8-b3b46812f606',
+      archivedAt: null,
+    });
   });
 
   it('creates an Active Membership for a matching Player invitation', async () => {
@@ -175,6 +185,9 @@ describe('Player Club Invitation acceptance', () => {
     );
     expect(harness.invitationLock).toHaveBeenCalledWith('update');
     expect(harness.membershipLock).toHaveBeenCalledWith('update');
+    expect(mockRequireLockedActiveClub.mock.invocationCallOrder[0]).toBeLessThan(
+      harness.invitationLock.mock.invocationCallOrder[0] as number,
+    );
     expect(
       harness.insertions.filter(({ table }) => table === auditLogs).map(({ values }) => values),
     ).toEqual([

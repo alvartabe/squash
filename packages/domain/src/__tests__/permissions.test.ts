@@ -6,7 +6,8 @@ describe('club permissions', () => {
     expect(canPerformClubAction('platform-admin', null, [], 'club.restore')).toBe(true);
     expect(canPerformClubAction('user', 'active', ['owner'], 'club.restore')).toBe(true);
     expect(canPerformClubAction('user', 'active', ['admin'], 'club.restore')).toBe(false);
-    expect(canPerformClubAction('platform-admin', null, [], 'members.manage')).toBe(true);
+    expect(canPerformClubAction('platform-admin', null, [], 'members.manage')).toBe(false);
+    expect(canPerformClubAction('platform-admin', null, [], 'club.transfer-ownership')).toBe(true);
   });
 
   it('lets Owners and Administrators update the Club Profile but keeps archival Owner-only', () => {
@@ -57,6 +58,15 @@ describe('club permissions', () => {
     expect(canPerformClubAction('user', 'active', ['owner'], 'members.manage')).toBe(true);
     expect(canPerformClubAction('user', 'active', ['admin'], 'members.manage')).toBe(true);
     expect(canPerformClubAction('user', 'active', ['coach'], 'members.manage')).toBe(false);
+    expect(
+      canPerformClubAction('user', 'active', ['owner'], 'members.manage-administrator'),
+    ).toBe(true);
+    expect(
+      canPerformClubAction('user', 'active', ['admin'], 'members.manage-administrator'),
+    ).toBe(false);
+    expect(
+      canPerformClubAction('platform-admin', null, [], 'members.manage-administrator'),
+    ).toBe(false);
   });
 
   it('allows only Owners and Administrators to review Membership Requests', () => {

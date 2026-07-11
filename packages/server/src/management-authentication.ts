@@ -2,6 +2,7 @@ import {
   accounts,
   clubMemberships,
   clubResponsibilities,
+  clubs,
   managementSessions,
   users,
   verifications,
@@ -47,8 +48,11 @@ export async function getManagementSecurityState(
     )
     .limit(1);
 
-  const [responsibility] = await database
-    .select({ userId: clubResponsibilities.userId })
+  const responsibilities = await database
+    .select({
+      responsibility: clubResponsibilities.responsibility,
+      clubArchivedAt: clubs.archivedAt,
+    })
     .from(clubResponsibilities)
     .innerJoin(
       clubMemberships,
@@ -57,12 +61,15 @@ export async function getManagementSecurityState(
         eq(clubMemberships.userId, clubResponsibilities.userId),
       ),
     )
-    .where(and(eq(clubResponsibilities.userId, userId), eq(clubMemberships.status, 'active')))
-    .limit(1);
+    .innerJoin(clubs, eq(clubs.id, clubMemberships.clubId))
+    .where(and(eq(clubResponsibilities.userId, userId), eq(clubMemberships.status, 'active')));
+  const hasEligibleClubResponsibility = responsibilities.some(
+    ({ responsibility, clubArchivedAt }) => !clubArchivedAt || responsibility === 'owner',
+  );
 
   return {
     userId: user.id,
-    hasManagementAuthority: user.role === 'platform-admin' || Boolean(responsibility),
+    hasManagementAuthority: user.role === 'platform-admin' || hasEligibleClubResponsibility,
     hasCredential: Boolean(credential),
     twoFactorEnabled: user.twoFactorEnabled === true,
   };

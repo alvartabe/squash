@@ -2,6 +2,7 @@ import { managementSessions, verifications } from '@squash/db/schema';
 import type { SQLWrapper } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import {
+  getManagementSecurityState,
   requireManagementSecurityState,
   revokeManagementSecurityArtifacts,
   type ManagementSecurityState,
@@ -20,6 +21,50 @@ function state(overrides: Partial<ManagementSecurityState> = {}): ManagementSecu
 }
 
 describe('management authentication boundary', () => {
+  it.each([
+    ['active Club Administrator', 'admin', null, true],
+    ['active Coach', 'coach', null, true],
+    ['archived Club Owner', 'owner', new Date('2026-07-01T00:00:00.000Z'), true],
+    ['archived Club Administrator', 'admin', new Date('2026-07-01T00:00:00.000Z'), false],
+    ['archived Coach', 'coach', new Date('2026-07-01T00:00:00.000Z'), false],
+  ] as const)(
+    'sets management eligibility for an %s',
+    async (_label, responsibility, clubArchivedAt, expected) => {
+      const userQuery = {
+        from: () => ({
+          where: () => ({
+            limit: async () => [{ id: 'manager-id', role: 'user', twoFactorEnabled: true }],
+          }),
+        }),
+      };
+      const credentialQuery = {
+        from: () => ({
+          where: () => ({ limit: async () => [{ id: 'credential-id' }] }),
+        }),
+      };
+      const responsibilityQuery = {
+        from: () => {
+          const query = {
+            innerJoin: () => query,
+            where: async () => [{ responsibility, clubArchivedAt }],
+          };
+          return query;
+        },
+      };
+      const database = {
+        select: jest
+          .fn()
+          .mockReturnValueOnce(userQuery)
+          .mockReturnValueOnce(credentialQuery)
+          .mockReturnValueOnce(responsibilityQuery),
+      };
+
+      await expect(
+        getManagementSecurityState('manager-id', database as never),
+      ).resolves.toMatchObject({ hasManagementAuthority: expected });
+    },
+  );
+
   it.each([
     'Platform Administrator',
     'active Club Owner',

@@ -14,7 +14,7 @@ import { calculateMatchResult, InvalidScoreError } from '@squash/domain';
 import { and, eq } from 'drizzle-orm';
 import { db } from './database';
 import { notFound, ServiceError } from './errors';
-import { requireTournamentManager } from './tournaments';
+import { requireTournamentAuthority } from './tournaments';
 
 function invalid(code: string, status = 409) {
   return new ServiceError(code, 'error.invalidRequest', status);
@@ -26,8 +26,6 @@ export async function recordOfficialTournamentResult(
   fixtureId: string,
   input: OfficialResultInput,
 ) {
-  await requireTournamentManager(organizerId, tournamentId);
-
   return db.transaction(
     async (tx) => {
       const [fixture] = await tx
@@ -59,6 +57,14 @@ export async function recordOfficialTournamentResult(
         .limit(1)
         .for('update');
       if (!fixture) throw notFound('TOURNAMENT_FIXTURE_NOT_FOUND');
+      await requireTournamentAuthority(
+        organizerId,
+        {
+          id: fixture.tournamentId,
+          clubId: fixture.clubId,
+        },
+        tx,
+      );
       if (fixture.fixtureTournamentId !== tournamentId) {
         throw invalid('OFFICIAL_RESULT_FIXTURE_MISMATCH');
       }

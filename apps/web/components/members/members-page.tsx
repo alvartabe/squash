@@ -96,11 +96,15 @@ export function MembersPage({ clubId }: { clubId: string }) {
   const transfer = useTransferClubOwnership(clubId);
   const resend = useResendClubInvitation(clubId);
   const revoke = useRevokeClubInvitation(clubId);
+  const actorPermissions = me?.memberships.find(
+    (membership) => membership.clubId === clubId,
+  )?.permissions;
+  const canManageMembers = actorPermissions?.includes('members.manage') ?? false;
+  const canManageAdministrators =
+    actorPermissions?.includes('members.manage-administrator') ?? false;
+  const canTransferOwnership = actorPermissions?.includes('club.transfer-ownership') ?? false;
   const canReviewMembershipRequests =
-    club?.membershipStatus === 'active' &&
-    club.responsibilities.some(
-      (responsibility) => responsibility === 'owner' || responsibility === 'admin',
-    );
+    actorPermissions?.includes('membership-requests.review') ?? false;
   const responsibilityLabel = useCallback(
     (responsibility: ClubResponsibility | 'player') => t(`members.${responsibility}`),
     [t],
@@ -127,16 +131,14 @@ export function MembersPage({ clubId }: { clubId: string }) {
         header: t('common.responsibilities'),
         cell: (info) => {
           const member = info.row.original;
-          const actorResponsibilities = club?.responsibilities ?? [];
-          const actorIsOwner = me?.platformAdmin || actorResponsibilities.includes('owner');
-          const actorIsAdministrator = actorResponsibilities.includes('admin');
           const targetIsOwner = member.responsibilities.includes('owner');
           const targetIsAdministrator = member.responsibilities.includes('admin');
           const canEdit =
             member.userId !== me?.user.id &&
             member.membershipStatus !== 'ended' &&
             !targetIsOwner &&
-            (actorIsOwner || (actorIsAdministrator && !targetIsAdministrator));
+            canManageMembers &&
+            (!targetIsAdministrator || canManageAdministrators);
           const toggle = async (responsibility: 'admin' | 'coach', checked: boolean) => {
             const next = new Set(member.responsibilities);
             if (checked) next.add(responsibility);
@@ -166,7 +168,7 @@ export function MembersPage({ clubId }: { clubId: string }) {
           }
           return (
             <div className="flex flex-col gap-1">
-              {actorIsOwner && (
+              {canManageAdministrators && (
                 <label className="flex items-center gap-2 text-sm">
                   <input
                     type="checkbox"
@@ -200,11 +202,8 @@ export function MembersPage({ clubId }: { clubId: string }) {
           const member = info.row.original;
           const targetIsOwner = member.responsibilities.includes('owner');
           const targetIsAdministrator = member.responsibilities.includes('admin');
-          const actorResponsibilities = club?.responsibilities ?? [];
           const actorCanManage =
-            me?.platformAdmin ||
-            actorResponsibilities.includes('owner') ||
-            (actorResponsibilities.includes('admin') && !targetIsAdministrator);
+            canManageMembers && (!targetIsAdministrator || canManageAdministrators);
           if (
             targetIsOwner ||
             member.userId === me?.user.id ||
@@ -251,16 +250,15 @@ export function MembersPage({ clubId }: { clubId: string }) {
         header: () => <span className="block text-right">{t('common.actions')}</span>,
         cell: (info) => {
           const member = info.row.original;
-          const actorResponsibilities = club?.responsibilities ?? [];
-          const actorIsOwner = me?.platformAdmin || actorResponsibilities.includes('owner');
-          const actorIsAdministrator = actorResponsibilities.includes('admin');
           const targetIsOwner = member.responsibilities.includes('owner');
           const targetIsAdministrator = member.responsibilities.includes('admin');
           const canManageTarget =
-            actorIsOwner || (actorIsAdministrator && !targetIsOwner && !targetIsAdministrator);
+            canManageMembers &&
+            !targetIsOwner &&
+            (!targetIsAdministrator || canManageAdministrators);
           return (
             <div className="flex justify-end gap-2">
-              {actorIsOwner &&
+              {canTransferOwnership &&
                 member.membershipStatus === 'active' &&
                 member.userId !== me?.user.id &&
                 !targetIsOwner && (
@@ -341,9 +339,10 @@ export function MembersPage({ clubId }: { clubId: string }) {
       }),
     ],
     [
-      club?.responsibilities,
+      canManageAdministrators,
+      canManageMembers,
+      canTransferOwnership,
       dateLocale,
-      me?.platformAdmin,
       me?.user.id,
       removeMember,
       responsibilityLabel,
@@ -391,9 +390,11 @@ export function MembersPage({ clubId }: { clubId: string }) {
         cell: (info) => {
           const invitation = info.row.original;
           const actionable = !invitation.acceptedAt && !invitation.revokedAt;
+          const canManageInvitation =
+            invitation.responsibility !== 'admin' || canManageAdministrators;
           return (
             <div className="flex justify-end gap-2">
-              {actionable && (
+              {actionable && canManageInvitation && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -410,7 +411,7 @@ export function MembersPage({ clubId }: { clubId: string }) {
                   {t('invites.resend')}
                 </Button>
               )}
-              {actionable && (
+              {actionable && canManageInvitation && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -432,7 +433,7 @@ export function MembersPage({ clubId }: { clubId: string }) {
         },
       }),
     ],
-    [dateLocale, locale, resend, revoke, responsibilityLabel, t],
+    [canManageAdministrators, dateLocale, locale, resend, revoke, responsibilityLabel, t],
   );
   const memberTable = useReactTable({
     data: members.data?.items ?? [],
@@ -518,7 +519,7 @@ export function MembersPage({ clubId }: { clubId: string }) {
   return (
     <div className="flex flex-col gap-6">
       {canReviewMembershipRequests && (
-        <MembershipRequestsSection clubId={clubId} archived={Boolean(club.archivedAt)} />
+        <MembershipRequestsSection clubId={clubId} archived={Boolean(club?.archivedAt)} />
       )}
       <div className="flex flex-wrap items-center gap-3">
         <Input
@@ -531,12 +532,14 @@ export function MembersPage({ clubId }: { clubId: string }) {
           }}
           placeholder={t('members.searchPlaceholder')}
         />
-        <InviteMemberDrawer clubId={clubId}>
-          <Button className="w-full sm:w-auto">
-            <IconPlus />
-            {t('members.invite')}
-          </Button>
-        </InviteMemberDrawer>
+        {canManageMembers && (
+          <InviteMemberDrawer clubId={clubId} canInviteAdministrator={canManageAdministrators}>
+            <Button className="w-full sm:w-auto">
+              <IconPlus />
+              {t('members.invite')}
+            </Button>
+          </InviteMemberDrawer>
+        )}
       </div>
       <Card>
         <CardHeader>

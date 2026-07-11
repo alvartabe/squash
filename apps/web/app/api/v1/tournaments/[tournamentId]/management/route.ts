@@ -1,16 +1,13 @@
 import { getTournamentManagement } from '@squash/server';
-import { dataResponse, errorResponse, requireManagementUserId } from '@/src/http';
+import { dataResponse, managementRoute } from '@/src/http';
 
-export async function GET(
-  _request: Request,
-  context: { params: Promise<{ tournamentId: string }> },
-) {
-  try {
+export const GET = managementRoute(
+  async (
+    actorId: string,
+    _request: Request,
+    context: { params: Promise<{ tournamentId: string }> },
+  ) => {
     const { tournamentId } = await context.params;
-    return dataResponse(
-      await getTournamentManagement(await requireManagementUserId(), tournamentId),
-    );
-  } catch (error) {
-    return errorResponse(error);
-  }
-}
+    return dataResponse(await getTournamentManagement(actorId, tournamentId));
+  },
+);

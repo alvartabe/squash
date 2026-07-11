@@ -10,6 +10,7 @@ import {
   ClubLifecycleActions,
   clubLifecycleVisibility,
 } from '@/components/clubs/club-lifecycle-actions';
+import { OwnershipRecoveryAction } from '@/components/clubs/ownership-recovery-action';
 import { useWorkspaceClub, useWorkspaceMe } from '@/src/hooks/workspace';
 import { useLocale } from '@/src/locale-provider';
 
@@ -20,13 +21,16 @@ export default function ClubPage() {
   const { t } = useLocale();
   if (isLoading || !club)
     return <main className="p-6 text-sm text-muted-foreground">{t('common.loading')}</main>;
-  const canUpdate = club.responsibilities.some((responsibility) =>
-    ['owner', 'admin'].includes(responsibility),
-  );
+  const permissions = me?.memberships.find(
+    (membership) => membership.clubId === clubId,
+  )?.permissions;
+  const canUpdate = permissions?.includes('club.update') ?? false;
+  const canManageMembers = permissions?.includes('members.manage') ?? false;
   const { canArchive, canRestore } = clubLifecycleVisibility({
     ...club,
     platformAdmin: me?.platformAdmin === true,
   });
+  const canRecoverOwnership = me?.platformAdmin === true && !club.archivedAt;
   return (
     <main className="flex flex-col gap-6 px-4 py-6 lg:px-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -39,13 +43,14 @@ export default function ClubPage() {
             {club.timeZone ?? t('clubForm.timeZoneNotConfigured')} · /{club.slug}
           </p>
         </div>
-        {(canUpdate || canArchive || canRestore) && (
+        {(canUpdate || canArchive || canRestore || canRecoverOwnership) && (
           <div className="flex gap-2">
             {canUpdate && !club.archivedAt && (
               <ClubDrawer club={club}>
                 <Button variant="outline">{t('common.edit')}</Button>
               </ClubDrawer>
             )}
+            {canRecoverOwnership && <OwnershipRecoveryAction clubId={clubId} />}
             <ClubLifecycleActions
               clubId={clubId}
               archived={Boolean(club.archivedAt)}
@@ -66,14 +71,16 @@ export default function ClubPage() {
             </CardTitle>
             <CardDescription>{t('members.description')}</CardDescription>
           </CardHeader>
-          <CardContent>
-            <Button asChild variant="secondary">
-              <Link href={`/workspace/clubs/${clubId}/members`}>
-                {t('sidebar.members')}
-                <ArrowRight />
-              </Link>
-            </Button>
-          </CardContent>
+          {canManageMembers && (
+            <CardContent>
+              <Button asChild variant="secondary">
+                <Link href={`/workspace/clubs/${clubId}/members`}>
+                  {t('sidebar.members')}
+                  <ArrowRight />
+                </Link>
+              </Button>
+            </CardContent>
+          )}
         </Card>
       </div>
     </main>

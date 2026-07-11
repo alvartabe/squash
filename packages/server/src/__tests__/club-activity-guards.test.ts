@@ -117,6 +117,8 @@ describe('archived Club activity guards', () => {
 
   it('rejects a new Official Tournament before inserting rules or activity', async () => {
     mockGetClubAuthorization.mockResolvedValueOnce({
+      clubId: 'bd8749bd-8b32-4fd2-a96e-5413de2057cc',
+      platformRole: 'user',
       membershipStatus: 'active',
       responsibilities: ['owner'],
       clubArchivedAt: new Date(),

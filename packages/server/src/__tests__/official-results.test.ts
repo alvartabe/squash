@@ -60,18 +60,20 @@ function locateManager(responsibilities: string[] = ['owner']) {
   mockAuthorization.mockResolvedValueOnce({ membershipStatus: 'active', responsibilities });
 }
 
-function successfulTransaction(record: Record<string, unknown> = fixture) {
+function successfulTransaction(
+  record: Record<string, unknown> = fixture,
+  appointmentRows?: unknown[],
+) {
   const writes: Array<{ table: unknown; values: unknown }> = [];
   const updates: Array<{ table: unknown; values: Record<string, unknown> }> = [];
-  const select = jest
-    .fn()
-    .mockReturnValueOnce(queryRows([record]))
-    .mockReturnValueOnce(
-      queryRows([
-        { userId: 'player-1', position: 1 },
-        { userId: 'player-2', position: 2 },
-      ]),
-    );
+  const select = jest.fn().mockReturnValueOnce(queryRows([record]));
+  if (appointmentRows) select.mockReturnValueOnce(queryRows(appointmentRows));
+  select.mockReturnValueOnce(
+    queryRows([
+      { userId: 'player-1', position: 1 },
+      { userId: 'player-2', position: 2 },
+    ]),
+  );
   const tx = {
     select,
     update: jest.fn((table: unknown) => ({
@@ -174,8 +176,7 @@ describe('Organizer-controlled Official Results', () => {
 
   it('allows an explicitly appointed active Coach', async () => {
     locateManager(['coach']);
-    mockDb.select.mockReturnValueOnce(queryRows([{ userId: 'coach-id' }]));
-    successfulTransaction();
+    successfulTransaction(fixture, [{ userId: 'coach-id' }]);
     await expect(
       recordOfficialTournamentResult('coach-id', 'tournament-id', 'fixture-id', input),
     ).resolves.toMatchObject({ winnerId: 'player-1' });
@@ -209,11 +210,14 @@ describe('Organizer-controlled Official Results', () => {
     ['unrelated Player', []],
   ])('rejects an %s', async (_label, responsibilities) => {
     locateManager(responsibilities);
-    if (responsibilities.includes('coach')) mockDb.select.mockReturnValueOnce(queryRows([]));
+    const { tx } = successfulTransaction(
+      fixture,
+      responsibilities.includes('coach') ? [] : undefined,
+    );
     await expect(
       recordOfficialTournamentResult('player-id', 'tournament-id', 'fixture-id', input),
     ).rejects.toMatchObject({ code: 'FORBIDDEN', status: 403 });
-    expect(mockDb.transaction).not.toHaveBeenCalled();
+    expect(tx.update).not.toHaveBeenCalled();
   });
 
   it.each([

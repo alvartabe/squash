@@ -37,9 +37,11 @@ type Values = z.infer<typeof schema>;
 
 export function InviteMemberDrawer({
   clubId,
+  canInviteAdministrator,
   children,
 }: {
   clubId: string;
+  canInviteAdministrator: boolean;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -94,11 +96,13 @@ export function InviteMemberDrawer({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {(['admin', 'coach', 'none'] as const).map((responsibility) => (
-                  <SelectItem key={responsibility} value={responsibility}>
-                    {t(`members.${responsibility === 'none' ? 'player' : responsibility}`)}
-                  </SelectItem>
-                ))}
+                {(['admin', 'coach', 'none'] as const)
+                  .filter((responsibility) => responsibility !== 'admin' || canInviteAdministrator)
+                  .map((responsibility) => (
+                    <SelectItem key={responsibility} value={responsibility}>
+                      {t(`members.${responsibility === 'none' ? 'player' : responsibility}`)}
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
           </div>

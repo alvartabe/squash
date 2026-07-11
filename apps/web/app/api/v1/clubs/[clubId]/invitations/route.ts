@@ -1,25 +1,21 @@
 import { idSchema, inviteClubMemberSchema, paginationQuerySchema } from '@squash/contracts';
 import { inviteClubMember, listClubInvitations } from '@squash/server';
-import { dataResponse, errorResponse, requireManagementUserId } from '@/src/http';
+import { dataResponse, managementRoute } from '@/src/http';
 
 type Context = { params: Promise<{ clubId: string }> };
 
-export async function GET(request: Request, { params }: Context) {
-  try {
-    const actorId = await requireManagementUserId();
+export const GET = managementRoute(
+  async (actorId: string, request: Request, { params }: Context) => {
     const { clubId } = await params;
     const query = paginationQuerySchema.parse(
       Object.fromEntries(new URL(request.url).searchParams.entries()),
     );
     return dataResponse(await listClubInvitations(actorId, idSchema.parse(clubId), query));
-  } catch (error) {
-    return errorResponse(error);
-  }
-}
+  },
+);
 
-export async function POST(request: Request, { params }: Context) {
-  try {
-    const actorId = await requireManagementUserId();
+export const POST = managementRoute(
+  async (actorId: string, request: Request, { params }: Context) => {
     const { clubId } = await params;
     return dataResponse(
       await inviteClubMember(
@@ -29,7 +25,5 @@ export async function POST(request: Request, { params }: Context) {
       ),
       201,
     );
-  } catch (error) {
-    return errorResponse(error);
-  }
-}
+  },
+);
