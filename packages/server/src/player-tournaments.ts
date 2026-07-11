@@ -1,4 +1,8 @@
-import type { TournamentPlayerDetail } from '@squash/contracts';
+import type {
+  TournamentPlayerDetail,
+  TournamentStatus,
+  TournamentVisibility,
+} from '@squash/contracts';
 import { tournamentPlayerDetailSchema } from '@squash/contracts';
 import {
   clubMemberships,
@@ -34,8 +38,8 @@ type GroupMemberRow = PlayerIdentity & {
 };
 
 function hasPlayerViewAccess(tournament: {
-  visibility: 'club-only' | 'public';
-  status: 'cancelled' | 'completed' | 'draft' | 'registration' | 'group-stage' | 'knockout';
+  visibility: TournamentVisibility;
+  status: TournamentStatus;
   hasActiveMembership: boolean;
   hasParticipation: boolean;
   hasPendingInvitation: boolean;
