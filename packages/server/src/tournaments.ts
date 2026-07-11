@@ -452,8 +452,13 @@ export async function listDiscoverableTournaments(actorId: string): Promise<Tour
           eq(tournaments.visibility, 'public'),
           exists(activeMembership),
           eq(tournamentParticipations.playerId, actorId),
-          eq(tournamentEntryRequests.playerId, actorId),
-          eq(tournamentInvitations.playerId, actorId),
+          and(
+            eq(tournaments.status, 'registration'),
+            or(
+              eq(tournamentEntryRequests.playerId, actorId),
+              eq(tournamentInvitations.playerId, actorId),
+            ),
+          ),
         ),
       ),
     )
@@ -467,9 +472,9 @@ export async function listDiscoverableTournaments(actorId: string): Promise<Tour
       startsAt: row.startsAt.toISOString(),
       relationship: row.participantId
         ? 'accepted'
-        : row.entryRequestId
+        : status === 'registration' && row.entryRequestId
           ? 'request-pending'
-          : row.invitationId
+          : status === 'registration' && row.invitationId
             ? 'invited'
             : 'none',
     };

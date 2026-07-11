@@ -35,6 +35,7 @@ type GroupMemberRow = PlayerIdentity & {
 
 function hasPlayerViewAccess(tournament: {
   visibility: 'club-only' | 'public';
+  status: 'cancelled' | 'completed' | 'draft' | 'registration' | 'group-stage' | 'knockout';
   hasActiveMembership: boolean;
   hasParticipation: boolean;
   hasPendingInvitation: boolean;
@@ -44,8 +45,8 @@ function hasPlayerViewAccess(tournament: {
     tournament.visibility === 'public' ||
     tournament.hasActiveMembership ||
     tournament.hasParticipation ||
-    tournament.hasPendingInvitation ||
-    tournament.hasPendingEntryRequest
+    (tournament.status === 'registration' &&
+      (tournament.hasPendingInvitation || tournament.hasPendingEntryRequest))
   );
 }
 

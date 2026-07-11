@@ -58,6 +58,22 @@ describe('Official Tournament Player detail authorization', () => {
     ).rejects.toMatchObject({ code: 'FORBIDDEN', status: 403 });
   });
 
+  it('does not extend Club-only progress access through a stale pre-Start request or invitation', async () => {
+    mockDb.select.mockReturnValueOnce(
+      selectRows([
+        {
+          ...tournament,
+          hasPendingInvitation: true,
+          hasPendingEntryRequest: true,
+        },
+      ]),
+    );
+
+    await expect(
+      getOfficialTournamentPlayerDetail('player-id', tournament.id),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN', status: 403 });
+  });
+
   it('retains Club-only access through accepted Tournament Participation after Membership changes', async () => {
     mockDb.select.mockReturnValueOnce(selectRows([{ ...tournament, hasParticipation: true }]));
     mockDb.select.mockReturnValueOnce(selectRows([]));
