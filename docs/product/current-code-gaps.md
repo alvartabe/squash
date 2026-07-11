@@ -66,18 +66,20 @@ finalized Groups, canonical
 current standings, Group fixtures, finalized Official Results with Game scores, the Knockout
 Draw, persisted Fixture Schedule details, and the champion only for a Completed Tournament. Public
 access is available to every registered Player; Club-only detail access requires an Active
-Membership in the owning Club or accepted Tournament Participation. A direct pending Invitation
-remains reachable in the Registration Open list so the invited Player can respond, but pending
-relationships do not authorize the detail projection. Accepted Tournament Participation continues
-to grant event access after the Membership that originally established eligibility changes. Public
-and accepted-participant completed history remains in the mobile list after Club archival. The
+Membership in the owning Club or accepted Tournament Participation. Pending Entry Requests and
+Invitations do not extend Club-only visibility after the qualifying Membership changes. Accepted
+Tournament Participation continues to grant event access after the Membership that originally
+established eligibility changes. Public and accepted-participant completed history remains in the
+mobile list after Club archival. The
 Player projection does not expose Draft Draws, organizer audit data, correction reasons,
 revisions, Result Locks, or any result-management action. English and Latin American Spanish
 mobile copy cover the delivered experience.
 
 Tournament creation persists description and informational venue. Match persistence and the shared
 fixture read model carry optional schedule date/time, venue text, and court label so the Player
-projection displays those values when configured.
+projection displays those values in the Tournament time zone. Authorized web Organizers may set or
+clear the Fixture Schedule while its Match remains Scheduled; the mutation rechecks Tournament
+authority in the transaction and stops accepting changes after the Match begins.
 
 The Organizer Tiebreak Decision workflow is implemented for statistically inseparable
 Group standings, Wildcard qualification cutoffs, and Knockout seeding. The management

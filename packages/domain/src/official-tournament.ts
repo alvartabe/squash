@@ -15,18 +15,6 @@ export function isOfficialTournamentAudienceMember(
   return visibility === 'public' || hasActiveOwningClubMembership;
 }
 
-export function canListOfficialTournamentForPlayer(input: {
-  status: OfficialTournamentStatus;
-  visibility: OfficialTournamentVisibility;
-  hasActiveOwningClubMembership: boolean;
-  relationship: OfficialTournamentRelationship;
-}) {
-  return (
-    canViewOfficialTournamentForPlayer(input) ||
-    (input.status === 'registration' && input.relationship === 'invited')
-  );
-}
-
 export function canViewOfficialTournamentForPlayer(input: {
   status: OfficialTournamentStatus;
   visibility: OfficialTournamentVisibility;

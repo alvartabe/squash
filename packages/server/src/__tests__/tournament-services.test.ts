@@ -22,6 +22,7 @@ import {
   requestTournamentEntry,
   respondToTournamentInvitation,
   startTournament,
+  updateTournamentFixtureSchedule,
   withdrawTournamentParticipation,
 } from '../tournaments';
 
@@ -87,6 +88,65 @@ describe('Official Tournament Player discovery through completion', () => {
         relationship: 'accepted',
       }),
     ]);
+  });
+});
+
+describe('Official Tournament Fixture Schedule', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('lets an authorized Organizer configure an unstarted Match', async () => {
+    mockAuthorization.mockResolvedValueOnce({
+      platformRole: 'user',
+      membershipStatus: 'active',
+      responsibilities: ['owner'],
+      clubArchivedAt: null,
+    });
+    const { updates } = transactionWith([
+      [{ ...tournament, status: 'group-stage' }],
+      [{ matchId: 'match-1', matchStatus: 'scheduled' }],
+    ]);
+
+    await expect(
+      updateTournamentFixtureSchedule('owner-id', tournament.id, 'fixture-1', {
+        scheduledAt: '2026-08-02T09:00:00-06:00',
+        venueText: 'Glass Court',
+        courtLabel: 'Court 1',
+      }),
+    ).resolves.toMatchObject({
+      fixtureId: 'fixture-1',
+      scheduledAt: '2026-08-02T15:00:00.000Z',
+      venueText: 'Glass Court',
+      courtLabel: 'Court 1',
+    });
+    expect(updates.find(({ table }) => table === matches)?.values).toMatchObject({
+      scheduledAt: new Date('2026-08-02T15:00:00.000Z'),
+      venueText: 'Glass Court',
+      courtLabel: 'Court 1',
+    });
+  });
+
+  it('locks Fixture Schedule changes after the Match begins', async () => {
+    mockAuthorization.mockResolvedValueOnce({
+      platformRole: 'user',
+      membershipStatus: 'active',
+      responsibilities: ['owner'],
+      clubArchivedAt: null,
+    });
+    const { updates } = transactionWith([
+      [{ ...tournament, status: 'knockout' }],
+      [{ matchId: 'match-1', matchStatus: 'in-progress' }],
+    ]);
+
+    await expect(
+      updateTournamentFixtureSchedule('owner-id', tournament.id, 'fixture-1', {
+        scheduledAt: null,
+        venueText: null,
+        courtLabel: null,
+      }),
+    ).rejects.toMatchObject({ code: 'TOURNAMENT_FIXTURE_ALREADY_STARTED', status: 409 });
+    expect(updates).toEqual([]);
   });
 });
 

@@ -222,6 +222,18 @@ export const officialResultCorrectionStatusSchema = z.enum([
 ]);
 export type OfficialResultCorrectionStatus = z.infer<typeof officialResultCorrectionStatusSchema>;
 
+const fixtureScheduleSchema = z.object({
+  scheduledAt: z.string().nullable().optional(),
+  venueText: z.string().nullable().optional(),
+  courtLabel: z.string().nullable().optional(),
+});
+
+export const updateTournamentFixtureScheduleSchema = z.object({
+  scheduledAt: isoDateTimeSchema.nullable(),
+  venueText: z.string().trim().nullable(),
+  courtLabel: z.string().trim().nullable(),
+});
+
 export const tournamentGroupFixtureSchema = z.object({
   id: idSchema,
   matchId: idSchema,
@@ -233,9 +245,7 @@ export const tournamentGroupFixtureSchema = z.object({
   groupPosition: z.number().int().positive(),
   round: z.number().int().positive(),
   position: z.number().int().positive(),
-  scheduledAt: z.string().nullable().optional(),
-  venueText: z.string().nullable().optional(),
-  courtLabel: z.string().nullable().optional(),
+  ...fixtureScheduleSchema.shape,
   playerOne: z.object({
     id: userIdSchema,
     name: z.string(),
@@ -261,9 +271,7 @@ export const tournamentKnockoutFixtureSchema = z.object({
   currentRevision: z.number().int().nonnegative(),
   round: z.number().int().positive(),
   position: z.number().int().positive(),
-  scheduledAt: z.string().nullable().optional(),
-  venueText: z.string().nullable().optional(),
-  courtLabel: z.string().nullable().optional(),
+  ...fixtureScheduleSchema.shape,
   playerOne: z
     .object({ id: userIdSchema, name: z.string(), image: z.string().nullable() })
     .nullable(),
@@ -290,9 +298,7 @@ const tournamentPlayerFixtureSchema = z.object({
   status: z.enum(['scheduled', 'in-progress', 'completed', 'void']).nullable(),
   round: z.number().int().positive(),
   position: z.number().int().positive(),
-  scheduledAt: z.string().nullable().optional(),
-  venueText: z.string().nullable().optional(),
-  courtLabel: z.string().nullable().optional(),
+  ...fixtureScheduleSchema.shape,
   playerOne: tournamentPlayerIdentitySchema.nullable(),
   playerTwo: tournamentPlayerIdentitySchema.nullable(),
   games: z.array(gameScoreSchema),
@@ -754,6 +760,9 @@ export type TournamentParticipation = z.infer<typeof tournamentParticipationSche
 export type TournamentGroupFixture = z.infer<typeof tournamentGroupFixtureSchema>;
 export type TournamentKnockoutFixture = z.infer<typeof tournamentKnockoutFixtureSchema>;
 export type TournamentPlayerDetail = z.infer<typeof tournamentPlayerDetailSchema>;
+export type UpdateTournamentFixtureScheduleInput = z.infer<
+  typeof updateTournamentFixtureScheduleSchema
+>;
 export type OrganizerTiebreakContext = z.infer<typeof organizerTiebreakContextSchema>;
 export type OrganizerTiebreakRequirement = z.infer<typeof organizerTiebreakRequirementSchema>;
 export type OrganizerTiebreakDecisionInput = z.infer<typeof organizerTiebreakDecisionInputSchema>;

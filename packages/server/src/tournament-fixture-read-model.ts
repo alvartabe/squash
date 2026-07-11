@@ -30,8 +30,22 @@ type TournamentFixtureReadInput = {
   status: TournamentStatus;
 };
 
+type FixtureScheduleRow = {
+  scheduledAt: Date | null;
+  venueText: string | null;
+  courtLabel: string | null;
+};
+
+function serializeFixtureSchedule(row: FixtureScheduleRow) {
+  return {
+    scheduledAt: row.scheduledAt?.toISOString() ?? null,
+    venueText: row.venueText,
+    courtLabel: row.courtLabel,
+  };
+}
+
 function serializeGroupFixture(
-  row: {
+  row: FixtureScheduleRow & {
     id: string;
     matchId: string;
     matchStatus: 'scheduled' | 'in-progress' | 'completed' | 'disputed' | 'void';
@@ -42,9 +56,6 @@ function serializeGroupFixture(
     groupPosition: number;
     round: number;
     position: number;
-    scheduledAt: Date | null;
-    venueText: string | null;
-    courtLabel: string | null;
     playerOneId: string;
     playerOneName: string;
     playerOneImage: string | null;
@@ -70,9 +81,7 @@ function serializeGroupFixture(
     groupPosition: row.groupPosition,
     round: row.round,
     position: row.position,
-    scheduledAt: row.scheduledAt?.toISOString() ?? null,
-    venueText: row.venueText,
-    courtLabel: row.courtLabel,
+    ...serializeFixtureSchedule(row),
     playerOne: { id: row.playerOneId, name: row.playerOneName, image: row.playerOneImage },
     playerTwo: { id: row.playerTwoId, name: row.playerTwoName, image: row.playerTwoImage },
     scoringRules: {
@@ -88,7 +97,7 @@ function serializeGroupFixture(
 }
 
 function serializeKnockoutFixture(
-  row: {
+  row: FixtureScheduleRow & {
     id: string;
     matchId: string | null;
     matchStatus: 'scheduled' | 'in-progress' | 'completed' | 'disputed' | 'void' | null;
@@ -97,9 +106,6 @@ function serializeKnockoutFixture(
     advancesToFixtureId: string | null;
     round: number;
     position: number;
-    scheduledAt: Date | null;
-    venueText: string | null;
-    courtLabel: string | null;
     playerOneId: string | null;
     playerOneName: string | null;
     playerOneImage: string | null;
@@ -121,9 +127,7 @@ function serializeKnockoutFixture(
     currentRevision: row.currentRevision ?? 0,
     round: row.round,
     position: row.position,
-    scheduledAt: row.scheduledAt?.toISOString() ?? null,
-    venueText: row.venueText,
-    courtLabel: row.courtLabel,
+    ...serializeFixtureSchedule(row),
     playerOne:
       row.playerOneId && row.playerOneName
         ? { id: row.playerOneId, name: row.playerOneName, image: row.playerOneImage }

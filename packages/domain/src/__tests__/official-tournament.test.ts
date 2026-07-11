@@ -1,5 +1,4 @@
 import {
-  canListOfficialTournamentForPlayer,
   canManageOfficialTournament,
   canRequestOfficialTournamentEntry,
   canViewOfficialTournamentForPlayer,
@@ -10,7 +9,7 @@ import {
 describe('Official Tournament discovery and entry policy', () => {
   it('limits Club-only discovery to active owning-Club members', () => {
     expect(
-      canListOfficialTournamentForPlayer({
+      canViewOfficialTournamentForPlayer({
         status: 'registration',
         visibility: 'club-only',
         hasActiveOwningClubMembership: true,
@@ -18,7 +17,7 @@ describe('Official Tournament discovery and entry policy', () => {
       }),
     ).toBe(true);
     expect(
-      canListOfficialTournamentForPlayer({
+      canViewOfficialTournamentForPlayer({
         status: 'registration',
         visibility: 'club-only',
         hasActiveOwningClubMembership: false,
@@ -39,7 +38,7 @@ describe('Official Tournament discovery and entry policy', () => {
 
   it('never exposes a Draft to Players', () => {
     expect(
-      canListOfficialTournamentForPlayer({
+      canViewOfficialTournamentForPlayer({
         status: 'draft',
         visibility: 'public',
         hasActiveOwningClubMembership: true,
@@ -72,15 +71,15 @@ describe('Official Tournament discovery and entry policy', () => {
     }
   });
 
-  it('keeps a direct invitation reachable in the Registration Open list for response', () => {
+  it('does not extend Club-only list visibility through a pending invitation', () => {
     expect(
-      canListOfficialTournamentForPlayer({
+      canViewOfficialTournamentForPlayer({
         status: 'registration',
         visibility: 'club-only',
         hasActiveOwningClubMembership: false,
         relationship: 'invited',
       }),
-    ).toBe(true);
+    ).toBe(false);
   });
 });
 

@@ -3,6 +3,7 @@
 import type {
   OrganizerTiebreakRequirement,
   TournamentGroupFixture,
+  TournamentKnockoutFixture,
   TournamentManagement,
   TournamentVisibility,
 } from '@squash/contracts';
@@ -545,6 +546,11 @@ function GroupStageFixturesSection({ tournament }: { tournament: TournamentManag
                       {fixture.playerTwo.name}
                     </td>
                     <td className="min-w-80 px-3 py-2">
+                      <FixtureScheduleForm
+                        clubId={tournament.clubId}
+                        fixture={fixture}
+                        tournamentId={tournament.id}
+                      />
                       <FixtureOfficialResult
                         clubId={tournament.clubId}
                         fixture={fixture}
@@ -584,6 +590,11 @@ function KnockoutFixturesSection({ tournament }: { tournament: TournamentManagem
                 <span className="text-muted-foreground">{t('tournaments.versus')}</span>{' '}
                 {fixture.playerTwo.name}
               </p>
+              <FixtureScheduleForm
+                clubId={tournament.clubId}
+                fixture={fixture}
+                tournamentId={tournament.id}
+              />
               <FixtureOfficialResult
                 clubId={tournament.clubId}
                 fixture={fixture}
@@ -599,6 +610,69 @@ function KnockoutFixturesSection({ tournament }: { tournament: TournamentManagem
         </div>
       ))}
     </section>
+  );
+}
+
+function FixtureScheduleForm({
+  clubId,
+  fixture,
+  tournamentId,
+}: {
+  clubId: string;
+  fixture: TournamentGroupFixture | TournamentKnockoutFixture;
+  tournamentId: string;
+}) {
+  const action = useTournamentAction(clubId);
+  const { t } = useLocale();
+  const [scheduledAt, setScheduledAt] = useState(fixture.scheduledAt ?? '');
+  const [venueText, setVenueText] = useState(fixture.venueText ?? '');
+  const [courtLabel, setCourtLabel] = useState(fixture.courtLabel ?? '');
+  useEffect(() => {
+    setScheduledAt(fixture.scheduledAt ?? '');
+    setVenueText(fixture.venueText ?? '');
+    setCourtLabel(fixture.courtLabel ?? '');
+  }, [fixture.courtLabel, fixture.id, fixture.scheduledAt, fixture.venueText]);
+  const schedulable = fixture.matchId !== null && fixture.matchStatus === 'scheduled';
+
+  return (
+    <form
+      className="mb-3 grid gap-2 rounded-md border p-3"
+      onSubmit={(event) => {
+        event.preventDefault();
+        action.mutate({
+          method: 'patch',
+          path: `/tournaments/${tournamentId}/fixtures/${fixture.id}/schedule`,
+          data: {
+            scheduledAt: scheduledAt.trim() || null,
+            venueText: venueText.trim() || null,
+            courtLabel: courtLabel.trim() || null,
+          },
+        });
+      }}
+    >
+      <p className="text-sm font-medium">{t('tournaments.fixtureSchedule')}</p>
+      <Input
+        disabled={!schedulable || action.isPending}
+        onChange={(event) => setScheduledAt(event.target.value)}
+        placeholder={t('tournaments.fixtureScheduledAt')}
+        value={scheduledAt}
+      />
+      <Input
+        disabled={!schedulable || action.isPending}
+        onChange={(event) => setVenueText(event.target.value)}
+        placeholder={t('tournaments.fixtureVenue')}
+        value={venueText}
+      />
+      <Input
+        disabled={!schedulable || action.isPending}
+        onChange={(event) => setCourtLabel(event.target.value)}
+        placeholder={t('tournaments.fixtureCourt')}
+        value={courtLabel}
+      />
+      <Button disabled={!schedulable || action.isPending} size="sm" type="submit" variant="outline">
+        {t('tournaments.saveFixtureSchedule')}
+      </Button>
+    </form>
   );
 }
 

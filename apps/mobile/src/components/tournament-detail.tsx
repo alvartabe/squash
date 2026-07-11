@@ -21,7 +21,7 @@ const matchStatusKeys: Record<PlayerMatchStatus, Parameters<typeof t>[0]> = {
   void: 'tournaments.matchStatus.void',
 };
 
-function MatchCard({ fixture }: { fixture: PlayerFixture }) {
+function MatchCard({ fixture, timeZone }: { fixture: PlayerFixture; timeZone: string }) {
   const playerOne = fixture.playerOne?.name ?? t('tournaments.officialResult.awaitingPlayers');
   const playerTwo = fixture.playerTwo?.name ?? t('tournaments.officialResult.awaitingPlayers');
   const location = [fixture.venueText, fixture.courtLabel].filter(Boolean).join(' · ');
@@ -45,6 +45,7 @@ function MatchCard({ fixture }: { fixture: PlayerFixture }) {
           {new Intl.DateTimeFormat(mobileLocale, {
             dateStyle: 'medium',
             timeStyle: 'short',
+            timeZone,
           }).format(new Date(fixture.scheduledAt))}
         </Text>
       ) : null}
@@ -140,7 +141,7 @@ export function TournamentDetail({ tournament }: { tournament: TournamentPlayerD
           ))}
           <Text style={styles.label}>{t('tournaments.detail.groupFixtures')}</Text>
           {group.fixtures.map((fixture) => (
-            <MatchCard fixture={fixture} key={fixture.id} />
+            <MatchCard fixture={fixture} key={fixture.id} timeZone={tournament.timeZone} />
           ))}
         </View>
       ))}
@@ -148,7 +149,9 @@ export function TournamentDetail({ tournament }: { tournament: TournamentPlayerD
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('tournaments.detail.knockoutDraw')}</Text>
         {tournament.knockoutDraw.length > 0 ? (
-          tournament.knockoutDraw.map((fixture) => <MatchCard fixture={fixture} key={fixture.id} />)
+          tournament.knockoutDraw.map((fixture) => (
+            <MatchCard fixture={fixture} key={fixture.id} timeZone={tournament.timeZone} />
+          ))
         ) : (
           <Text style={styles.muted}>{t('tournaments.noKnockoutFixtures')}</Text>
         )}

@@ -9,6 +9,7 @@ import type {
   TournamentPlayer,
   TournamentPlayerCandidate,
   TournamentVisibility,
+  UpdateTournamentFixtureScheduleInput,
 } from '@squash/contracts';
 import {
   clubMemberships,
@@ -32,8 +33,8 @@ import {
 } from '@squash/db/schema';
 import {
   assignPlayersToGroups,
-  canListOfficialTournamentForPlayer,
   canPerformClubAction,
+  canViewOfficialTournamentForPlayer,
   createRoundRobinPairs,
   isExactOrganizerTiebreakOrder,
 } from '@squash/domain';
@@ -391,6 +392,57 @@ export async function updateTournamentVisibility(
   });
 }
 
+export async function updateTournamentFixtureSchedule(
+  actorId: string,
+  tournamentId: string,
+  fixtureId: string,
+  input: UpdateTournamentFixtureScheduleInput,
+) {
+  return tournamentManagementTransaction(async (tx) => {
+    await lockAuthorizedTournament(tx, actorId, tournamentId);
+    const [fixture] = await tx
+      .select({ matchId: tournamentFixtures.matchId, matchStatus: matches.status })
+      .from(tournamentFixtures)
+      .innerJoin(matches, eq(matches.id, tournamentFixtures.matchId))
+      .where(
+        and(
+          eq(tournamentFixtures.id, fixtureId),
+          eq(tournamentFixtures.tournamentId, tournamentId),
+        ),
+      )
+      .limit(1)
+      .for('update');
+    if (!fixture?.matchId) throw notFound('TOURNAMENT_FIXTURE_NOT_FOUND');
+    if (fixture.matchStatus !== 'scheduled') {
+      throw new ServiceError('TOURNAMENT_FIXTURE_ALREADY_STARTED', 'error.invalidRequest', 409);
+    }
+    const scheduledAt = input.scheduledAt ? new Date(input.scheduledAt) : null;
+    const [updated] = await tx
+      .update(matches)
+      .set({
+        scheduledAt,
+        venueText: input.venueText,
+        courtLabel: input.courtLabel,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(matches.id, fixture.matchId), eq(matches.status, 'scheduled')))
+      .returning({
+        scheduledAt: matches.scheduledAt,
+        venueText: matches.venueText,
+        courtLabel: matches.courtLabel,
+      });
+    if (!updated) {
+      throw new ServiceError('TOURNAMENT_FIXTURE_ALREADY_STARTED', 'error.invalidRequest', 409);
+    }
+    return {
+      fixtureId,
+      scheduledAt: updated.scheduledAt?.toISOString() ?? null,
+      venueText: updated.venueText,
+      courtLabel: updated.courtLabel,
+    };
+  });
+}
+
 export async function listDiscoverableTournaments(actorId: string): Promise<TournamentPlayer[]> {
   const [player] = await db
     .select({ id: users.id })
@@ -462,7 +514,7 @@ export async function listDiscoverableTournaments(actorId: string): Promise<Tour
           ? 'invited'
           : 'none';
     if (
-      !canListOfficialTournamentForPlayer({
+      !canViewOfficialTournamentForPlayer({
         status,
         visibility: row.visibility,
         hasActiveOwningClubMembership: Boolean(hasActiveMembership),

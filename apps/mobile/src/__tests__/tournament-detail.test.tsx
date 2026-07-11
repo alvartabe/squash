@@ -15,7 +15,7 @@ const detail: TournamentPlayerDetail = {
   visibility: 'public',
   status: 'completed',
   startsAt: '2026-08-01T15:00:00.000Z',
-  timeZone: 'America/Costa_Rica',
+  timeZone: 'Pacific/Honolulu',
   configuration: {
     groupSize: 4,
     automaticQualifiersPerGroup: 2,
@@ -72,6 +72,7 @@ const detail: TournamentPlayerDetail = {
       status: 'completed',
       round: 1,
       position: 1,
+      scheduledAt: '2026-08-02T01:00:00.000Z',
       playerOne,
       playerTwo,
       games: [
@@ -99,6 +100,7 @@ describe('Official Tournament Player detail', () => {
     expect(screen.getAllByText('11–7')).toHaveLength(2);
     expect(screen.getByText(t('tournaments.detail.knockoutDraw'))).toBeTruthy();
     expect(screen.getByText('Glass Court · Court 1')).toBeTruthy();
+    expect(screen.getByText(/Aug 1, 2026.*3:00 PM/)).toBeTruthy();
     expect(screen.getByText(`${t('tournaments.detail.champion')}: Ana Vega`)).toBeTruthy();
   });
 

@@ -5,9 +5,24 @@ import {
   tournamentManagementSchema,
   tournamentPlayerDetailSchema,
   tournamentPlayerSchema,
+  updateTournamentFixtureScheduleSchema,
 } from '@squash/contracts';
 
 describe('Official Tournament contracts', () => {
+  it('accepts documented informational Fixture Schedule fields', () => {
+    expect(
+      updateTournamentFixtureScheduleSchema.parse({
+        scheduledAt: '2026-08-02T09:00:00-06:00',
+        venueText: 'Glass Court',
+        courtLabel: 'Court 1',
+      }),
+    ).toEqual({
+      scheduledAt: '2026-08-02T09:00:00-06:00',
+      venueText: 'Glass Court',
+      courtLabel: 'Court 1',
+    });
+  });
+
   it('requires explicit visibility and has no registration-closing input', () => {
     const input = {
       clubId: '91f6704a-c62c-4676-93a1-72d5b3fd6b7a',
