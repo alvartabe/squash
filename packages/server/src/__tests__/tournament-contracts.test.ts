@@ -106,6 +106,7 @@ describe('Official Tournament contracts', () => {
           games: [],
           winnerId: null,
           mayRecordInitialOfficialResult: true,
+          officialResultCorrectionStatus: 'unlocked',
         },
       ],
       knockoutFixtures: [],
@@ -121,7 +122,7 @@ describe('Official Tournament contracts', () => {
     expect(JSON.stringify(shape)).not.toContain('social');
   });
 
-  it('accepts only initial Official Result Games and rejects malformed submissions', () => {
+  it('requires a reason for corrections and rejects malformed Official Result Games', () => {
     expect(
       officialResultInputSchema.parse({
         expectedRevision: 0,
@@ -134,6 +135,20 @@ describe('Official Tournament contracts', () => {
     expect(
       officialResultInputSchema.safeParse({
         expectedRevision: 1,
+        games: [{ playerOnePoints: 11, playerTwoPoints: 7 }],
+      }).success,
+    ).toBe(false);
+    expect(
+      officialResultInputSchema.parse({
+        expectedRevision: 1,
+        reason: 'Corrected score sheet',
+        games: [{ playerOnePoints: 11, playerTwoPoints: 7 }],
+      }),
+    ).toMatchObject({ expectedRevision: 1, reason: 'Corrected score sheet' });
+    expect(
+      officialResultInputSchema.safeParse({
+        expectedRevision: 1,
+        reason: 'Correction',
         games: [{ playerOnePoints: 11.5, playerTwoPoints: -1 }],
       }).success,
     ).toBe(false);

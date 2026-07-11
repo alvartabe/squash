@@ -207,6 +207,32 @@ describe('challenge service authorization', () => {
     expect(mockDb.transaction).not.toHaveBeenCalled();
   });
 
+  it('rejects Player-authenticated Official Result correction attempts', async () => {
+    mockJoinedSelect([
+      {
+        id: 'match-id',
+        clubId: 'club-id',
+        source: 'tournament',
+        status: 'completed',
+        countsForStatistics: true,
+        revision: 1,
+        bestOf: 1,
+        pointsToWin: 11,
+        winByTwo: true,
+      },
+    ]);
+
+    await expect(
+      submitMatchResult(
+        'participant-id',
+        'match-id',
+        [{ playerOnePoints: 11, playerTwoPoints: 5 }],
+        'Correction attempt',
+      ),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN', status: 403 });
+    expect(mockDb.transaction).not.toHaveBeenCalled();
+  });
+
   it('requires a platform administrator to correct a clubless result', async () => {
     mockJoinedSelect([
       {

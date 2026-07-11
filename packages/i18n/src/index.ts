@@ -383,6 +383,14 @@ const en = {
   'tournaments.officialResult.winner': 'Winner',
   'tournaments.officialResult.submit': 'Finalize Official Result',
   'tournaments.officialResult.submitting': 'Finalizing…',
+  'tournaments.officialResult.correct': 'Correct Official Result',
+  'tournaments.officialResult.reason': 'Reason for correction',
+  'tournaments.officialResult.saveCorrection': 'Save correction',
+  'tournaments.officialResult.correcting': 'Saving correction…',
+  'tournaments.officialResult.groupLocked':
+    'This result is locked because the Knockout Stage has begun.',
+  'tournaments.officialResult.dependentLocked':
+    'This result is locked because its dependent next-round Match has begun.',
   'tournaments.officialResult.awaitingPlayers': 'Awaiting Players from the previous round.',
   'tournaments.officialResult.validationError':
     'Enter consecutive, complete Games with valid scores and one Match winner.',
@@ -392,6 +400,10 @@ const en = {
     'Another Organizer changed this Match. Refresh to view the current Official Result.',
   'tournaments.officialResult.unavailableError':
     'This fixture is not available for an Official Result. Refresh to view the latest Tournament progression.',
+  'tournaments.officialResult.lockedError':
+    'This Official Result is locked because downstream Tournament progression has begun.',
+  'tournaments.officialResult.stateError':
+    'The Tournament state does not allow this Official Result change.',
   'tournaments.tiebreak.heading': 'Organizer Tiebreak Decision',
   'tournaments.tiebreak.description':
     'Order every tied Player from highest to lowest to resume Tournament progression.',
@@ -842,6 +854,14 @@ const es: Record<MessageKey, string> = {
   'tournaments.officialResult.winner': 'Ganador',
   'tournaments.officialResult.submit': 'Finalizar Resultado Oficial',
   'tournaments.officialResult.submitting': 'Finalizando…',
+  'tournaments.officialResult.correct': 'Corregir Resultado Oficial',
+  'tournaments.officialResult.reason': 'Motivo de la corrección',
+  'tournaments.officialResult.saveCorrection': 'Guardar corrección',
+  'tournaments.officialResult.correcting': 'Guardando corrección…',
+  'tournaments.officialResult.groupLocked':
+    'Este resultado está bloqueado porque comenzó la Fase de Eliminación Directa.',
+  'tournaments.officialResult.dependentLocked':
+    'Este resultado está bloqueado porque comenzó su Partido dependiente de la siguiente ronda.',
   'tournaments.officialResult.awaitingPlayers': 'Esperando Jugadores de la ronda anterior.',
   'tournaments.officialResult.validationError':
     'Ingresa Juegos consecutivos y completos con marcadores válidos y un ganador del Partido.',
@@ -851,6 +871,10 @@ const es: Record<MessageKey, string> = {
     'Otro Organizador cambió este Partido. Actualiza para ver el Resultado Oficial actual.',
   'tournaments.officialResult.unavailableError':
     'Este partido no está disponible para un Resultado Oficial. Actualiza para ver el avance más reciente del Torneo.',
+  'tournaments.officialResult.lockedError':
+    'Este Resultado Oficial está bloqueado porque comenzó el avance posterior del Torneo.',
+  'tournaments.officialResult.stateError':
+    'El estado del Torneo no permite este cambio al Resultado Oficial.',
   'tournaments.tiebreak.heading': 'Decisión de Desempate del Organizador',
   'tournaments.tiebreak.description':
     'Ordena a todos los Jugadores empatados de mayor a menor para continuar el Torneo.',

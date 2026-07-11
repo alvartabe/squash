@@ -37,7 +37,7 @@ import {
   isExactOrganizerTiebreakOrder,
 } from '@squash/domain';
 import { and, asc, eq, exists, ilike, inArray, isNull, or } from 'drizzle-orm';
-import { getClubAuthorization } from './authorization';
+import { getClubAuthorization, requireLockedActiveClub } from './authorization';
 import { db } from './database';
 import { forbidden, notFound, ServiceError } from './errors';
 import { getTournamentFixtureReadModel } from './tournament-fixture-read-model';
@@ -136,6 +136,61 @@ export async function requireTournamentAuthority(
       ),
     )
     .limit(1);
+  if (!appointment) throw forbidden();
+}
+
+export async function requireLockedTournamentAuthority(
+  actorId: string,
+  tournament: TournamentAuthorityTarget,
+  database: Parameters<Parameters<typeof db.transaction>[0]>[0],
+) {
+  await requireLockedActiveClub(database, tournament.clubId);
+  await database
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.id, actorId))
+    .limit(1)
+    .for('update');
+  await database
+    .select({ status: clubMemberships.status })
+    .from(clubMemberships)
+    .where(and(eq(clubMemberships.clubId, tournament.clubId), eq(clubMemberships.userId, actorId)))
+    .limit(1)
+    .for('update');
+  await database
+    .select({ responsibility: clubResponsibilities.responsibility })
+    .from(clubResponsibilities)
+    .where(
+      and(
+        eq(clubResponsibilities.clubId, tournament.clubId),
+        eq(clubResponsibilities.userId, actorId),
+      ),
+    )
+    .for('update');
+  const authorization = await getClubAuthorization(actorId, tournament.clubId, database);
+  if (authorization?.membershipStatus !== 'active') throw forbidden();
+  if (
+    canPerformClubAction(
+      authorization.platformRole,
+      authorization.membershipStatus,
+      authorization.responsibilities,
+      'tournament.manage',
+    )
+  ) {
+    return;
+  }
+  if (!authorization.responsibilities.includes('coach')) throw forbidden();
+  const [appointment] = await database
+    .select({ userId: tournamentOrganizers.userId })
+    .from(tournamentOrganizers)
+    .where(
+      and(
+        eq(tournamentOrganizers.tournamentId, tournament.id),
+        eq(tournamentOrganizers.userId, actorId),
+      ),
+    )
+    .limit(1)
+    .for('update');
   if (!appointment) throw forbidden();
 }
 

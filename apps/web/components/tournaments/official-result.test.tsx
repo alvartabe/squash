@@ -37,6 +37,7 @@ const fixture: TournamentGroupFixture = {
   games: [],
   winnerId: null,
   mayRecordInitialOfficialResult: true,
+  officialResultCorrectionStatus: 'unlocked',
 };
 
 function renderEntry(value: TournamentGroupFixture = fixture) {
@@ -112,6 +113,103 @@ describe('Official Result score entry', () => {
     });
     expect(screen.getByText('11–7, 11–9')).toBeInTheDocument();
     expect(screen.getByText('Winner: Ana Vega')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Correct Official Result' })).toBeInTheDocument();
+  });
+
+  it('requires a correction reason and submits the expected current revision', () => {
+    renderEntry({
+      ...fixture,
+      matchStatus: 'completed',
+      currentRevision: 2,
+      games: [
+        { playerOnePoints: 11, playerTwoPoints: 7 },
+        { playerOnePoints: 11, playerTwoPoints: 9 },
+      ],
+      winnerId: 'player-1',
+      mayRecordInitialOfficialResult: false,
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Correct Official Result' }));
+    fireEvent.change(screen.getByLabelText('Reason for correction'), {
+      target: { value: 'Corrected score sheet' },
+    });
+    fireEvent.change(screen.getByLabelText('Ana Vega Game 1'), { target: { value: '7' } });
+    fireEvent.change(screen.getByLabelText('Bruno Castro Game 1'), { target: { value: '11' } });
+    fireEvent.change(screen.getByLabelText('Ana Vega Game 2'), { target: { value: '9' } });
+    fireEvent.change(screen.getByLabelText('Bruno Castro Game 2'), { target: { value: '11' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save correction' }));
+
+    expect(mutate).toHaveBeenCalledWith({
+      path: '/tournaments/tournament-id/fixtures/fixture-id/official-result',
+      data: {
+        expectedRevision: 2,
+        reason: 'Corrected score sheet',
+        games: [
+          { playerOnePoints: 7, playerTwoPoints: 11 },
+          { playerOnePoints: 9, playerTwoPoints: 11 },
+        ],
+      },
+    });
+  });
+
+  it('returns to the finalized view when a successful correction refreshes the revision', () => {
+    const completed = {
+      ...fixture,
+      matchStatus: 'completed' as const,
+      currentRevision: 1,
+      games: [
+        { playerOnePoints: 11, playerTwoPoints: 7 },
+        { playerOnePoints: 11, playerTwoPoints: 9 },
+      ],
+      winnerId: 'player-1',
+      mayRecordInitialOfficialResult: false,
+    };
+    const view = render(
+      <FixtureOfficialResult
+        clubId="club-id"
+        fixture={completed}
+        key={`${completed.id}-${completed.currentRevision}`}
+        tournamentId="tournament-id"
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Correct Official Result' }));
+    expect(screen.getByLabelText('Reason for correction')).toBeInTheDocument();
+
+    const refreshed = {
+      ...completed,
+      currentRevision: 2,
+      games: [
+        { playerOnePoints: 7, playerTwoPoints: 11 },
+        { playerOnePoints: 9, playerTwoPoints: 11 },
+      ],
+      winnerId: 'player-2',
+    };
+    view.rerender(
+      <FixtureOfficialResult
+        clubId="club-id"
+        fixture={refreshed}
+        key={`${refreshed.id}-${refreshed.currentRevision}`}
+        tournamentId="tournament-id"
+      />,
+    );
+    expect(screen.queryByLabelText('Reason for correction')).toBeNull();
+    expect(screen.getByText('Winner: Bruno Castro')).toBeInTheDocument();
+  });
+
+  it('explains a dependency-based Result Lock instead of offering correction', () => {
+    renderEntry({
+      ...fixture,
+      matchStatus: 'completed',
+      currentRevision: 1,
+      games: [
+        { playerOnePoints: 11, playerTwoPoints: 7 },
+        { playerOnePoints: 11, playerTwoPoints: 9 },
+      ],
+      winnerId: 'player-1',
+      mayRecordInitialOfficialResult: false,
+      officialResultCorrectionStatus: 'dependent-match-started',
+    });
+    expect(screen.queryByRole('button', { name: 'Correct Official Result' })).toBeNull();
+    expect(screen.getByText(/dependent next-round Match has begun/)).toBeInTheDocument();
   });
 
   it('renders complete Costa Rican Spanish score-entry translations', () => {
@@ -119,5 +217,23 @@ describe('Official Result score entry', () => {
     renderEntry();
     expect(screen.getAllByText(/^Juego [1-3]$/)).toHaveLength(3);
     expect(screen.getByRole('button', { name: 'Finalizar Resultado Oficial' })).toBeInTheDocument();
+  });
+
+  it('renders the correction flow in Costa Rican Spanish', () => {
+    locale = 'es-419';
+    renderEntry({
+      ...fixture,
+      matchStatus: 'completed',
+      currentRevision: 1,
+      games: [
+        { playerOnePoints: 11, playerTwoPoints: 7 },
+        { playerOnePoints: 11, playerTwoPoints: 9 },
+      ],
+      winnerId: 'player-1',
+      mayRecordInitialOfficialResult: false,
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Corregir Resultado Oficial' }));
+    expect(screen.getByLabelText('Motivo de la corrección')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Guardar corrección' })).toBeInTheDocument();
   });
 });

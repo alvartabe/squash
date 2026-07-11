@@ -23,10 +23,21 @@ export const submitMatchResultSchema = z.object({
 });
 
 export const gameScoreSchema = setScoreSchema;
-export const officialResultInputSchema = z.object({
-  expectedRevision: z.literal(0),
-  games: z.array(gameScoreSchema).min(1).max(5),
-});
+export const officialResultInputSchema = z
+  .object({
+    expectedRevision: z.number().int().nonnegative(),
+    games: z.array(gameScoreSchema).min(1).max(5),
+    reason: z.string().trim().min(1).max(500).optional(),
+  })
+  .superRefine((input, context) => {
+    if (input.expectedRevision > 0 && !input.reason) {
+      context.addIssue({
+        code: 'custom',
+        path: ['reason'],
+        message: 'A reason is required to correct an Official Result',
+      });
+    }
+  });
 
 export const matchStatusSchema = z.enum([
   'scheduled',
@@ -201,6 +212,14 @@ export const tournamentParticipationSchema = z.object({
   acceptedAt: z.string(),
 });
 
+export const officialResultCorrectionStatusSchema = z.enum([
+  'unlocked',
+  'group-stage-advanced',
+  'dependent-match-started',
+  'tournament-state-invalid',
+]);
+export type OfficialResultCorrectionStatus = z.infer<typeof officialResultCorrectionStatusSchema>;
+
 export const tournamentGroupFixtureSchema = z.object({
   id: idSchema,
   matchId: idSchema,
@@ -226,6 +245,7 @@ export const tournamentGroupFixtureSchema = z.object({
   games: z.array(gameScoreSchema),
   winnerId: userIdSchema.nullable(),
   mayRecordInitialOfficialResult: z.boolean(),
+  officialResultCorrectionStatus: officialResultCorrectionStatusSchema,
 });
 
 export const tournamentKnockoutFixtureSchema = z.object({
@@ -246,6 +266,7 @@ export const tournamentKnockoutFixtureSchema = z.object({
   games: z.array(gameScoreSchema),
   winnerId: userIdSchema.nullable(),
   mayRecordInitialOfficialResult: z.boolean(),
+  officialResultCorrectionStatus: officialResultCorrectionStatusSchema,
 });
 
 export const organizerTiebreakContextSchema = z.enum([

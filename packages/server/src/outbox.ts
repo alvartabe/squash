@@ -3,6 +3,7 @@ import { resolveLocale, translate, type MessageKey } from '@squash/i18n';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { Resend } from 'resend';
 import { db } from './database';
+import { rebuildOfficialTournamentStatisticsForMatch } from './official-tournament-statistics';
 import { advanceKnockoutWinner, progressTournament } from './tournament-progression';
 
 type ClaimedEvent = {
@@ -126,6 +127,10 @@ async function rebuildProjection(playerId: string, source: 'challenge' | 'tourna
 }
 
 async function rebuildMatchStatistics(matchId: string, source: 'challenge' | 'tournament') {
+  if (source === 'tournament') {
+    await rebuildOfficialTournamentStatisticsForMatch(db, matchId);
+    return;
+  }
   const result = await db.execute(sql`
     select user_id as "userId" from match_participants where match_id = ${matchId}
   `);

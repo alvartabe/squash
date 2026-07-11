@@ -74,6 +74,15 @@ Game scores, immutable result revision, audit record, statistics rebuild event, 
 Tournament progression event are written atomically. Participants can view Official Results but
 the Player-authenticated result route rejects Tournament Matches.
 
+Ordinary Official Result corrections and dependency-based Result Locks are implemented in the
+same Official Result module. Corrections require an expected current revision and non-empty reason,
+lock and recheck current Tournament Organizer authority in a serializable transaction, replace the
+Match and Game result, synchronously rebuild affected Official Tournament statistics, update an
+unstarted dependent Knockout fixture when its advancing winner changes, append immutable revision
+and audit evidence, and enqueue revision-addressed statistics and progression events atomically.
+Group results lock when Knockout Stage begins; Knockout results lock when their dependent next-round
+Match begins. Web management exposes the correction and lock states in English and Spanish.
+
 Tournament management mutations lock the Tournament and re-evaluate the Organizer's
 current Club responsibility or explicit Coach appointment in the same transaction as
 the write, so revoked authority cannot be reused from an earlier check.
@@ -90,7 +99,6 @@ slice does not invent a bypass, denial rule, or consent mechanism.
 | Intended behavior                                | Current evidence                 | Gap                                                                                   |
 | ------------------------------------------------ | -------------------------------- | ------------------------------------------------------------------------------------- |
 | Official and Social Tournament ownership models  | `tournaments.clubId` is required | Current schema supports Official Club ownership only; Social Tournaments remain Later |
-| Dependency-based Result Locks                    | Revision logic                   | Current corrections do not model agreed phase/dependency locks                        |
 | Separate Official and Social Competition Records | `tournamentStats`                | All Tournament statistics share one category                                          |
 
 Social Tournaments remain Later.

@@ -11,6 +11,8 @@ export * from './membership';
 export * from './membership-requests';
 export * from './outbox';
 export * from './official-results';
+export * from './official-result-locks';
+export * from './official-tournament-statistics';
 export * from './services';
 export * from './tournament-progression';
 export * from './tournaments';

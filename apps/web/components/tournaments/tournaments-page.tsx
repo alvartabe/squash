@@ -540,6 +540,7 @@ function GroupStageFixturesSection({ tournament }: { tournament: TournamentManag
                       <FixtureOfficialResult
                         clubId={tournament.clubId}
                         fixture={fixture}
+                        key={`${fixture.id}-${fixture.currentRevision}`}
                         tournamentId={tournament.id}
                       />
                     </td>
@@ -578,6 +579,7 @@ function KnockoutFixturesSection({ tournament }: { tournament: TournamentManagem
               <FixtureOfficialResult
                 clubId={tournament.clubId}
                 fixture={fixture}
+                key={`${fixture.id}-${fixture.currentRevision}`}
                 tournamentId={tournament.id}
               />
             </>

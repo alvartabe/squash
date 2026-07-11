@@ -59,8 +59,12 @@ function officialResultErrorMessageKey(error: unknown): MessageKey {
   ) {
     return 'tournaments.officialResult.conflictError';
   }
+  if (code === 'OFFICIAL_RESULT_LOCKED') return 'tournaments.officialResult.lockedError';
   if (code === 'OFFICIAL_RESULT_NOT_RECORDABLE' || code === 'OFFICIAL_RESULT_FIXTURE_UNAVAILABLE') {
     return 'tournaments.officialResult.unavailableError';
+  }
+  if (code === 'OFFICIAL_RESULT_TOURNAMENT_STATE_INVALID') {
+    return 'tournaments.officialResult.stateError';
   }
   return 'tournaments.officialResult.error';
 }
@@ -77,18 +81,21 @@ export function FixtureOfficialResult({
   const action = useTournamentAction(clubId);
   const { t } = useLocale();
   const [scores, setScores] = useState(() =>
-    Array.from({ length: fixture.scoringRules.bestOf }, () => ({
-      playerOnePoints: '',
-      playerTwoPoints: '',
+    Array.from({ length: fixture.scoringRules.bestOf }, (_, index) => ({
+      playerOnePoints: fixture.games[index]?.playerOnePoints.toString() ?? '',
+      playerTwoPoints: fixture.games[index]?.playerTwoPoints.toString() ?? '',
     })),
   );
+  const [editing, setEditing] = useState(fixture.matchStatus !== 'completed');
+  const [reason, setReason] = useState('');
   const [validationError, setValidationError] = useState(false);
   const playerOne = fixture.playerOne;
   const playerTwo = fixture.playerTwo;
-  if (fixture.matchStatus === 'completed' && playerOne && playerTwo) {
+  const isCorrection = fixture.matchStatus === 'completed';
+  if (isCorrection && !editing && playerOne && playerTwo) {
     const winner = fixture.winnerId === playerOne.id ? playerOne.name : playerTwo.name;
     return (
-      <div className="grid gap-1 text-sm">
+      <div className="grid gap-2 text-sm">
         <p>
           {fixture.games
             .map((game) => `${game.playerOnePoints}–${game.playerTwoPoints}`)
@@ -97,10 +104,32 @@ export function FixtureOfficialResult({
         <p className="font-medium">
           {t('tournaments.officialResult.winner')}: {winner}
         </p>
+        {fixture.officialResultCorrectionStatus === 'unlocked' ? (
+          <div>
+            <Button onClick={() => setEditing(true)} size="sm" type="button" variant="outline">
+              {t('tournaments.officialResult.correct')}
+            </Button>
+          </div>
+        ) : (
+          <p className="text-muted-foreground">
+            {t(
+              fixture.officialResultCorrectionStatus === 'group-stage-advanced'
+                ? 'tournaments.officialResult.groupLocked'
+                : fixture.officialResultCorrectionStatus === 'dependent-match-started'
+                  ? 'tournaments.officialResult.dependentLocked'
+                  : 'tournaments.officialResult.stateError',
+            )}
+          </p>
+        )}
       </div>
     );
   }
-  if (!fixture.mayRecordInitialOfficialResult || !fixture.matchId || !playerOne || !playerTwo) {
+  if (
+    (!fixture.mayRecordInitialOfficialResult && !isCorrection) ||
+    !fixture.matchId ||
+    !playerOne ||
+    !playerTwo
+  ) {
     return <span className="text-sm text-muted-foreground">—</span>;
   }
 
@@ -138,11 +167,16 @@ export function FixtureOfficialResult({
       else playerTwoGames += 1;
     }
     if (playerOneGames !== required && playerTwoGames !== required) valid = false;
+    if (isCorrection && !reason.trim()) valid = false;
     setValidationError(!valid);
     if (!valid) return;
     action.mutate({
       path: `/tournaments/${tournamentId}/fixtures/${fixture.id}/official-result`,
-      data: { expectedRevision: fixture.currentRevision, games },
+      data: {
+        expectedRevision: fixture.currentRevision,
+        games,
+        ...(isCorrection ? { reason: reason.trim() } : {}),
+      },
     });
   };
 
@@ -188,11 +222,42 @@ export function FixtureOfficialResult({
           </div>
         ))}
       </fieldset>
+      {isCorrection ? (
+        <div className="grid gap-2">
+          <Label htmlFor={`${fixture.id}-reason`}>{t('tournaments.officialResult.reason')}</Label>
+          <Input
+            id={`${fixture.id}-reason`}
+            maxLength={500}
+            onChange={(event) => setReason(event.target.value)}
+            required
+            value={reason}
+          />
+        </div>
+      ) : null}
       <Button disabled={action.isPending} size="sm" type="submit">
         {action.isPending
-          ? t('tournaments.officialResult.submitting')
-          : t('tournaments.officialResult.submit')}
+          ? t(
+              isCorrection
+                ? 'tournaments.officialResult.correcting'
+                : 'tournaments.officialResult.submitting',
+            )
+          : t(
+              isCorrection
+                ? 'tournaments.officialResult.saveCorrection'
+                : 'tournaments.officialResult.submit',
+            )}
       </Button>
+      {isCorrection ? (
+        <Button
+          disabled={action.isPending}
+          onClick={() => setEditing(false)}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          {t('common.cancel')}
+        </Button>
+      ) : null}
       {validationError ? (
         <p className="text-sm text-destructive" role="alert">
           {t('tournaments.officialResult.validationError')}

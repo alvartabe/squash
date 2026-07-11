@@ -1,4 +1,8 @@
-import type { TournamentGroupFixture, TournamentKnockoutFixture } from '@squash/contracts';
+import type {
+  TournamentGroupFixture,
+  TournamentKnockoutFixture,
+  TournamentStatus,
+} from '@squash/contracts';
 import {
   matches,
   matchRuleSnapshots,
@@ -10,6 +14,10 @@ import {
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { db } from './database';
+import {
+  evaluateOfficialResultCorrectionStatus,
+  type OfficialResultCorrectionStatus,
+} from './official-result-locks';
 
 const groupFixtureReadableStatuses = ['group-stage', 'knockout', 'completed', 'cancelled'] as const;
 const knockoutFixtureReadableStatuses = ['knockout', 'completed', 'cancelled'] as const;
@@ -19,7 +27,7 @@ const fixturePlayerTwo = alias(users, 'fixture_player_two');
 type TournamentFixtureReadInput = {
   id: string;
   rulesId: string;
-  status: string;
+  status: TournamentStatus;
 };
 
 function serializeGroupFixture(
@@ -46,6 +54,7 @@ function serializeGroupFixture(
   },
   games: Array<{ playerOnePoints: number; playerTwoPoints: number }>,
   mayRecord: boolean,
+  correctionStatus: OfficialResultCorrectionStatus,
 ): TournamentGroupFixture {
   return {
     id: row.id,
@@ -68,6 +77,7 @@ function serializeGroupFixture(
     games,
     winnerId: row.winnerId,
     mayRecordInitialOfficialResult: mayRecord,
+    officialResultCorrectionStatus: correctionStatus,
   };
 }
 
@@ -78,6 +88,7 @@ function serializeKnockoutFixture(
     matchStatus: 'scheduled' | 'in-progress' | 'completed' | 'disputed' | 'void' | null;
     currentRevision: number | null;
     winnerId: string | null;
+    advancesToFixtureId: string | null;
     round: number;
     position: number;
     playerOneId: string | null;
@@ -90,6 +101,7 @@ function serializeKnockoutFixture(
   rules: { bestOf: number; pointsToWin: number; winByTwo: boolean },
   games: Array<{ playerOnePoints: number; playerTwoPoints: number }>,
   mayRecord: boolean,
+  correctionStatus: OfficialResultCorrectionStatus,
 ): TournamentKnockoutFixture {
   return {
     id: row.id,
@@ -111,6 +123,7 @@ function serializeKnockoutFixture(
     games,
     winnerId: row.winnerId,
     mayRecordInitialOfficialResult: mayRecord,
+    officialResultCorrectionStatus: correctionStatus,
   };
 }
 
@@ -186,6 +199,7 @@ export async function getTournamentFixtureReadModel(tournament: TournamentFixtur
           matchStatus: matches.status,
           currentRevision: matches.currentRevision,
           winnerId: matches.winnerId,
+          advancesToFixtureId: tournamentFixtures.advancesToFixtureId,
           round: tournamentFixtures.round,
           position: tournamentFixtures.position,
           playerOneId: fixturePlayerOne.id,
@@ -233,6 +247,7 @@ export async function getTournamentFixtureReadModel(tournament: TournamentFixtur
     gamesByMatchId.set(matchId, games);
   }
   const gamesFor = (matchId: string | null) => (matchId ? (gamesByMatchId.get(matchId) ?? []) : []);
+  const knockoutFixtureById = new Map(knockoutFixtures.map((fixture) => [fixture.id, fixture]));
 
   return {
     groupFixtures: orderedGroupFixtures.map((fixture) =>
@@ -242,6 +257,10 @@ export async function getTournamentFixtureReadModel(tournament: TournamentFixtur
         tournament.status === 'group-stage' &&
           fixture.matchStatus === 'scheduled' &&
           fixture.currentRevision === 0,
+        evaluateOfficialResultCorrectionStatus({
+          stage: 'group',
+          tournamentStatus: tournament.status,
+        }),
       ),
     ),
     knockoutFixtures: knockoutFixtures.map((fixture) =>
@@ -253,6 +272,13 @@ export async function getTournamentFixtureReadModel(tournament: TournamentFixtur
           fixture.matchStatus === 'scheduled' &&
           fixture.currentRevision === 0 &&
           Boolean(fixture.matchId && fixture.playerOneId && fixture.playerTwoId),
+        evaluateOfficialResultCorrectionStatus({
+          stage: 'knockout',
+          tournamentStatus: tournament.status,
+          dependentMatchStatus: fixture.advancesToFixtureId
+            ? (knockoutFixtureById.get(fixture.advancesToFixtureId)?.matchStatus ?? null)
+            : null,
+        }),
       ),
     ),
   };
