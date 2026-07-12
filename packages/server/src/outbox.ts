@@ -1,4 +1,5 @@
-import { deviceTokens, outboxEvents, users } from '@squash/db/schema';
+import { deviceTokens, notificationPreferences, outboxEvents, users } from '@squash/db/schema';
+import type { OptionalPushNotificationCategory } from '@squash/contracts';
 import { resolveLocale, translate, type MessageKey } from '@squash/i18n';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { Resend } from 'resend';
@@ -13,6 +14,13 @@ type ClaimedEvent = {
   payload: Record<string, unknown>;
   attempts: number;
 };
+
+const preferenceKeyByPushCategory = {
+  social: 'social',
+  'play-sessions': 'playSessions',
+  tournaments: 'tournaments',
+  clubs: 'clubs',
+} as const;
 
 export async function claimOutboxBatch(limit = 20): Promise<ClaimedEvent[]> {
   return db.transaction(async (tx) => {
@@ -42,10 +50,23 @@ export async function claimOutboxBatch(limit = 20): Promise<ClaimedEvent[]> {
 
 async function sendPush(
   recipientId: string,
+  category: OptionalPushNotificationCategory,
   titleKey: MessageKey,
   bodyKey: MessageKey,
   data: object,
 ) {
+  const [preferences] = await db
+    .select({
+      social: notificationPreferences.socialPushEnabled,
+      playSessions: notificationPreferences.playSessionsPushEnabled,
+      tournaments: notificationPreferences.tournamentsPushEnabled,
+      clubs: notificationPreferences.clubsPushEnabled,
+    })
+    .from(notificationPreferences)
+    .where(eq(notificationPreferences.userId, recipientId))
+    .limit(1);
+  const enabled = preferences?.[preferenceKeyByPushCategory[category]] ?? true;
+  if (!enabled) return;
   const [recipient] = await db
     .select({ locale: users.locale })
     .from(users)
@@ -145,6 +166,7 @@ async function processEvent(event: ClaimedEvent) {
     if (typeof recipientId === 'string') {
       await sendPush(
         recipientId,
+        'play-sessions',
         'notification.sessionInvited.title',
         'notification.sessionInvited.body',
         { sessionId: event.aggregateId },
@@ -157,6 +179,7 @@ async function processEvent(event: ClaimedEvent) {
     if (typeof recipientId === 'string') {
       await sendPush(
         recipientId,
+        'social',
         'notification.challengeInvited.title',
         'notification.challengeInvited.body',
         {
@@ -171,6 +194,7 @@ async function processEvent(event: ClaimedEvent) {
     if (typeof recipientId === 'string') {
       await sendPush(
         recipientId,
+        'social',
         'notification.friendRequested.title',
         'notification.friendRequested.body',
         {
@@ -185,6 +209,7 @@ async function processEvent(event: ClaimedEvent) {
     if (typeof recipientId === 'string') {
       await sendPush(
         recipientId,
+        'social',
         event.topic === 'challenge.accepted'
           ? 'notification.challengeAccepted.title'
           : 'notification.challengeDeclined.title',
@@ -202,6 +227,7 @@ async function processEvent(event: ClaimedEvent) {
       const cancelled = event.topic === 'challenge.cancelled';
       await sendPush(
         recipientId,
+        'social',
         cancelled
           ? 'notification.challengeCancelled.title'
           : 'notification.challengeDisputed.title',

@@ -446,7 +446,19 @@ const en = {
   'tournaments.tiebreak.error':
     'The decision could not be recorded. Refresh to check whether progression changed.',
   'profile.heading': 'Profile',
+  'profile.notificationPreferences': 'Notification preferences',
   'profile.signOut': 'Sign out',
+  'notificationPreferences.heading': 'Push notifications',
+  'notificationPreferences.description':
+    'Choose which optional categories can send push notifications. In-app notifications remain available.',
+  'notificationPreferences.social': 'Social',
+  'notificationPreferences.playSessions': 'Play Sessions',
+  'notificationPreferences.tournaments': 'Tournaments',
+  'notificationPreferences.clubs': 'Clubs',
+  'notificationPreferences.required':
+    'Security, consent, and account-recovery communications are always on.',
+  'notificationPreferences.loadError': 'We could not load notification preferences. Try again.',
+  'notificationPreferences.updateError': 'We could not update notification preferences. Try again.',
   'web.badge': 'Squash platform',
   'web.heading': 'Club and competition management in one place.',
   'web.description':
@@ -946,7 +958,21 @@ const es: Record<MessageKey, string> = {
   'tournaments.tiebreak.error':
     'No se pudo registrar la decisión. Actualiza para verificar si el Torneo cambió.',
   'profile.heading': 'Perfil',
+  'profile.notificationPreferences': 'Preferencias de notificaciones',
   'profile.signOut': 'Cerrar sesión',
+  'notificationPreferences.heading': 'Notificaciones push',
+  'notificationPreferences.description':
+    'Elige qué categorías opcionales pueden enviar notificaciones push. Las notificaciones dentro de la aplicación siguen disponibles.',
+  'notificationPreferences.social': 'Social',
+  'notificationPreferences.playSessions': 'Sesiones de Juego',
+  'notificationPreferences.tournaments': 'Torneos',
+  'notificationPreferences.clubs': 'Clubes',
+  'notificationPreferences.required':
+    'Las comunicaciones de seguridad, consentimiento y recuperación de cuenta siempre están activas.',
+  'notificationPreferences.loadError':
+    'No pudimos cargar las preferencias de notificaciones. Inténtalo de nuevo.',
+  'notificationPreferences.updateError':
+    'No pudimos actualizar las preferencias de notificaciones. Inténtalo de nuevo.',
   'web.badge': 'Plataforma de squash',
   'web.heading': 'Gestión de Clubes y competencias en un solo lugar.',
   'web.description':

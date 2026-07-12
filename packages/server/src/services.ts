@@ -1,8 +1,10 @@
 import type {
   CreateChallengeInput,
   CreateClubInput,
+  NotificationPreferences,
   PlayerStatistics,
   SetScoreInput,
+  UpdateNotificationPreferences,
 } from '@squash/contracts';
 import {
   challengeStats,
@@ -18,6 +20,7 @@ import {
   matchRuleSnapshots,
   matches,
   matchSets,
+  notificationPreferences,
   outboxEvents,
   playerProfiles,
   playerRackets,
@@ -283,6 +286,78 @@ export async function registerDeviceToken(
     })
     .returning();
   return token;
+}
+
+function toNotificationPreferences(preferences: {
+  socialPushEnabled: boolean;
+  playSessionsPushEnabled: boolean;
+  tournamentsPushEnabled: boolean;
+  clubsPushEnabled: boolean;
+}): NotificationPreferences {
+  return {
+    social: preferences.socialPushEnabled,
+    playSessions: preferences.playSessionsPushEnabled,
+    tournaments: preferences.tournamentsPushEnabled,
+    clubs: preferences.clubsPushEnabled,
+  };
+}
+
+export async function getNotificationPreferences(
+  actorId: string,
+): Promise<NotificationPreferences> {
+  const [preferences] = await db
+    .select({
+      socialPushEnabled: notificationPreferences.socialPushEnabled,
+      playSessionsPushEnabled: notificationPreferences.playSessionsPushEnabled,
+      tournamentsPushEnabled: notificationPreferences.tournamentsPushEnabled,
+      clubsPushEnabled: notificationPreferences.clubsPushEnabled,
+    })
+    .from(notificationPreferences)
+    .where(eq(notificationPreferences.userId, actorId))
+    .limit(1);
+  return toNotificationPreferences(
+    preferences ?? {
+      socialPushEnabled: true,
+      playSessionsPushEnabled: true,
+      tournamentsPushEnabled: true,
+      clubsPushEnabled: true,
+    },
+  );
+}
+
+export async function updateNotificationPreferences(
+  actorId: string,
+  input: UpdateNotificationPreferences,
+): Promise<NotificationPreferences> {
+  const [preferences] = await db
+    .insert(notificationPreferences)
+    .values({
+      userId: actorId,
+      ...(input.social === undefined ? {} : { socialPushEnabled: input.social }),
+      ...(input.playSessions === undefined ? {} : { playSessionsPushEnabled: input.playSessions }),
+      ...(input.tournaments === undefined ? {} : { tournamentsPushEnabled: input.tournaments }),
+      ...(input.clubs === undefined ? {} : { clubsPushEnabled: input.clubs }),
+    })
+    .onConflictDoUpdate({
+      target: notificationPreferences.userId,
+      set: {
+        ...(input.social === undefined ? {} : { socialPushEnabled: input.social }),
+        ...(input.playSessions === undefined
+          ? {}
+          : { playSessionsPushEnabled: input.playSessions }),
+        ...(input.tournaments === undefined ? {} : { tournamentsPushEnabled: input.tournaments }),
+        ...(input.clubs === undefined ? {} : { clubsPushEnabled: input.clubs }),
+        updatedAt: new Date(),
+      },
+    })
+    .returning({
+      socialPushEnabled: notificationPreferences.socialPushEnabled,
+      playSessionsPushEnabled: notificationPreferences.playSessionsPushEnabled,
+      tournamentsPushEnabled: notificationPreferences.tournamentsPushEnabled,
+      clubsPushEnabled: notificationPreferences.clubsPushEnabled,
+    });
+  if (!preferences) throw new Error('Failed to update notification preferences.');
+  return toNotificationPreferences(preferences);
 }
 
 export function listNotifications(actorId: string) {
