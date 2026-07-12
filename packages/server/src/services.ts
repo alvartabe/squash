@@ -329,24 +329,22 @@ export async function updateNotificationPreferences(
   actorId: string,
   input: UpdateNotificationPreferences,
 ): Promise<NotificationPreferences> {
+  const preferencePatch = {
+    ...(input.social === undefined ? {} : { socialPushEnabled: input.social }),
+    ...(input.playSessions === undefined ? {} : { playSessionsPushEnabled: input.playSessions }),
+    ...(input.tournaments === undefined ? {} : { tournamentsPushEnabled: input.tournaments }),
+    ...(input.clubs === undefined ? {} : { clubsPushEnabled: input.clubs }),
+  };
   const [preferences] = await db
     .insert(notificationPreferences)
     .values({
       userId: actorId,
-      ...(input.social === undefined ? {} : { socialPushEnabled: input.social }),
-      ...(input.playSessions === undefined ? {} : { playSessionsPushEnabled: input.playSessions }),
-      ...(input.tournaments === undefined ? {} : { tournamentsPushEnabled: input.tournaments }),
-      ...(input.clubs === undefined ? {} : { clubsPushEnabled: input.clubs }),
+      ...preferencePatch,
     })
     .onConflictDoUpdate({
       target: notificationPreferences.userId,
       set: {
-        ...(input.social === undefined ? {} : { socialPushEnabled: input.social }),
-        ...(input.playSessions === undefined
-          ? {}
-          : { playSessionsPushEnabled: input.playSessions }),
-        ...(input.tournaments === undefined ? {} : { tournamentsPushEnabled: input.tournaments }),
-        ...(input.clubs === undefined ? {} : { clubsPushEnabled: input.clubs }),
+        ...preferencePatch,
         updatedAt: new Date(),
       },
     })

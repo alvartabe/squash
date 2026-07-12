@@ -1,4 +1,3 @@
-import { notificationPreferences } from '@squash/db/schema';
 import { db } from '../database';
 import { getNotificationPreferences, updateNotificationPreferences } from '../services';
 
@@ -30,24 +29,20 @@ describe('notification preferences', () => {
   });
 
   it('updates only the requested optional push category and returns the persisted preferences', async () => {
-    const writes: { values?: unknown; set?: unknown } = {};
-    mockDb.insert.mockImplementationOnce((table: unknown) => {
-      expect(table).toBe(notificationPreferences);
+    let persisted = {
+      socialPushEnabled: true,
+      playSessionsPushEnabled: true,
+      tournamentsPushEnabled: true,
+      clubsPushEnabled: true,
+    };
+    mockDb.insert.mockImplementationOnce(() => {
       return {
-        values: (values: unknown) => {
-          writes.values = values;
+        values: () => {
           return {
-            onConflictDoUpdate: ({ set }: { set: unknown }) => {
-              writes.set = set;
+            onConflictDoUpdate: ({ set }: { set: Partial<typeof persisted> }) => {
+              persisted = { ...persisted, ...set };
               return {
-                returning: async () => [
-                  {
-                    socialPushEnabled: false,
-                    playSessionsPushEnabled: true,
-                    tournamentsPushEnabled: true,
-                    clubsPushEnabled: true,
-                  },
-                ],
+                returning: async () => [persisted],
               };
             },
           };
@@ -61,7 +56,13 @@ describe('notification preferences', () => {
       tournaments: true,
       clubs: true,
     });
-    expect(writes.values).toEqual({ userId: 'player-id', socialPushEnabled: false });
-    expect(writes.set).toMatchObject({ socialPushEnabled: false });
+
+    selectRows([persisted]);
+    await expect(getNotificationPreferences('player-id')).resolves.toEqual({
+      social: false,
+      playSessions: true,
+      tournaments: true,
+      clubs: true,
+    });
   });
 });

@@ -9,7 +9,7 @@ import { authClient } from '@/src/lib/auth-client';
 import { t } from '@/src/lib/i18n';
 import { queryKeys } from '@squash/api-client';
 
-const categories: Array<{ key: keyof NotificationPreferences; label: string }> = [
+const categories: { key: keyof NotificationPreferences; label: string }[] = [
   { key: 'social', label: t('notificationPreferences.social') },
   { key: 'playSessions', label: t('notificationPreferences.playSessions') },
   { key: 'tournaments', label: t('notificationPreferences.tournaments') },
