@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { foldUsernameCase } from './foldcase';
+import { normalizeUsername, usernamePolicyViolations } from '@squash/domain';
 
 export const idSchema = z.uuid();
 export const userIdSchema = z.string().trim().min(1).max(128);
@@ -679,23 +679,15 @@ export type InviteClubResponsibility = z.infer<typeof inviteClubResponsibilitySc
 
 export const profileVisibilitySchema = z.enum(['private', 'friends', 'shared-clubs']);
 
-export function normalizeUsername(username: string) {
-  return username.normalize('NFC');
-}
-
-export function canonicalizeUsername(username: string) {
-  return foldUsernameCase(normalizeUsername(username)).normalize('NFC');
-}
-
 export const usernameSchema = z
   .string()
   .transform(normalizeUsername)
   .superRefine((username, context) => {
-    const length = Array.from(username).length;
-    if (length < 3 || length > 30) {
+    const violations = usernamePolicyViolations(username);
+    if (violations.includes('length')) {
       context.addIssue({ code: 'custom', message: 'Username must contain 3–30 characters' });
     }
-    if (!/^[\p{L}\p{N}._]+$/u.test(username)) {
+    if (violations.includes('characters')) {
       context.addIssue({
         code: 'custom',
         message: 'Username may contain only letters, numbers, underscores, and periods',

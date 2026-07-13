@@ -1,4 +1,5 @@
-import { canonicalizeUsername, usernameSchema } from '@squash/contracts';
+import { usernameSchema } from '@squash/contracts';
+import { canonicalizeUsername } from '@squash/domain';
 
 describe('Username policy', () => {
   it('normalizes display values to NFC and compares them case-insensitively', () => {

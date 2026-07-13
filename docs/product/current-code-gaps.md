@@ -11,7 +11,8 @@ mobile Player Profile and a minimal Username lookup projection. Username values 
 casing and use the documented Unicode full-case-folded NFC comparison for lookup and database
 uniqueness.
 The lookup returns only Username, display name, and avatar, and excludes accounts marked as Junior;
-the broader Guardian and Junior account lifecycle remains unimplemented.
+the broader Guardian and Junior account lifecycle remains unimplemented. Username maintenance does
+not introduce a separate Profile-setup lifecycle gate for other mobile journeys.
 
 | Intended behavior                                     | Current evidence                                                                  | Gap                                                                    |
 | ----------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |

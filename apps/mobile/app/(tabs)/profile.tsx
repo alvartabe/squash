@@ -43,10 +43,6 @@ const visibilityOptions: {
 ];
 
 export default function ProfileScreen() {
-  return <PlayerProfileScreen />;
-}
-
-export function PlayerProfileScreen({ initialSetup = false }: { initialSetup?: boolean }) {
   const session = authClient.useSession();
   const playerId = session.data?.user.id;
   const profile = useQuery({
@@ -59,12 +55,8 @@ export function PlayerProfileScreen({ initialSetup = false }: { initialSetup?: b
 
   return (
     <Screen>
-      <Text style={{ fontSize: 28, fontWeight: '800' }}>
-        {t(initialSetup ? 'profile.setupHeading' : 'profile.heading')}
-      </Text>
-      <Text style={styles.description}>
-        {t(initialSetup ? 'profile.setupDescription' : 'profile.description')}
-      </Text>
+      <Text style={{ fontSize: 28, fontWeight: '800' }}>{t('profile.heading')}</Text>
+      <Text style={styles.description}>{t('profile.description')}</Text>
       {profile.isPending ? (
         <View style={styles.state}>
           <ActivityIndicator color={colors.primary} size="large" />
@@ -86,19 +78,15 @@ export function PlayerProfileScreen({ initialSetup = false }: { initialSetup?: b
       ) : (
         <ProfileForm playerId={playerId!} profile={profile.data.data} />
       )}
-      {!initialSetup ? (
-        <>
-          <Pressable onPress={() => router.push('/notifications' as Href)}>
-            <Text>{t('profile.notifications')}</Text>
-          </Pressable>
-          <Pressable onPress={() => router.push('/notification-preferences' as Href)}>
-            <Text>{t('profile.notificationPreferences')}</Text>
-          </Pressable>
-          <Pressable onPress={() => router.push('/player-discovery' as Href)}>
-            <Text>{t('discovery.open')}</Text>
-          </Pressable>
-        </>
-      ) : null}
+      <Pressable onPress={() => router.push('/notifications' as Href)}>
+        <Text>{t('profile.notifications')}</Text>
+      </Pressable>
+      <Pressable onPress={() => router.push('/notification-preferences' as Href)}>
+        <Text>{t('profile.notificationPreferences')}</Text>
+      </Pressable>
+      <Pressable onPress={() => router.push('/player-discovery' as Href)}>
+        <Text>{t('discovery.open')}</Text>
+      </Pressable>
       <Pressable onPress={() => authClient.signOut()}>
         <Text>{t('profile.signOut')}</Text>
       </Pressable>

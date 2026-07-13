@@ -58,3 +58,13 @@ Do not silently resolve a genuine product-document conflict. Report it and reque
 - For bug fixes, first reproduce the defect with a failing regression test when practical.
 - Test through public interfaces and observable behavior rather than implementation details.
 - Run relevant tests during implementation and the full applicable test suite before final review.
+
+## Pre-launch data assumption
+
+- No deployed environment currently contains persistent Player account or Player Profile data.
+- Until this assumption is explicitly revoked, migrations that change Player account or Player
+  Profile persistence do not require a data backfill or compatibility path for existing rows.
+- Such migrations must still apply successfully from the preceding schema on an empty database,
+  and their schema snapshots and migration journal must remain consistent.
+- Revoke this assumption before the first environment begins retaining Player account or Player
+  Profile data; subsequent migrations must preserve and migrate existing data.

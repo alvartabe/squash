@@ -1,5 +1,5 @@
 import { playerProfiles, users } from '@squash/db/schema';
-import { canonicalizeUsername } from '@squash/contracts';
+import { canonicalizeUsername } from '@squash/domain';
 import { eq } from 'drizzle-orm';
 import { db } from './database';
 

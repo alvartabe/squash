@@ -8,3 +8,4 @@ export * from './standings';
 export * from './tournament';
 export * from './official-tournament';
 export * from './types';
+export * from './username';

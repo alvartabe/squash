@@ -33,7 +33,7 @@ A Player-maintained informational record of their squash rackets, specifications
 _Avoid_: Inventory, marketplace listing
 
 **Player Profile**:
-A Player's display name, avatar, biography, dominant hand, and Equipment Profile.
+A Player's Username, display name, avatar, biography, dominant hand, and Equipment Profile.
 _Avoid_: Account, Competition Record
 
 **Profile Visibility**:

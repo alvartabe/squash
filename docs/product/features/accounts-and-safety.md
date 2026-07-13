@@ -7,13 +7,23 @@
 
 ## Adult Players
 
-An adult creates an independent account, verifies their email, and completes initial mobile Profile
-setup before using the rest of the app. Setup requires a unique Username and Player Profile.
-Usernames contain 3–30 Unicode letters or numbers, underscores, or periods, with no spaces. They
-are stored in Unicode NFC form, preserve the Player's chosen letter casing for display, and are
-unique and discoverable using Unicode full case folding followed by NFC normalization. Exact
-Username search exposes
-only Username, display name, and avatar.
+An adult creates an independent account, verifies their email, and maintains one unique Username
+as part of their Player Profile. The mobile Profile experience lets the Player view and update the
+Username. The absence of a Username does not create a separate account lifecycle state or block
+access to other mobile journeys.
+
+### Accepted Username policy
+
+The following rules are accepted product behavior, not implementation defaults:
+
+- A Username contains 3–30 Unicode letters or numbers, underscores, or periods, with no spaces.
+- It is stored in Unicode NFC form and preserves the Player's chosen letter casing for display.
+- Uniqueness and exact discovery compare Unicode full-case-folded values followed by NFC
+  normalization.
+- Exact Username search exposes only Username, display name, and avatar.
+
+Changing the Username format, normalization, or comparison rules requires a new product decision
+and a corresponding update to this document.
 
 Profile Visibility has three levels:
 

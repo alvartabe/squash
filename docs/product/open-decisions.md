@@ -2,6 +2,13 @@
 
 Agents must not invent answers to these items. Resolve the relevant item through a product decision before implementation depends on it.
 
+## Resolved elsewhere
+
+Username format, normalization, display casing, uniqueness, and exact-discovery comparison are
+resolved product behavior. The accepted policy is defined in
+[Accounts and Safety](features/accounts-and-safety.md#accepted-username-policy) and must not be
+treated as an open implementation choice.
+
 ## Legal and operational
 
 - Audit, security, consent, and anonymized-history retention periods

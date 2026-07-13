@@ -446,8 +446,6 @@ const en = {
   'tournaments.tiebreak.error':
     'The decision could not be recorded. Refresh to check whether progression changed.',
   'profile.heading': 'Profile',
-  'profile.setupHeading': 'Set up your Profile',
-  'profile.setupDescription': 'Choose your Username and complete your Profile to continue.',
   'profile.notifications': 'Notifications',
   'profile.notificationPreferences': 'Notification preferences',
   'profile.description': 'Manage the details other Players may see when your visibility allows it.',
@@ -1000,8 +998,6 @@ const es: Record<MessageKey, string> = {
   'tournaments.tiebreak.error':
     'No se pudo registrar la decisión. Actualiza para verificar si el Torneo cambió.',
   'profile.heading': 'Perfil',
-  'profile.setupHeading': 'Configura tu Perfil',
-  'profile.setupDescription': 'Elige tu Nombre de usuario y completa tu Perfil para continuar.',
   'profile.notifications': 'Notificaciones',
   'profile.notificationPreferences': 'Preferencias de notificaciones',
   'profile.description':

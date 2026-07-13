@@ -1,5 +1,6 @@
-import { canonicalizeUsername, normalizeUsername } from '@squash/contracts';
+import type { UpdatePlayerProfile } from '@squash/contracts';
 import { playerProfiles, users } from '@squash/db/schema';
+import { canonicalizeUsername, normalizeUsername } from '@squash/domain';
 import { eq } from 'drizzle-orm';
 import { db } from './database';
 import { notFound, ServiceError } from './errors';
@@ -41,18 +42,7 @@ export function createPlayerProfileService(database: PlayerProfileDatabase) {
     };
   }
 
-  async function updateProfile(
-    actorId: string,
-    input: {
-      name: string;
-      bio?: string | null | undefined;
-      dominantHand?: 'left' | 'right' | 'ambidextrous' | null | undefined;
-      visibility: 'private' | 'friends' | 'shared-clubs';
-      locale: 'en-US' | 'es-419';
-      timeZone: string;
-      username: string;
-    },
-  ) {
+  async function updateProfile(actorId: string, input: UpdatePlayerProfile) {
     const username = normalizeUsername(input.username);
     const usernameCanonical = canonicalizeUsername(username);
     try {
