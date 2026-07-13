@@ -156,6 +156,11 @@ regardless of optional push preferences, marks invitations read idempotently, an
 authorized one-time Club Play Session destination. Other notification types have no inbox
 behavior in this delivered slice.
 
+The Platform Administrator web workspace provides a read-only audit-record index through the
+isolated management-authentication boundary. It rechecks current Platform Administrator authority,
+uses deterministic cursor pagination, and exposes only the documented non-private audit projection;
+raw metadata and joined Player or Guardian data are not available through the index.
+
 - Audit coverage does not yet include every documented sensitive action.
 - Platform private-data access is not implemented as an audited least-privilege workflow.
 - Data retention periods remain intentionally unresolved pending Costa Rican legal review.

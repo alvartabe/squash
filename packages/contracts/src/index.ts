@@ -637,6 +637,31 @@ export type PaginatedData<T> = {
   totalPages: number;
 };
 
+export const auditRecordSchema = z.object({
+  id: idSchema,
+  createdAt: isoDateTimeSchema,
+  action: z.string().min(1),
+  actorId: userIdSchema.nullable(),
+  entityType: z.string().min(1),
+  entityId: z.string().min(1),
+  clubId: idSchema.nullable(),
+});
+
+export const auditIndexCursorSchema = z.string().trim().min(1).max(1024);
+export const auditIndexQuerySchema = z
+  .object({
+    cursor: auditIndexCursorSchema.optional(),
+  })
+  .strict();
+export const auditRecordPageSchema = z.object({
+  items: z.array(auditRecordSchema),
+  nextCursor: auditIndexCursorSchema.nullable(),
+});
+
+export type AuditRecord = z.infer<typeof auditRecordSchema>;
+export type AuditRecordPage = z.infer<typeof auditRecordPageSchema>;
+export type AuditIndexQuery = z.infer<typeof auditIndexQuerySchema>;
+
 export type ClubPlaySessionParticipant = {
   sessionId: string;
   playerId: string;

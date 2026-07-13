@@ -1,5 +1,6 @@
 export * from './authorization';
 export * from './audit';
+export * from './audit-index';
 export * from './club-admin';
 export * from './club-discovery';
 export * from './club-profile';

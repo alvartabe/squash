@@ -94,6 +94,16 @@ Audit records cover:
 
 Routine navigation and Attendance Response changes are not audit events.
 
+Platform Administrators have a read-only web audit index through an assured credential-only
+management session. The server rechecks current Platform Administrator authority and returns audit
+records newest first in pages of 50, using an opaque cursor with creation time and audit record ID
+for deterministic ordering. Each row contains only the audit record ID, creation time, canonical
+action code, optional actor ID, entity type, entity ID, and optional Club ID. Missing actor and Club
+references remain valid historical evidence. The index does not expose raw audit metadata or join
+Player, Player Profile, Guardian, or other private data, and it provides no record-detail or mutation
+actions. Its loading, empty, error, and additional-page states are available in English and Latin
+American Spanish; stored action codes and identifiers remain untranslated.
+
 Retention durations require a documented policy approved by Costa Rican counsel before launch.
 
 ## MFA

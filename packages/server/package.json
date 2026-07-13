@@ -12,7 +12,7 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json",
     "lint": "tsc -p tsconfig.json",
-    "test": "node --test src/__tests__/better-auth-two-factor.test.mjs && node --import tsx --test src/__tests__/username-uniqueness.integration.mts && jest --runInBand"
+    "test": "node --test src/__tests__/better-auth-two-factor.test.mjs && node --import tsx --test src/__tests__/username-uniqueness.integration.mts src/__tests__/audit-index.integration.mts && jest --runInBand"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.840.0",

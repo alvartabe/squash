@@ -87,6 +87,7 @@ describe('web-management API authentication audit', () => {
     'tournaments/[tournamentId]/participants/[playerId]/route.ts',
     'tournaments/[tournamentId]/player-candidates/route.ts',
     'clubs/[clubId]/tournaments/route.ts',
+    'platform/audit/route.ts',
     'me/route.ts',
   ])('%s uses the centralized management-authentication guard', (path) => {
     const source = route(path);
@@ -151,5 +152,12 @@ describe('web-management API authentication audit', () => {
     expect(source).toContain("input.purpose === 'club-logo'");
     expect(source).toContain('requireManagementUserId');
     expect(source).toContain('requireUserId');
+  });
+
+  it('never offers the Platform audit index through the Player/OAuth route boundary', () => {
+    const source = route('platform/audit/route.ts');
+    expect(source).toContain('managementRoute');
+    expect(source).not.toContain('playerRoute');
+    expect(source).not.toContain('requireUserId');
   });
 });
