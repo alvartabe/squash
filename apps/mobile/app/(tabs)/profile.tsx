@@ -1,5 +1,5 @@
 import { queryKeys } from '@squash/api-client';
-import type { PlayerProfile, UpdatePlayerProfile } from '@squash/contracts';
+import { usernameSchema, type PlayerProfile, type UpdatePlayerProfile } from '@squash/contracts';
 import { colors, radii, spacing } from '@squash/design-tokens';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type Href, Redirect, router } from 'expo-router';
@@ -43,6 +43,10 @@ const visibilityOptions: {
 ];
 
 export default function ProfileScreen() {
+  return <PlayerProfileScreen />;
+}
+
+export function PlayerProfileScreen({ initialSetup = false }: { initialSetup?: boolean }) {
   const session = authClient.useSession();
   const playerId = session.data?.user.id;
   const profile = useQuery({
@@ -55,8 +59,12 @@ export default function ProfileScreen() {
 
   return (
     <Screen>
-      <Text style={{ fontSize: 28, fontWeight: '800' }}>{t('profile.heading')}</Text>
-      <Text style={styles.description}>{t('profile.description')}</Text>
+      <Text style={{ fontSize: 28, fontWeight: '800' }}>
+        {t(initialSetup ? 'profile.setupHeading' : 'profile.heading')}
+      </Text>
+      <Text style={styles.description}>
+        {t(initialSetup ? 'profile.setupDescription' : 'profile.description')}
+      </Text>
       {profile.isPending ? (
         <View style={styles.state}>
           <ActivityIndicator color={colors.primary} size="large" />
@@ -78,15 +86,19 @@ export default function ProfileScreen() {
       ) : (
         <ProfileForm playerId={playerId!} profile={profile.data.data} />
       )}
-      <Pressable onPress={() => router.push('/notifications' as Href)}>
-        <Text>{t('profile.notifications')}</Text>
-      </Pressable>
-      <Pressable onPress={() => router.push('/notification-preferences' as Href)}>
-        <Text>{t('profile.notificationPreferences')}</Text>
-      </Pressable>
-      <Pressable onPress={() => router.push('/player-discovery' as Href)}>
-        <Text>{t('discovery.open')}</Text>
-      </Pressable>
+      {!initialSetup ? (
+        <>
+          <Pressable onPress={() => router.push('/notifications' as Href)}>
+            <Text>{t('profile.notifications')}</Text>
+          </Pressable>
+          <Pressable onPress={() => router.push('/notification-preferences' as Href)}>
+            <Text>{t('profile.notificationPreferences')}</Text>
+          </Pressable>
+          <Pressable onPress={() => router.push('/player-discovery' as Href)}>
+            <Text>{t('discovery.open')}</Text>
+          </Pressable>
+        </>
+      ) : null}
       <Pressable onPress={() => authClient.signOut()}>
         <Text>{t('profile.signOut')}</Text>
       </Pressable>
@@ -102,6 +114,7 @@ function ProfileForm({ playerId, profile }: { playerId: string; profile: PlayerP
   const [dominantHand, setDominantHand] = useState<DominantHand>(profile.dominantHand);
   const [visibility, setVisibility] = useState<ProfileVisibility | null>(profile.visibility);
   const [validationError, setValidationError] = useState(false);
+  const [usernameError, setUsernameError] = useState(false);
   const [visibilityError, setVisibilityError] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -120,6 +133,11 @@ function ProfileForm({ playerId, profile }: { playerId: string; profile: PlayerP
 
   const submit = () => {
     setSaved(false);
+    const parsedUsername = usernameSchema.safeParse(username);
+    if (!parsedUsername.success) {
+      setUsernameError(true);
+      return;
+    }
     if (!name.trim()) {
       setValidationError(true);
       return;
@@ -129,9 +147,10 @@ function ProfileForm({ playerId, profile }: { playerId: string; profile: PlayerP
       return;
     }
     setValidationError(false);
+    setUsernameError(false);
     setVisibilityError(false);
     save.mutate({
-      username,
+      username: parsedUsername.data,
       name: name.trim(),
       bio: bio.trim() || null,
       dominantHand,
@@ -222,6 +241,11 @@ function ProfileForm({ playerId, profile }: { playerId: string; profile: PlayerP
       {validationError ? (
         <Text accessibilityRole="alert" style={styles.error}>
           {t('profile.nameRequired')}
+        </Text>
+      ) : null}
+      {usernameError ? (
+        <Text accessibilityRole="alert" style={styles.error}>
+          {t('profile.usernameInvalid')}
         </Text>
       ) : null}
       {visibilityError ? (

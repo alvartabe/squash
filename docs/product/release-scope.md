@@ -9,6 +9,7 @@ The Initial release proves the governed Club workflow:
 - Adult and Junior Player accounts
 - Guardian consent, supervision, and age transition
 - Player identity, Profile Visibility, and Account Closure
+- adult Player Username maintenance and exact Username discovery
 - Club discovery and Club Profiles
 - Membership Requests, Club Invitations, Membership lifecycle, and composable Club Responsibilities
 - Web management for Platform Administrators, Club Owners, Club Administrators, and Coaches
@@ -25,7 +26,7 @@ The Initial release proves the governed Club workflow:
 
 These capabilities are accepted parts of the product but are not Initial scope:
 
-- Friendships and direct Player discovery beyond Initial Club needs
+- Friendships and direct Player discovery beyond exact adult Username lookup and Initial Club needs
 - Player Availability and Availability Exceptions
 - Equipment Profiles
 - Play Groups

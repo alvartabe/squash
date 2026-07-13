@@ -678,8 +678,32 @@ export type InviteClubResponsibility = z.infer<typeof inviteClubResponsibilitySc
 
 export const profileVisibilitySchema = z.enum(['private', 'friends', 'shared-clubs']);
 
+export function normalizeUsername(username: string) {
+  return username.normalize('NFC');
+}
+
+export function canonicalizeUsername(username: string) {
+  return normalizeUsername(username).toLocaleLowerCase('und').normalize('NFC');
+}
+
+export const usernameSchema = z
+  .string()
+  .transform(normalizeUsername)
+  .superRefine((username, context) => {
+    const length = Array.from(username).length;
+    if (length < 3 || length > 30) {
+      context.addIssue({ code: 'custom', message: 'Username must contain 3–30 characters' });
+    }
+    if (!/^[\p{L}\p{N}._]+$/u.test(username)) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Username may contain only letters, numbers, underscores, and periods',
+      });
+    }
+  });
+
 export const profileSchema = z.object({
-  username: z.string(),
+  username: usernameSchema,
   name: z.string().trim().min(1).max(120),
   bio: z.string().trim().max(1000).nullable().optional(),
   dominantHand: z.enum(['left', 'right', 'ambidextrous']).nullable().optional(),
@@ -693,7 +717,7 @@ export const playerProfileSchema = profileSchema.extend({
   visibility: profileVisibilitySchema.nullable(),
 });
 
-export const usernameDiscoveryQuerySchema = z.object({ username: z.string() });
+export const usernameDiscoveryQuerySchema = z.object({ username: usernameSchema });
 export const usernameDiscoveryResultSchema = z.object({
   username: z.string(),
   displayName: z.string(),

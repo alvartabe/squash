@@ -202,14 +202,15 @@ export const playerProfiles = pgTable(
       .notNull()
       .unique()
       .references(() => users.id, { onDelete: 'cascade' }),
-    username: text('username'),
+    username: text('username').notNull(),
+    usernameCanonical: text('username_canonical').notNull(),
     bio: text('bio'),
     dominantHand: text('dominant_hand'),
     visibility: text('visibility').notNull().default('shared-clubs'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (table) => [uniqueIndex('player_profiles_username_unique').on(table.username)],
+  (table) => [uniqueIndex('player_profiles_username_canonical_unique').on(table.usernameCanonical)],
 );
 
 export const clubs = pgTable(

@@ -178,7 +178,6 @@ export function squashApi(client: AxiosInstance) {
 
 export const queryKeys = {
   profile: (userId: string) => ['profile', userId] as const,
-  usernameDiscovery: (username: string) => ['players', 'username', username] as const,
   notificationPreferences: () => ['notification-preferences'] as const,
   notifications: () => ['notifications'] as const,
   friends: () => ['friends'] as const,

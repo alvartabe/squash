@@ -1,5 +1,5 @@
 {
-  "id": "c6d30893-d89e-4c29-8d2b-b76eaad67a79",
+  "id": "0b8aa61e-bbae-4e5b-ae88-3d1e4da8783d",
   "prevId": "3c0d5aa0-4e01-4729-b5ca-d2714c513063",
   "version": "7",
   "dialect": "postgresql",
@@ -2698,7 +2698,13 @@
           "name": "username",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
+        },
+        "username_canonical": {
+          "name": "username_canonical",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
         },
         "bio": {
           "name": "bio",
@@ -2735,11 +2741,11 @@
         }
       },
       "indexes": {
-        "player_profiles_username_unique": {
-          "name": "player_profiles_username_unique",
+        "player_profiles_username_canonical_unique": {
+          "name": "player_profiles_username_canonical_unique",
           "columns": [
             {
-              "expression": "username",
+              "expression": "username_canonical",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

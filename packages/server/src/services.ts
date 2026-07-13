@@ -6,6 +6,7 @@ import type {
   SetScoreInput,
   UpdateNotificationPreferences,
 } from '@squash/contracts';
+import { canonicalizeUsername, normalizeUsername } from '@squash/contracts';
 import {
   challengeStats,
   challenges,
@@ -125,6 +126,7 @@ export async function updateProfile(
     username: string;
   },
 ) {
+  const username = normalizeUsername(input.username);
   try {
     await db.transaction(async (tx) => {
       await tx
@@ -140,7 +142,8 @@ export async function updateProfile(
         .insert(playerProfiles)
         .values({
           userId: actorId,
-          username: input.username,
+          username,
+          usernameCanonical: canonicalizeUsername(username),
           bio: input.bio ?? null,
           dominantHand: input.dominantHand ?? null,
           visibility: input.visibility,
@@ -148,7 +151,8 @@ export async function updateProfile(
         .onConflictDoUpdate({
           target: playerProfiles.userId,
           set: {
-            username: input.username,
+            username,
+            usernameCanonical: canonicalizeUsername(username),
             bio: input.bio ?? null,
             dominantHand: input.dominantHand ?? null,
             visibility: input.visibility,
@@ -161,7 +165,7 @@ export async function updateProfile(
       typeof error === 'object' &&
       error !== null &&
       'constraint' in error &&
-      error.constraint === 'player_profiles_username_unique'
+      error.constraint === 'player_profiles_username_canonical_unique'
     ) {
       throw new ServiceError('USERNAME_TAKEN', 'error.usernameTaken', 409);
     }

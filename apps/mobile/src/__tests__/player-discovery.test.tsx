@@ -40,4 +40,12 @@ describe('Player Username discovery screen', () => {
     fireEvent.press(screen.getByText(t('discovery.search')));
     await waitFor(() => expect(screen.getByText(t('discovery.noMatch'))).toBeTruthy());
   });
+
+  it('does not search for an invalid Username', () => {
+    const screen = renderScreen();
+    fireEvent.changeText(screen.getByLabelText(t('profile.username')), 'ab');
+    fireEvent.press(screen.getByText(t('discovery.search')));
+    expect(screen.getByText(t('profile.usernameInvalid'))).toBeTruthy();
+    expect(mockFindPlayer).not.toHaveBeenCalled();
+  });
 });

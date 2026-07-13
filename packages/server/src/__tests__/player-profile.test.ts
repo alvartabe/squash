@@ -40,9 +40,9 @@ describe('Player Profile', () => {
     });
   });
 
-  it('reports database-enforced Username conflicts without choosing a comparison policy', async () => {
+  it('reports case-insensitive database-enforced Username conflicts', async () => {
     mockDb.transaction.mockRejectedValueOnce({
-      constraint: 'player_profiles_username_unique',
+      constraint: 'player_profiles_username_canonical_unique',
     });
 
     await expect(
@@ -54,5 +54,42 @@ describe('Player Profile', () => {
         timeZone: 'America/Costa_Rica',
       }),
     ).rejects.toMatchObject({ code: 'USERNAME_TAKEN', status: 409 });
+  });
+
+  it('stores the NFC display Username and its case-insensitive uniqueness key', async () => {
+    const values = jest.fn(() => ({ onConflictDoUpdate: jest.fn().mockResolvedValue(undefined) }));
+    const tx = {
+      update: jest.fn(() => ({
+        set: jest.fn(() => ({ where: jest.fn().mockResolvedValue(undefined) })),
+      })),
+      insert: jest.fn(() => ({ values })),
+    };
+    mockDb.transaction.mockImplementationOnce(async (callback) => callback(tx));
+    profileSelect([
+      {
+        username: 'María.Solis',
+        name: 'María Solís',
+        bio: null,
+        dominantHand: null,
+        visibility: 'private',
+        locale: 'es-419',
+        timeZone: 'America/Costa_Rica',
+      },
+    ]);
+
+    await updateProfile('player-id', {
+      username: 'Mari\u0301a.Solis',
+      name: 'María Solís',
+      visibility: 'private',
+      locale: 'es-419',
+      timeZone: 'America/Costa_Rica',
+    });
+
+    expect(values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        username: 'María.Solis',
+        usernameCanonical: 'maría.solis',
+      }),
+    );
   });
 });

@@ -446,6 +446,8 @@ const en = {
   'tournaments.tiebreak.error':
     'The decision could not be recorded. Refresh to check whether progression changed.',
   'profile.heading': 'Profile',
+  'profile.setupHeading': 'Set up your Profile',
+  'profile.setupDescription': 'Choose your Username and complete your Profile to continue.',
   'profile.notifications': 'Notifications',
   'profile.notificationPreferences': 'Notification preferences',
   'profile.description': 'Manage the details other Players may see when your visibility allows it.',
@@ -471,6 +473,7 @@ const en = {
   'profile.loadError': 'We could not load your Profile. Check your connection and try again.',
   'profile.saveError': 'We could not save your Profile. Try again.',
   'profile.nameRequired': 'Enter a display name to save your Profile.',
+  'profile.usernameInvalid': 'Use 3–30 letters, numbers, underscores, or periods with no spaces.',
   'profile.visibilityRequired': 'Choose who can view your Profile before saving.',
   'error.usernameTaken': 'That exact Username is already in use.',
   'profile.signOut': 'Sign out',
@@ -997,6 +1000,8 @@ const es: Record<MessageKey, string> = {
   'tournaments.tiebreak.error':
     'No se pudo registrar la decisión. Actualiza para verificar si el Torneo cambió.',
   'profile.heading': 'Perfil',
+  'profile.setupHeading': 'Configura tu Perfil',
+  'profile.setupDescription': 'Elige tu Nombre de usuario y completa tu Perfil para continuar.',
   'profile.notifications': 'Notificaciones',
   'profile.notificationPreferences': 'Preferencias de notificaciones',
   'profile.description':
@@ -1024,6 +1029,7 @@ const es: Record<MessageKey, string> = {
   'profile.loadError': 'No pudimos cargar tu Perfil. Revisa tu conexión e inténtalo de nuevo.',
   'profile.saveError': 'No pudimos guardar tu Perfil. Inténtalo de nuevo.',
   'profile.nameRequired': 'Ingresa un nombre para mostrar antes de guardar tu Perfil.',
+  'profile.usernameInvalid': 'Usa de 3 a 30 letras, números, guiones bajos o puntos, sin espacios.',
   'profile.visibilityRequired': 'Elige quién puede ver tu Perfil antes de guardarlo.',
   'error.usernameTaken': 'Ese Nombre de usuario exacto ya está en uso.',
   'profile.signOut': 'Cerrar sesión',

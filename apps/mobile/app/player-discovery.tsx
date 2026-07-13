@@ -1,4 +1,5 @@
 import { colors, radii, spacing } from '@squash/design-tokens';
+import { usernameSchema } from '@squash/contracts';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import {
@@ -16,7 +17,17 @@ import { t } from '@/src/lib/i18n';
 
 export default function PlayerDiscoveryScreen() {
   const [username, setUsername] = useState('');
+  const [usernameError, setUsernameError] = useState(false);
   const lookup = useMutation({ mutationFn: (value: string) => api.findPlayerByUsername(value) });
+  const search = () => {
+    const parsed = usernameSchema.safeParse(username);
+    if (!parsed.success) {
+      setUsernameError(true);
+      return;
+    }
+    setUsernameError(false);
+    lookup.mutate(parsed.data);
+  };
 
   return (
     <Screen>
@@ -33,12 +44,13 @@ export default function PlayerDiscoveryScreen() {
       <Pressable
         accessibilityRole="button"
         disabled={lookup.isPending}
-        onPress={() => lookup.mutate(username)}
+        onPress={search}
         style={styles.button}
       >
         <Text style={styles.buttonText}>{t('discovery.search')}</Text>
       </Pressable>
       {lookup.isPending ? <ActivityIndicator color={colors.primary} /> : null}
+      {usernameError ? <Text accessibilityRole="alert">{t('profile.usernameInvalid')}</Text> : null}
       {lookup.isError ? <Text accessibilityRole="alert">{t('discovery.error')}</Text> : null}
       {lookup.isSuccess && !lookup.data.data ? <Text>{t('discovery.noMatch')}</Text> : null}
       {lookup.data?.data ? (

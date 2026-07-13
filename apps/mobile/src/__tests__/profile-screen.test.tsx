@@ -100,6 +100,15 @@ describe('Player Profile screen', () => {
     expect(mockUpdateProfile).not.toHaveBeenCalled();
   });
 
+  it('does not save a Username outside the accepted policy', async () => {
+    const screen = renderScreen();
+    await waitFor(() => expect(screen.getByDisplayValue(profile.name)).toBeTruthy());
+    fireEvent.changeText(screen.getByLabelText(t('profile.username')), 'ab');
+    fireEvent.press(screen.getByText(t('profile.save')));
+    expect(screen.getByText(t('profile.usernameInvalid'))).toBeTruthy();
+    expect(mockUpdateProfile).not.toHaveBeenCalled();
+  });
+
   it('requires an explicit visibility choice before the first save', async () => {
     mockGetProfile.mockResolvedValueOnce({ data: { ...profile, visibility: null } });
     const screen = renderScreen();
