@@ -5,6 +5,8 @@ describe('Username policy', () => {
     const decomposed = 'Mari\u0301a.Solis';
     expect(usernameSchema.parse(decomposed)).toBe('María.Solis');
     expect(canonicalizeUsername('MARÍA.SOLIS')).toBe(canonicalizeUsername(decomposed));
+    expect(canonicalizeUsername('ΟΣ')).toBe(canonicalizeUsername('οσ'));
+    expect(canonicalizeUsername('Straße')).toBe(canonicalizeUsername('STRASSE'));
   });
 
   it('accepts 3–30 Unicode letters, numbers, underscores, and periods', () => {

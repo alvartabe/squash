@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { foldUsernameCase } from './foldcase';
 
 export const idSchema = z.uuid();
 export const userIdSchema = z.string().trim().min(1).max(128);
@@ -683,7 +684,7 @@ export function normalizeUsername(username: string) {
 }
 
 export function canonicalizeUsername(username: string) {
-  return normalizeUsername(username).toLocaleLowerCase('und').normalize('NFC');
+  return foldUsernameCase(normalizeUsername(username)).normalize('NFC');
 }
 
 export const usernameSchema = z

@@ -8,7 +8,8 @@ This document identifies known differences between intended product behavior and
 
 Adult Player Username maintenance and exact authenticated discovery are implemented through the
 mobile Player Profile and a minimal Username lookup projection. Username values preserve display
-casing and use the documented case-insensitive NFC comparison for lookup and database uniqueness.
+casing and use the documented Unicode full-case-folded NFC comparison for lookup and database
+uniqueness.
 The lookup returns only Username, display name, and avatar, and excludes accounts marked as Junior;
 the broader Guardian and Junior account lifecycle remains unimplemented.
 

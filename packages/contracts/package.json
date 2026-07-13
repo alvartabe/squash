@@ -13,6 +13,7 @@
     "test": "node -e \"process.exit(0)\""
   },
   "dependencies": {
+    "@ar-nelson/foldcase": "^1.0.1",
     "zod": "^4.1.5"
   },
   "devDependencies": {

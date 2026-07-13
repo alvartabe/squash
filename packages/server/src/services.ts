@@ -6,7 +6,6 @@ import type {
   SetScoreInput,
   UpdateNotificationPreferences,
 } from '@squash/contracts';
-import { canonicalizeUsername, normalizeUsername } from '@squash/contracts';
 import {
   challengeStats,
   challenges,
@@ -23,7 +22,6 @@ import {
   matchSets,
   notificationPreferences,
   outboxEvents,
-  playerProfiles,
   playerRackets,
   recurringAvailability,
   tournamentFixtures,
@@ -112,89 +110,6 @@ export async function listMyClubs(actorId: string) {
     )
     .orderBy(asc(clubs.name));
   return memberships;
-}
-
-export async function updateProfile(
-  actorId: string,
-  input: {
-    name: string;
-    bio?: string | null | undefined;
-    dominantHand?: 'left' | 'right' | 'ambidextrous' | null | undefined;
-    visibility: 'private' | 'friends' | 'shared-clubs';
-    locale: 'en-US' | 'es-419';
-    timeZone: string;
-    username: string;
-  },
-) {
-  const username = normalizeUsername(input.username);
-  try {
-    await db.transaction(async (tx) => {
-      await tx
-        .update(users)
-        .set({
-          name: input.name,
-          locale: input.locale,
-          timeZone: input.timeZone,
-          updatedAt: new Date(),
-        })
-        .where(eq(users.id, actorId));
-      await tx
-        .insert(playerProfiles)
-        .values({
-          userId: actorId,
-          username,
-          usernameCanonical: canonicalizeUsername(username),
-          bio: input.bio ?? null,
-          dominantHand: input.dominantHand ?? null,
-          visibility: input.visibility,
-        })
-        .onConflictDoUpdate({
-          target: playerProfiles.userId,
-          set: {
-            username,
-            usernameCanonical: canonicalizeUsername(username),
-            bio: input.bio ?? null,
-            dominantHand: input.dominantHand ?? null,
-            visibility: input.visibility,
-            updatedAt: new Date(),
-          },
-        });
-    });
-  } catch (error) {
-    if (
-      typeof error === 'object' &&
-      error !== null &&
-      'constraint' in error &&
-      error.constraint === 'player_profiles_username_canonical_unique'
-    ) {
-      throw new ServiceError('USERNAME_TAKEN', 'error.usernameTaken', 409);
-    }
-    throw error;
-  }
-  return getPlayerProfile(actorId);
-}
-
-export async function getPlayerProfile(actorId: string) {
-  const [profile] = await db
-    .select({
-      username: playerProfiles.username,
-      name: users.name,
-      bio: playerProfiles.bio,
-      dominantHand: playerProfiles.dominantHand,
-      visibility: playerProfiles.visibility,
-      locale: users.locale,
-      timeZone: users.timeZone,
-    })
-    .from(users)
-    .leftJoin(playerProfiles, eq(playerProfiles.userId, users.id))
-    .where(eq(users.id, actorId))
-    .limit(1);
-  if (!profile) throw notFound('PLAYER_NOT_FOUND');
-  return {
-    ...profile,
-    visibility: profile.visibility as 'private' | 'friends' | 'shared-clubs' | null,
-    dominantHand: profile.dominantHand as 'left' | 'right' | 'ambidextrous' | null,
-  };
 }
 
 export async function requestFriend(actorId: string, addresseeId: string) {

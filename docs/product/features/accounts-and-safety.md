@@ -11,7 +11,8 @@ An adult creates an independent account, verifies their email, and completes ini
 setup before using the rest of the app. Setup requires a unique Username and Player Profile.
 Usernames contain 3–30 Unicode letters or numbers, underscores, or periods, with no spaces. They
 are stored in Unicode NFC form, preserve the Player's chosen letter casing for display, and are
-unique and discoverable using a case-insensitive NFC comparison. Exact Username search exposes
+unique and discoverable using Unicode full case folding followed by NFC normalization. Exact
+Username search exposes
 only Username, display name, and avatar.
 
 Profile Visibility has three levels:
