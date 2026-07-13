@@ -1,6 +1,6 @@
 import { playerProfiles, users } from '@squash/db/schema';
 import { canonicalizeUsername } from '@squash/domain';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { db } from './database';
 
 export async function findPlayerByExactUsername(username: string) {
@@ -13,7 +13,12 @@ export async function findPlayerByExactUsername(username: string) {
     })
     .from(playerProfiles)
     .innerJoin(users, eq(users.id, playerProfiles.userId))
-    .where(eq(playerProfiles.usernameCanonical, canonicalizeUsername(username)))
+    .where(
+      and(
+        eq(playerProfiles.usernameCanonical, canonicalizeUsername(username)),
+        isNull(users.platformSuspendedAt),
+      ),
+    )
     .limit(1);
 
   if (match === undefined || match.isJunior) return null;

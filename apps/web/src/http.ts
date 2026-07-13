@@ -1,5 +1,9 @@
 import { auth, managementAuth } from '@squash/server/auth';
-import { requireManagementAuthentication, ServiceError } from '@squash/server';
+import {
+  requireActivePlatformAccount,
+  requireManagementAuthentication,
+  ServiceError,
+} from '@squash/server';
 import { isAPIError } from 'better-auth/api';
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
@@ -8,6 +12,7 @@ import { ZodError } from 'zod';
 export async function requireUserId(): Promise<string> {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) throw new ServiceError('UNAUTHORIZED', 'error.unauthorized', 401);
+  await requireActivePlatformAccount(session.user.id);
   return session.user.id;
 }
 

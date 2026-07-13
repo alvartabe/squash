@@ -59,6 +59,27 @@ describe('Platform Administrator audit index service', () => {
     });
   });
 
+  it('shows Platform Suspension evidence through the safe projection without raw transition metadata', () => {
+    const projected = projectAuditRecord(
+      auditRow({
+        clubId: null,
+        action: 'platform.account.suspend',
+        entityType: 'player',
+        entityId: 'target-player-id',
+        metadata: { transition: 'suspended', privateProfile: 'must-not-leak' },
+      }),
+    );
+    expect(projected).toMatchObject({
+      action: 'platform.account.suspend',
+      actorId: 'platform-admin-id',
+      entityType: 'player',
+      entityId: 'target-player-id',
+      clubId: null,
+    });
+    expect(projected).not.toHaveProperty('metadata');
+    expect(JSON.stringify(projected)).not.toContain('must-not-leak');
+  });
+
   it('rechecks current Platform Administrator authority before reading records', async () => {
     mockRequirePlatformAdmin.mockRejectedValueOnce(forbidden());
 

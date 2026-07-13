@@ -36,4 +36,15 @@ describe('mobile locale', () => {
       'Invitación a una Sesión de Juego del Club',
     );
   });
+
+  it('provides Platform Suspension errors and statuses in English and Latin American Spanish', () => {
+    expect(translate('en-US', 'error.accountSuspended')).toContain('access is suspended');
+    expect(translate('es-419', 'error.accountSuspended')).toContain(
+      'acceso a Squash está suspendido',
+    );
+    expect(translate('en-US', 'error.playerNotFound')).toContain('Player ID');
+    expect(translate('es-419', 'error.playerNotFound')).toContain('ID de Jugador');
+    expect(translate('en-US', 'platformSuspension.status.suspended')).toBe('Platform Suspended');
+    expect(translate('es-419', 'platformSuspension.status.active')).toBe('Activa');
+  });
 });

@@ -23,8 +23,11 @@ function mockAuthorization(result: unknown) {
   mockDb.select.mockReturnValueOnce({ from });
 }
 
-function mockPlatformRole(role: 'user' | 'platform-admin' | null) {
-  const limit = jest.fn().mockResolvedValue(role ? [{ role }] : []);
+function mockPlatformRole(
+  role: 'user' | 'platform-admin' | null,
+  platformSuspendedAt: Date | null = null,
+) {
+  const limit = jest.fn().mockResolvedValue(role ? [{ role, platformSuspendedAt }] : []);
   const where = jest.fn(() => ({ limit }));
   const from = jest.fn(() => ({ where }));
   mockDb.select.mockReturnValueOnce({ from });
@@ -46,6 +49,15 @@ describe('platform authorization', () => {
 
     await expect(requirePlatformAdmin('actor-id')).rejects.toMatchObject({
       code: 'FORBIDDEN',
+      status: 403,
+    });
+  });
+
+  it('rejects a Platform Administrator whose account is Platform Suspended', async () => {
+    mockPlatformRole('platform-admin', new Date('2026-07-13T15:00:00.000Z'));
+
+    await expect(requirePlatformAdmin('platform-admin-id')).rejects.toMatchObject({
+      code: 'ACCOUNT_SUSPENDED',
       status: 403,
     });
   });

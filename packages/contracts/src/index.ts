@@ -662,6 +662,17 @@ export type AuditRecord = z.infer<typeof auditRecordSchema>;
 export type AuditRecordPage = z.infer<typeof auditRecordPageSchema>;
 export type AuditIndexQuery = z.infer<typeof auditIndexQuerySchema>;
 
+export const platformSuspensionStateSchema = z.enum(['active', 'suspended']);
+export const platformSuspensionResultSchema = z.object({
+  playerId: userIdSchema,
+  state: platformSuspensionStateSchema,
+  suspendedAt: isoDateTimeSchema.nullable(),
+  transitioned: z.boolean(),
+});
+
+export type PlatformSuspensionState = z.infer<typeof platformSuspensionStateSchema>;
+export type PlatformSuspensionResult = z.infer<typeof platformSuspensionResultSchema>;
+
 export type ClubPlaySessionParticipant = {
   sessionId: string;
   playerId: string;

@@ -6,6 +6,7 @@ export * from './club-discovery';
 export * from './club-profile';
 export * from './player-discovery';
 export * from './player-profile';
+export * from './platform-suspension';
 export * from './club-play-sessions';
 export * from './errors';
 export * from './media';

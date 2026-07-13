@@ -69,6 +69,37 @@ Suspension:
 
 The Platform Administrator explicitly reassigns Club ownership, Session coordination, or Tournament authority where needed. Suspension does not silently cascade-delete relationships.
 
+The delivered enforcement lifecycle is operated by a current Platform Administrator through an
+assured credential-only management session against an explicit Player ID. Suspending an existing
+non-suspended Player and reactivating a suspended Player are serialized, atomic transitions. A
+transition rechecks the acting Platform Administrator's current authority, changes the dedicated
+Platform Suspension state, and writes one immutable audit record with the acting administrator,
+target Player ID, canonical action code, transition, and timestamp. Repeated requests that do not
+change state do not repeat revocation work or create additional audit evidence, and a missing target
+returns a stable not-found error.
+
+Suspension immediately revokes every current Player session, management session, and management
+trusted-device grant belonging to the target. Credential, Google, and Apple authentication cannot
+establish a usable Player session while the suspension remains current. Player and management
+authentication boundaries recheck the persisted Platform Suspension state, so a stale or newly
+presented session cannot authorize authenticated activity. Exact Username discovery excludes the
+suspended Player.
+
+Platform Suspension does not delete or alter credentials, MFA enrollment, single-use backup codes,
+Club Memberships or their status, Club Responsibilities, Platform Administrator authority, Session
+coordination, Tournament Organizer appointments, Tournament Participation, fixtures, Official
+Results, Competition Records, or completed history. Authorized event and Club viewers may continue
+to see the Player where those preserved relationships or records require it.
+
+Reactivation clears only the Platform Suspension state. It does not recreate a revoked session or
+trusted-device grant, so the Player must authenticate again. Credentials, MFA material,
+relationships, appointments, participation, and history remain unchanged. A qualifying adult
+Player becomes eligible for exact Username discovery again under the existing discovery rules.
+
+This delivered slice does not add a Platform Player directory or Moderation Report workflow and
+does not define exceptional recovery for an active Tournament whose sole available organizer is
+suspended.
+
 ## Administrative privacy
 
 Platform Administrator status does not grant routine access to:

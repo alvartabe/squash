@@ -10,12 +10,14 @@ import {
 import { and, eq, isNotNull, like } from 'drizzle-orm';
 import { db } from './database';
 import { forbidden, ServiceError, unauthorized } from './errors';
+import { platformAccountSuspendedError } from './platform-suspension';
 
 type ManagementAuthenticationDatabase = Pick<typeof db, 'select'>;
 type ManagementSecurityRevocationDatabase = Pick<typeof db, 'transaction'>;
 
 export type ManagementSecurityState = {
   userId: string;
+  isPlatformSuspended: boolean;
   hasManagementAuthority: boolean;
   hasCredential: boolean;
   twoFactorEnabled: boolean;
@@ -29,6 +31,7 @@ export async function getManagementSecurityState(
     .select({
       id: users.id,
       role: users.role,
+      platformSuspendedAt: users.platformSuspendedAt,
       twoFactorEnabled: users.twoFactorEnabled,
     })
     .from(users)
@@ -69,6 +72,7 @@ export async function getManagementSecurityState(
 
   return {
     userId: user.id,
+    isPlatformSuspended: Boolean(user.platformSuspendedAt),
     hasManagementAuthority: user.role === 'platform-admin' || hasEligibleClubResponsibility,
     hasCredential: Boolean(credential),
     twoFactorEnabled: user.twoFactorEnabled === true,
@@ -80,6 +84,7 @@ export function requireManagementSecurityState(
   hasManagementSession: boolean,
 ) {
   if (!state) throw unauthorized();
+  if (state.isPlatformSuspended) throw platformAccountSuspendedError();
   if (!state.hasManagementAuthority) throw forbidden();
   if (!state.hasCredential) {
     throw new ServiceError(

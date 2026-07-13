@@ -13,6 +13,7 @@ const dialect = new PgDialect();
 function state(overrides: Partial<ManagementSecurityState> = {}): ManagementSecurityState {
   return {
     userId: 'manager-id',
+    isPlatformSuspended: false,
     hasManagementAuthority: true,
     hasCredential: true,
     twoFactorEnabled: true,
@@ -118,6 +119,18 @@ describe('management authentication boundary', () => {
   it('immediately blocks management after MFA is disabled', () => {
     expect(() => requireManagementSecurityState(state({ twoFactorEnabled: false }), true)).toThrow(
       expect.objectContaining({ code: 'MFA_ENROLLMENT_REQUIRED' }),
+    );
+  });
+
+  it('rejects a stale management session when the Player is Platform Suspended', () => {
+    expect(() =>
+      requireManagementSecurityState(state({ isPlatformSuspended: true }), true),
+    ).toThrow(
+      expect.objectContaining({
+        code: 'ACCOUNT_SUSPENDED',
+        messageKey: 'error.accountSuspended',
+        status: 403,
+      }),
     );
   });
 

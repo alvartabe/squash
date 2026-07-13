@@ -101,6 +101,7 @@ export const users = pgTable('users', {
   twoFactorEnabled: boolean('two_factor_enabled').default(false),
   image: text('image'),
   isJunior: boolean('is_junior').notNull().default(false),
+  platformSuspendedAt: timestamp('platform_suspended_at', { withTimezone: true }),
   role: platformRole('role').notNull().default('user'),
   locale: text('locale').notNull().default('en-US'),
   timeZone: text('time_zone').notNull().default('UTC'),

@@ -17,6 +17,8 @@ import { Resend } from 'resend';
 import { db } from './database';
 import { renderAuthEmail } from './emails';
 import { revokeManagementSecurityArtifacts } from './management-authentication';
+import { requireActivePlatformAccount } from './platform-suspension';
+import { createPlatformSuspensionSessionGuard } from './platform-suspension-authentication';
 
 function emailClient() {
   const key = process.env.RESEND_API_KEY;
@@ -124,6 +126,11 @@ const onPasswordReset = async ({ user }: { user: { id: string } }) => {
   await revokeManagementSecurityArtifacts(user.id);
 };
 
+const rejectSuspendedSessionCreation = createPlatformSuspensionSessionGuard(
+  requireActivePlatformAccount,
+  async (playerId) => translate(await getUserLocale(playerId), 'error.accountSuspended'),
+);
+
 export const auth = betterAuth({
   appName: 'Squash',
   baseURL: process.env.BETTER_AUTH_URL,
@@ -156,6 +163,7 @@ export const auth = betterAuth({
       clientSecret: process.env.APPLE_CLIENT_SECRET ?? '',
     },
   },
+  databaseHooks: { session: { create: { before: rejectSuspendedSessionCreation } } },
   user: { additionalFields: additionalUserFields },
   rateLimit: { enabled: true, window: 60, max: 100 },
 });
@@ -192,6 +200,7 @@ export const managementAuth = betterAuth({
     sendVerificationEmail,
   },
   user: { additionalFields: additionalUserFields },
+  databaseHooks: { session: { create: { before: rejectSuspendedSessionCreation } } },
   plugins: [
     twoFactor({
       issuer: 'Squash',

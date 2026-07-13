@@ -14,12 +14,12 @@ The lookup returns only Username, display name, and avatar, and excludes account
 the broader Guardian and Junior account lifecycle remains unimplemented. Username maintenance does
 not introduce a separate Profile-setup lifecycle gate for other mobile journeys.
 
-| Intended behavior                                     | Current evidence                                                                  | Gap                                                                    |
-| ----------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| Guardian-supervised Junior Players and age transition | Auth and profile tables in `packages/db/src/schema.ts`                            | No date of birth, Guardian, consent, Junior permissions, or transition |
-| MFA required for web management                       | Isolated management auth sessions, Better Auth TOTP, and centralized route guards | Implemented; Google and Apple sessions remain Player-only              |
-| Moderation Reports and Platform Suspension            | Schema and services                                                               | No report workflow or account suspension lifecycle                     |
-| Anonymized Account Closure                            | Existing foreign-key deletion behavior                                            | No documented closure/anonymization service                            |
+| Intended behavior                                     | Current evidence                                                                  | Gap                                                                                    |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Guardian-supervised Junior Players and age transition | Auth and profile tables in `packages/db/src/schema.ts`                            | No date of birth, Guardian, consent, Junior permissions, or transition                 |
+| MFA required for web management                       | Isolated management auth sessions, Better Auth TOTP, and centralized route guards | Implemented; Google and Apple sessions remain Player-only                              |
+| Moderation Reports                                    | Schema and services                                                               | No report creation, review, dismissal, escalation, warning, or content-hiding workflow |
+| Anonymized Account Closure                            | Existing foreign-key deletion behavior                                            | No documented closure/anonymization service                                            |
 
 Club management authorization is capability-based at the service and web-workspace
 boundaries. Platform Administrators have explicit Club view, restore, and Ownership
@@ -160,6 +160,21 @@ The Platform Administrator web workspace provides a read-only audit-record index
 isolated management-authentication boundary. It rechecks current Platform Administrator authority,
 uses deterministic cursor pagination, and exposes only the documented non-private audit projection;
 raw metadata and joined Player or Guardian data are not available through the index.
+
+The Platform Suspension enforcement lifecycle is implemented against an explicit Player ID through
+the assured credential-only management boundary. A dedicated account state supports atomic,
+serialized suspension and reactivation; each actual transition revokes Player and management
+sessions plus prior management trusted-device grants as applicable and appends one immutable audit
+record. Persisted state is rechecked at the centralized Player and management authentication
+boundaries and excludes suspended adults from exact Username discovery. Credentials, MFA material,
+Club Memberships and Responsibilities, platform authority, Session coordination, Tournament
+Organizer appointments, Tournament Participation, fixtures, results, Competition Records, and
+history are preserved. Reactivation requires fresh authentication and does not restore revoked
+sessions or trust.
+
+The separate Moderation Report workflow remains unimplemented. Exceptional recovery for an active
+Tournament whose sole available organizer becomes Platform Suspended remains an open decision and
+is not automated by the delivered lifecycle.
 
 - Audit coverage does not yet include every documented sensitive action.
 - Platform private-data access is not implemented as an audited least-privilege workflow.

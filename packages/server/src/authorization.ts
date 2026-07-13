@@ -4,6 +4,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { db } from './database';
 import { forbidden, ServiceError } from './errors';
 import { membershipResponsibilities } from './membership';
+import { platformAccountSuspendedError } from './platform-suspension';
 
 type AuthorizationDatabase = Pick<typeof db, 'select'>;
 
@@ -44,12 +45,13 @@ export async function requireClubAccess(userId: string, clubId: string) {
 
 export async function requirePlatformAdmin(userId: string) {
   const [result] = await db
-    .select({ role: users.role })
+    .select({ role: users.role, platformSuspendedAt: users.platformSuspendedAt })
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);
   if (result?.role !== 'platform-admin') throw forbidden();
-  return result;
+  if (result.platformSuspendedAt) throw platformAccountSuspendedError();
+  return { role: result.role };
 }
 
 export async function requireRegisteredPlayer(userId: string) {
