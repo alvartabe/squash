@@ -100,7 +100,6 @@ export const users = pgTable('users', {
   emailVerified: boolean('email_verified').notNull().default(false),
   twoFactorEnabled: boolean('two_factor_enabled').default(false),
   image: text('image'),
-  isJunior: boolean('is_junior').notNull().default(false),
   role: platformRole('role').notNull().default('user'),
   locale: text('locale').notNull().default('en-US'),
   timeZone: text('time_zone').notNull().default('UTC'),
@@ -194,23 +193,18 @@ export const twoFactors = pgTable(
   ],
 );
 
-export const playerProfiles = pgTable(
-  'player_profiles',
-  {
-    id: id(),
-    userId: text('user_id')
-      .notNull()
-      .unique()
-      .references(() => users.id, { onDelete: 'cascade' }),
-    username: text('username'),
-    bio: text('bio'),
-    dominantHand: text('dominant_hand'),
-    visibility: text('visibility').notNull().default('shared-clubs'),
-    createdAt: createdAt(),
-    updatedAt: updatedAt(),
-  },
-  (table) => [uniqueIndex('player_profiles_username_unique').on(table.username)],
-);
+export const playerProfiles = pgTable('player_profiles', {
+  id: id(),
+  userId: text('user_id')
+    .notNull()
+    .unique()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  bio: text('bio'),
+  dominantHand: text('dominant_hand'),
+  visibility: text('visibility').notNull().default('shared-clubs'),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
 
 export const clubs = pgTable(
   'clubs',

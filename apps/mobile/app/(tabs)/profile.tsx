@@ -3,7 +3,7 @@ import type { PlayerProfile, UpdatePlayerProfile } from '@squash/contracts';
 import { colors, radii, spacing } from '@squash/design-tokens';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type Href, Redirect, router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Screen } from '@/src/components/screen';
 import { api } from '@/src/lib/api';
@@ -13,18 +13,18 @@ import { t } from '@/src/lib/i18n';
 type DominantHand = PlayerProfile['dominantHand'];
 type ProfileVisibility = NonNullable<PlayerProfile['visibility']>;
 
-const dominantHands: { value: DominantHand; label: Parameters<typeof t>[0] }[] = [
+const dominantHands: Array<{ value: DominantHand; label: Parameters<typeof t>[0] }> = [
   { value: null, label: 'profile.noDominantHand' },
   { value: 'left', label: 'profile.leftHanded' },
   { value: 'right', label: 'profile.rightHanded' },
   { value: 'ambidextrous', label: 'profile.ambidextrous' },
 ];
 
-const visibilityOptions: {
+const visibilityOptions: Array<{
   value: ProfileVisibility;
   label: Parameters<typeof t>[0];
   description: Parameters<typeof t>[0];
-}[] = [
+}> = [
   {
     value: 'private',
     label: 'profile.visibilityPrivate',
@@ -84,9 +84,6 @@ export default function ProfileScreen() {
       <Pressable onPress={() => router.push('/notification-preferences' as Href)}>
         <Text>{t('profile.notificationPreferences')}</Text>
       </Pressable>
-      <Pressable onPress={() => router.push('/player-discovery' as Href)}>
-        <Text>{t('discovery.open')}</Text>
-      </Pressable>
       <Pressable onPress={() => authClient.signOut()}>
         <Text>{t('profile.signOut')}</Text>
       </Pressable>
@@ -97,7 +94,6 @@ export default function ProfileScreen() {
 function ProfileForm({ playerId, profile }: { playerId: string; profile: PlayerProfile }) {
   const queryClient = useQueryClient();
   const [name, setName] = useState(profile.name);
-  const [username, setUsername] = useState(profile.username ?? '');
   const [bio, setBio] = useState(profile.bio ?? '');
   const [dominantHand, setDominantHand] = useState<DominantHand>(profile.dominantHand);
   const [visibility, setVisibility] = useState<ProfileVisibility | null>(profile.visibility);
@@ -105,15 +101,17 @@ function ProfileForm({ playerId, profile }: { playerId: string; profile: PlayerP
   const [visibilityError, setVisibilityError] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  useEffect(() => {
+    setName(profile.name);
+    setBio(profile.bio ?? '');
+    setDominantHand(profile.dominantHand);
+    setVisibility(profile.visibility);
+  }, [profile]);
+
   const save = useMutation({
     mutationFn: (input: UpdatePlayerProfile) => api.updateProfile(input),
     onSuccess: ({ data }) => {
       queryClient.setQueryData(queryKeys.profile(playerId), { data });
-      setName(data.name);
-      setUsername(data.username ?? '');
-      setBio(data.bio ?? '');
-      setDominantHand(data.dominantHand);
-      setVisibility(data.visibility);
       setSaved(true);
     },
   });
@@ -131,7 +129,6 @@ function ProfileForm({ playerId, profile }: { playerId: string; profile: PlayerP
     setValidationError(false);
     setVisibilityError(false);
     save.mutate({
-      username,
       name: name.trim(),
       bio: bio.trim() || null,
       dominantHand,
@@ -143,15 +140,6 @@ function ProfileForm({ playerId, profile }: { playerId: string; profile: PlayerP
 
   return (
     <View style={styles.form}>
-      <Text style={styles.label}>{t('profile.username')}</Text>
-      <TextInput
-        accessibilityLabel={t('profile.username')}
-        autoCapitalize="none"
-        autoCorrect={false}
-        onChangeText={setUsername}
-        style={styles.input}
-        value={username}
-      />
       <Text style={styles.label}>{t('profile.displayName')}</Text>
       <TextInput
         accessibilityLabel={t('profile.displayName')}

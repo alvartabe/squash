@@ -3,7 +3,6 @@ export * from './audit';
 export * from './club-admin';
 export * from './club-discovery';
 export * from './club-profile';
-export * from './player-discovery';
 export * from './club-play-sessions';
 export * from './errors';
 export * from './media';

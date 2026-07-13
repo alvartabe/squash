@@ -679,7 +679,6 @@ export type InviteClubResponsibility = z.infer<typeof inviteClubResponsibilitySc
 export const profileVisibilitySchema = z.enum(['private', 'friends', 'shared-clubs']);
 
 export const profileSchema = z.object({
-  username: z.string(),
   name: z.string().trim().min(1).max(120),
   bio: z.string().trim().max(1000).nullable().optional(),
   dominantHand: z.enum(['left', 'right', 'ambidextrous']).nullable().optional(),
@@ -689,20 +688,11 @@ export const profileSchema = z.object({
 });
 
 export const playerProfileSchema = profileSchema.extend({
-  username: z.string().nullable(),
   visibility: profileVisibilitySchema.nullable(),
-});
-
-export const usernameDiscoveryQuerySchema = z.object({ username: z.string() });
-export const usernameDiscoveryResultSchema = z.object({
-  username: z.string(),
-  displayName: z.string(),
-  avatar: z.string().nullable(),
 });
 
 export type PlayerProfile = z.infer<typeof playerProfileSchema>;
 export type UpdatePlayerProfile = z.infer<typeof profileSchema>;
-export type UsernameDiscoveryResult = z.infer<typeof usernameDiscoveryResultSchema>;
 
 export const friendRequestSchema = z.object({ addresseeId: idSchema.or(z.string().min(1)) });
 export const friendResponseSchema = z.object({

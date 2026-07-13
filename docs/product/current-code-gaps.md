@@ -6,14 +6,9 @@ This document identifies known differences between intended product behavior and
 
 ## Identity and safety
 
-Adult Player Username maintenance and exact authenticated discovery are implemented through the
-mobile Player Profile and a minimal Username lookup projection. Database equality and uniqueness
-use the exact stored text without an application-defined format, normalization, or case policy.
-The lookup returns only Username, display name, and avatar, and excludes accounts marked as Junior;
-the broader Guardian and Junior account lifecycle remains unimplemented.
-
 | Intended behavior                                     | Current evidence                                                                  | Gap                                                                    |
 | ----------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Unique Username and relationship-based discovery      | Mobile Player Profile read/update, plus `users` and `playerProfiles`              | No Username or discovery model                                         |
 | Guardian-supervised Junior Players and age transition | Auth and profile tables in `packages/db/src/schema.ts`                            | No date of birth, Guardian, consent, Junior permissions, or transition |
 | MFA required for web management                       | Isolated management auth sessions, Better Auth TOTP, and centralized route guards | Implemented; Google and Apple sessions remain Player-only              |
 | Moderation Reports and Platform Suspension            | Schema and services                                                               | No report workflow or account suspension lifecycle                     |
