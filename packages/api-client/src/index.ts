@@ -8,6 +8,7 @@ import type {
   ClubMember,
   ClubProfileDetail,
   ClubSummary,
+  InAppNotification,
   InviteClubResponsibility,
   MembershipRequest,
   MembershipRequestStatus,
@@ -59,6 +60,12 @@ export function squashApi(client: AxiosInstance) {
       input: UpdateNotificationPreferences,
     ): Promise<{ data: NotificationPreferences }> =>
       (await client.patch('/notification-preferences', input)).data,
+    getInAppNotifications: async (): Promise<{ data: InAppNotification[] }> =>
+      (await client.get('/notifications')).data,
+    markInAppNotificationRead: async (
+      notificationId: string,
+    ): Promise<{ data: InAppNotification }> =>
+      (await client.post(`/notifications/${notificationId}/read`)).data,
     getProfile: async (): Promise<{ data: PlayerProfile }> => (await client.get('/profile')).data,
     updateProfile: async (input: UpdatePlayerProfile): Promise<{ data: PlayerProfile }> =>
       (await client.put('/profile', input)).data,
@@ -167,6 +174,7 @@ export function squashApi(client: AxiosInstance) {
 export const queryKeys = {
   profile: (userId: string) => ['profile', userId] as const,
   notificationPreferences: () => ['notification-preferences'] as const,
+  notifications: () => ['notifications'] as const,
   friends: () => ['friends'] as const,
   clubDiscovery: () => ['clubs', 'discovery'] as const,
   clubProfile: (clubId: string) => ['clubs', clubId, 'profile'] as const,

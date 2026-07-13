@@ -25,7 +25,6 @@ import {
   playerProfiles,
   playerRackets,
   recurringAvailability,
-  notifications,
   tournamentFixtures,
   tournamentStats,
   users,
@@ -377,15 +376,6 @@ export async function updateNotificationPreferences(
     });
   if (!preferences) throw new Error('Failed to update notification preferences.');
   return toNotificationPreferences(preferences);
-}
-
-export function listNotifications(actorId: string) {
-  return db
-    .select()
-    .from(notifications)
-    .where(eq(notifications.userId, actorId))
-    .orderBy(desc(notifications.createdAt))
-    .limit(100);
 }
 
 export async function createChallenge(actorId: string, input: CreateChallengeInput) {

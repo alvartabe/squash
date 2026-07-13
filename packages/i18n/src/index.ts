@@ -446,6 +446,7 @@ const en = {
   'tournaments.tiebreak.error':
     'The decision could not be recorded. Refresh to check whether progression changed.',
   'profile.heading': 'Profile',
+  'profile.notifications': 'Notifications',
   'profile.notificationPreferences': 'Notification preferences',
   'profile.description': 'Manage the details other Players may see when your visibility allows it.',
   'profile.displayName': 'Display name',
@@ -482,6 +483,13 @@ const en = {
     'Security, consent, and account-recovery communications are always on.',
   'notificationPreferences.loadError': 'We could not load notification preferences. Try again.',
   'notificationPreferences.updateError': 'We could not update notification preferences. Try again.',
+  'notifications.heading': 'Notifications',
+  'notifications.empty': 'You have no notifications.',
+  'notifications.loadError': 'We could not load your notifications. Try again.',
+  'notifications.markReadError': 'We could not open this notification. Try again.',
+  'notifications.unread': 'Unread',
+  'notifications.read': 'Read',
+  'sessions.detailLoadError': 'We could not load this Club Play Session. Try again.',
   'web.badge': 'Squash platform',
   'web.heading': 'Club and competition management in one place.',
   'web.description':
@@ -981,6 +989,7 @@ const es: Record<MessageKey, string> = {
   'tournaments.tiebreak.error':
     'No se pudo registrar la decisión. Actualiza para verificar si el Torneo cambió.',
   'profile.heading': 'Perfil',
+  'profile.notifications': 'Notificaciones',
   'profile.notificationPreferences': 'Preferencias de notificaciones',
   'profile.description':
     'Administra los detalles que otros Jugadores pueden ver cuando tu visibilidad lo permite.',
@@ -1021,6 +1030,14 @@ const es: Record<MessageKey, string> = {
     'No pudimos cargar las preferencias de notificaciones. Inténtalo de nuevo.',
   'notificationPreferences.updateError':
     'No pudimos actualizar las preferencias de notificaciones. Inténtalo de nuevo.',
+  'notifications.heading': 'Notificaciones',
+  'notifications.empty': 'No tienes notificaciones.',
+  'notifications.loadError': 'No pudimos cargar tus notificaciones. Inténtalo de nuevo.',
+  'notifications.markReadError': 'No pudimos abrir esta notificación. Inténtalo de nuevo.',
+  'notifications.unread': 'Sin leer',
+  'notifications.read': 'Leída',
+  'sessions.detailLoadError':
+    'No pudimos cargar esta Sesión de Juego del Club. Inténtalo de nuevo.',
   'web.badge': 'Plataforma de squash',
   'web.heading': 'Gestión de Clubes y competencias en un solo lugar.',
   'web.description':

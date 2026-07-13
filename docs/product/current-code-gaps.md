@@ -142,6 +142,13 @@ Social Tournaments remain Later.
 
 ## Operational gaps
 
+The mobile in-app notification inbox is implemented for Club Play Session invitations. Its
+typed Player-facing projection excludes raw notification rows and other notification types;
+it lists the authenticated Player's invitations newest first, preserves in-app availability
+regardless of optional push preferences, marks invitations read idempotently, and opens the
+authorized one-time Club Play Session destination. Other notification types have no inbox
+behavior in this delivered slice.
+
 - Audit coverage does not yet include every documented sensitive action.
 - Platform private-data access is not implemented as an audited least-privilege workflow.
 - Data retention periods remain intentionally unresolved pending Costa Rican legal review.

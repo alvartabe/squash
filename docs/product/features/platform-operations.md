@@ -8,6 +8,12 @@
 
 Authenticated activity creates actionable in-app notifications.
 
+The delivered mobile inbox shows the authenticated Player's Club Play Session invitation
+notifications newest first. Each invitation is visibly read or unread. Opening an invitation
+marks it read (without changing its original read time on a repeat) and opens that Club Play
+Session when the Player remains authorized to view it. This delivered slice does not define
+inbox behavior for other notification types.
+
 Optional push notification categories are:
 
 - Social

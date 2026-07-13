@@ -731,6 +731,16 @@ export type OptionalPushNotificationCategory = z.infer<
 export type NotificationPreferences = z.infer<typeof notificationPreferencesSchema>;
 export type UpdateNotificationPreferences = z.infer<typeof updateNotificationPreferencesSchema>;
 
+export const inAppNotificationSchema = z.object({
+  id: idSchema,
+  type: z.literal('club-play-session.invited'),
+  clubPlaySessionId: idSchema,
+  readAt: isoDateTimeSchema.nullable(),
+  createdAt: isoDateTimeSchema,
+});
+
+export type InAppNotification = z.infer<typeof inAppNotificationSchema>;
+
 export const statisticsSchema = z.object({
   matches: z.number().int().nonnegative(),
   wins: z.number().int().nonnegative(),

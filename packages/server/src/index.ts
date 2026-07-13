@@ -14,6 +14,7 @@ export * from './official-results';
 export * from './player-tournaments';
 export * from './official-result-locks';
 export * from './official-tournament-statistics';
+export * from './notifications';
 export * from './services';
 export * from './tournament-progression';
 export * from './tournaments';

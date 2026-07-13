@@ -78,6 +78,9 @@ export default function ProfileScreen() {
       ) : (
         <ProfileForm playerId={playerId!} profile={profile.data.data} />
       )}
+      <Pressable onPress={() => router.push('/notifications' as Href)}>
+        <Text>{t('profile.notifications')}</Text>
+      </Pressable>
       <Pressable onPress={() => router.push('/notification-preferences' as Href)}>
         <Text>{t('profile.notificationPreferences')}</Text>
       </Pressable>

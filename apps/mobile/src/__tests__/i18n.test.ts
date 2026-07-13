@@ -27,4 +27,13 @@ describe('mobile locale', () => {
       'Partidos de Grupo y Resultados Oficiales',
     );
   });
+
+  it('provides Club Play Session invitation inbox language in English and Spanish', () => {
+    expect(translate('en-US', 'notifications.heading')).toBe('Notifications');
+    expect(translate('es-419', 'notifications.empty')).toBe('No tienes notificaciones.');
+    expect(translate('en-US', 'sessions.detailLoadError')).toContain('Club Play Session');
+    expect(translate('es-419', 'notification.sessionInvited.title')).toBe(
+      'Invitación a una Sesión de Juego del Club',
+    );
+  });
 });
