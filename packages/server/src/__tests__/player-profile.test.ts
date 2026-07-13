@@ -1,11 +1,9 @@
 import { db } from '../database';
-import { getPlayerProfile } from '../services';
+import { getPlayerProfile, updateProfile } from '../services';
 
-jest.mock('../database', () => ({
-  db: { select: jest.fn() },
-}));
+jest.mock('../database', () => ({ db: { select: jest.fn(), transaction: jest.fn() } }));
 
-const mockDb = db as unknown as { select: jest.Mock };
+const mockDb = db as unknown as { select: jest.Mock; transaction: jest.Mock };
 
 function profileSelect(rows: unknown[]) {
   const limit = jest.fn().mockResolvedValue(rows);
@@ -21,6 +19,7 @@ describe('Player Profile', () => {
   it('returns no visibility choice before the Player has saved a Profile', async () => {
     profileSelect([
       {
+        username: null,
         name: 'María Solís',
         bio: null,
         dominantHand: null,
@@ -31,6 +30,7 @@ describe('Player Profile', () => {
     ]);
 
     await expect(getPlayerProfile('player-id')).resolves.toEqual({
+      username: null,
       name: 'María Solís',
       bio: null,
       dominantHand: null,
@@ -38,5 +38,21 @@ describe('Player Profile', () => {
       locale: 'es-419',
       timeZone: 'America/Costa_Rica',
     });
+  });
+
+  it('reports database-enforced Username conflicts without choosing a comparison policy', async () => {
+    mockDb.transaction.mockRejectedValueOnce({
+      constraint: 'player_profiles_username_unique',
+    });
+
+    await expect(
+      updateProfile('player-id', {
+        username: 'Maria.Solis',
+        name: 'María Solís',
+        visibility: 'private',
+        locale: 'es-419',
+        timeZone: 'America/Costa_Rica',
+      }),
+    ).rejects.toMatchObject({ code: 'USERNAME_TAKEN', status: 409 });
   });
 });

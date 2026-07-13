@@ -13,6 +13,7 @@ jest.mock('@/src/http', () => ({
 }));
 
 const profile = {
+  username: 'maria.solis',
   name: 'María Solís',
   bio: 'Squash player',
   dominantHand: 'right' as const,

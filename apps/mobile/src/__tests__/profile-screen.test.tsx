@@ -13,6 +13,7 @@ jest.mock('@/src/lib/auth-client', () => ({
 }));
 
 const profile = {
+  username: 'maria.solis',
   name: 'María Solís',
   bio: 'Squash player',
   dominantHand: 'right' as const,
@@ -59,6 +60,7 @@ describe('Player Profile screen', () => {
 
     await waitFor(() =>
       expect(mockUpdateProfile).toHaveBeenCalledWith({
+        username: 'maria.solis',
         name: 'María Fernanda Solís',
         bio: 'Club competitor',
         dominantHand: 'left',
@@ -68,6 +70,23 @@ describe('Player Profile screen', () => {
       }),
     );
     expect(screen.getByText(t('profile.saved'))).toBeTruthy();
+  });
+
+  it('lets the adult Player view and update their exact Username', async () => {
+    mockUpdateProfile.mockResolvedValue({ data: { ...profile, username: 'Maria.Solis' } });
+    const screen = renderScreen();
+
+    await waitFor(() => expect(screen.getByDisplayValue('maria.solis')).toBeTruthy());
+    fireEvent.changeText(screen.getByLabelText(t('profile.username')), 'Maria.Solis');
+    fireEvent.press(screen.getByText(t('profile.save')));
+
+    await waitFor(() =>
+      expect(mockUpdateProfile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          username: 'Maria.Solis',
+        }),
+      ),
+    );
   });
 
   it('does not save an empty display name', async () => {

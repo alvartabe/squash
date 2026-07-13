@@ -122,42 +122,58 @@ export async function updateProfile(
     visibility: 'private' | 'friends' | 'shared-clubs';
     locale: 'en-US' | 'es-419';
     timeZone: string;
+    username: string;
   },
 ) {
-  await db.transaction(async (tx) => {
-    await tx
-      .update(users)
-      .set({
-        name: input.name,
-        locale: input.locale,
-        timeZone: input.timeZone,
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, actorId));
-    await tx
-      .insert(playerProfiles)
-      .values({
-        userId: actorId,
-        bio: input.bio ?? null,
-        dominantHand: input.dominantHand ?? null,
-        visibility: input.visibility,
-      })
-      .onConflictDoUpdate({
-        target: playerProfiles.userId,
-        set: {
+  try {
+    await db.transaction(async (tx) => {
+      await tx
+        .update(users)
+        .set({
+          name: input.name,
+          locale: input.locale,
+          timeZone: input.timeZone,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, actorId));
+      await tx
+        .insert(playerProfiles)
+        .values({
+          userId: actorId,
+          username: input.username,
           bio: input.bio ?? null,
           dominantHand: input.dominantHand ?? null,
           visibility: input.visibility,
-          updatedAt: new Date(),
-        },
-      });
-  });
+        })
+        .onConflictDoUpdate({
+          target: playerProfiles.userId,
+          set: {
+            username: input.username,
+            bio: input.bio ?? null,
+            dominantHand: input.dominantHand ?? null,
+            visibility: input.visibility,
+            updatedAt: new Date(),
+          },
+        });
+    });
+  } catch (error) {
+    if (
+      typeof error === 'object' &&
+      error !== null &&
+      'constraint' in error &&
+      error.constraint === 'player_profiles_username_unique'
+    ) {
+      throw new ServiceError('USERNAME_TAKEN', 'error.usernameTaken', 409);
+    }
+    throw error;
+  }
   return getPlayerProfile(actorId);
 }
 
 export async function getPlayerProfile(actorId: string) {
   const [profile] = await db
     .select({
+      username: playerProfiles.username,
       name: users.name,
       bio: playerProfiles.bio,
       dominantHand: playerProfiles.dominantHand,
