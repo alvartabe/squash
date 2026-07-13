@@ -125,7 +125,7 @@ export async function updateProfile(
     timeZone: string;
   },
 ) {
-  return db.transaction(async (tx) => {
+  await db.transaction(async (tx) => {
     await tx
       .update(users)
       .set({
@@ -135,7 +135,7 @@ export async function updateProfile(
         updatedAt: new Date(),
       })
       .where(eq(users.id, actorId));
-    const [profile] = await tx
+    await tx
       .insert(playerProfiles)
       .values({
         userId: actorId,
@@ -151,10 +151,31 @@ export async function updateProfile(
           visibility: input.visibility,
           updatedAt: new Date(),
         },
-      })
-      .returning();
-    return profile;
+      });
   });
+  return getPlayerProfile(actorId);
+}
+
+export async function getPlayerProfile(actorId: string) {
+  const [profile] = await db
+    .select({
+      name: users.name,
+      bio: playerProfiles.bio,
+      dominantHand: playerProfiles.dominantHand,
+      visibility: playerProfiles.visibility,
+      locale: users.locale,
+      timeZone: users.timeZone,
+    })
+    .from(users)
+    .leftJoin(playerProfiles, eq(playerProfiles.userId, users.id))
+    .where(eq(users.id, actorId))
+    .limit(1);
+  if (!profile) throw notFound('PLAYER_NOT_FOUND');
+  return {
+    ...profile,
+    visibility: profile.visibility as 'private' | 'friends' | 'shared-clubs' | null,
+    dominantHand: profile.dominantHand as 'left' | 'right' | 'ambidextrous' | null,
+  };
 }
 
 export async function requestFriend(actorId: string, addresseeId: string) {

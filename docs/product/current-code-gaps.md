@@ -8,7 +8,7 @@ This document identifies known differences between intended product behavior and
 
 | Intended behavior                                     | Current evidence                                                                  | Gap                                                                    |
 | ----------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| Unique Username and relationship-based discovery      | `users` and `playerProfiles` in `packages/db/src/schema.ts`                       | No Username or discovery model                                         |
+| Unique Username and relationship-based discovery      | Mobile Player Profile read/update, plus `users` and `playerProfiles`              | No Username or discovery model                                         |
 | Guardian-supervised Junior Players and age transition | Auth and profile tables in `packages/db/src/schema.ts`                            | No date of birth, Guardian, consent, Junior permissions, or transition |
 | MFA required for web management                       | Isolated management auth sessions, Better Auth TOTP, and centralized route guards | Implemented; Google and Apple sessions remain Player-only              |
 | Moderation Reports and Platform Suspension            | Schema and services                                                               | No report workflow or account suspension lifecycle                     |
