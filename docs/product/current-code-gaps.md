@@ -1,6 +1,6 @@
 # Current Code Gaps
 
-Last reviewed: 2026-07-11.
+Last reviewed: 2026-07-12.
 
 This document identifies known differences between intended product behavior and the current repository. It is not an automatic backlog and does not authorize implementing Later features. Agents must verify each gap against current code before acting.
 
@@ -142,7 +142,6 @@ Social Tournaments remain Later.
 
 ## Operational gaps
 
-- Notification preferences and mandatory communication categories are not fully represented.
 - Audit coverage does not yet include every documented sensitive action.
 - Platform private-data access is not implemented as an audited least-privilege workflow.
 - Data retention periods remain intentionally unresolved pending Costa Rican legal review.

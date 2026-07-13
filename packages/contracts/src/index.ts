@@ -695,6 +695,33 @@ export const deviceTokenSchema = z.object({
   platform: z.enum(['ios', 'android']),
 });
 
+export const optionalPushNotificationCategorySchema = z.enum([
+  'social',
+  'play-sessions',
+  'tournaments',
+  'clubs',
+]);
+
+export const notificationPreferencesSchema = z.object({
+  social: z.boolean(),
+  playSessions: z.boolean(),
+  tournaments: z.boolean(),
+  clubs: z.boolean(),
+});
+
+export const updateNotificationPreferencesSchema = notificationPreferencesSchema
+  .partial()
+  .strict()
+  .refine((preferences) => Object.keys(preferences).length > 0, {
+    message: 'At least one push notification preference is required',
+  });
+
+export type OptionalPushNotificationCategory = z.infer<
+  typeof optionalPushNotificationCategorySchema
+>;
+export type NotificationPreferences = z.infer<typeof notificationPreferencesSchema>;
+export type UpdateNotificationPreferences = z.infer<typeof updateNotificationPreferencesSchema>;
+
 export const statisticsSchema = z.object({
   matches: z.number().int().nonnegative(),
   wins: z.number().int().nonnegative(),

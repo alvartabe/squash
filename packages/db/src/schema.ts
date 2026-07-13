@@ -841,6 +841,18 @@ export const deviceTokens = pgTable(
   (table) => [index('device_token_user_idx').on(table.userId)],
 );
 
+export const notificationPreferences = pgTable('notification_preferences', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  socialPushEnabled: boolean('social_push_enabled').notNull().default(true),
+  playSessionsPushEnabled: boolean('play_sessions_push_enabled').notNull().default(true),
+  tournamentsPushEnabled: boolean('tournaments_push_enabled').notNull().default(true),
+  clubsPushEnabled: boolean('clubs_push_enabled').notNull().default(true),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
 export const notifications = pgTable(
   'notifications',
   {

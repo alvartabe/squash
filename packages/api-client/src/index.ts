@@ -11,11 +11,13 @@ import type {
   InviteClubResponsibility,
   MembershipRequest,
   MembershipRequestStatus,
+  NotificationPreferences,
   PaginatedData,
   PlayerStatistics,
   TournamentPlayer,
   TournamentPlayerDetail,
   UpdateClubInput,
+  UpdateNotificationPreferences,
 } from '@squash/contracts';
 import Axios, { type AxiosInstance } from 'axios';
 
@@ -49,6 +51,12 @@ export function createApiClient(options: ApiClientOptions): AxiosInstance {
 export function squashApi(client: AxiosInstance) {
   return {
     getMe: async () => (await client.get('/me')).data,
+    getNotificationPreferences: async (): Promise<{ data: NotificationPreferences }> =>
+      (await client.get('/notification-preferences')).data,
+    updateNotificationPreferences: async (
+      input: UpdateNotificationPreferences,
+    ): Promise<{ data: NotificationPreferences }> =>
+      (await client.patch('/notification-preferences', input)).data,
     discoverClubs: async (params: {
       page?: number;
       pageSize?: number;
@@ -153,6 +161,7 @@ export function squashApi(client: AxiosInstance) {
 
 export const queryKeys = {
   profile: (userId: string) => ['profile', userId] as const,
+  notificationPreferences: () => ['notification-preferences'] as const,
   friends: () => ['friends'] as const,
   clubDiscovery: () => ['clubs', 'discovery'] as const,
   clubProfile: (clubId: string) => ['clubs', clubId, 'profile'] as const,
