@@ -11,6 +11,12 @@ const mockDb = db as unknown as { select: jest.Mock };
 const auditId = '91f6704a-c62c-4676-93a1-72d5b3fd6b7a';
 const clubId = '6ed6b0ac-c7a6-4c64-9d20-496f18f901ab';
 
+function cursorWithTimestamp(createdAt: string) {
+  return Buffer.from(JSON.stringify({ version: 1, createdAt, id: auditId }), 'utf8').toString(
+    'base64url',
+  );
+}
+
 function auditRow(overrides: Record<string, unknown> = {}) {
   return {
     id: auditId,
@@ -100,7 +106,7 @@ describe('Platform Administrator audit index service', () => {
     expect(JSON.stringify(page)).not.toContain('private@example.com');
   });
 
-  it.each(['not-base64!', 'e30', ''])(
+  it.each(['not-base64!', 'e30', '', cursorWithTimestamp('04 DecFoo 1995')])(
     'returns a stable error for malformed cursor %p',
     async (cursor) => {
       await expect(listPlatformAuditRecords('platform-admin-id', { cursor })).rejects.toMatchObject(

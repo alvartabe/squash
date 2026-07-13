@@ -2,6 +2,7 @@ import {
   auditRecordPageSchema,
   auditRecordSchema,
   idSchema,
+  isoDateTimeSchema,
   type AuditIndexQuery,
   type AuditRecord,
   type AuditRecordPage,
@@ -32,7 +33,7 @@ type AuditRow = {
 const cursorBoundarySchema = z
   .object({
     version: z.literal(1),
-    createdAt: z.string().refine((value) => !Number.isNaN(Date.parse(value))),
+    createdAt: isoDateTimeSchema,
     id: idSchema,
   })
   .strict();
@@ -61,9 +62,7 @@ function decodeCursor(value: string): CursorBoundary {
   }
 }
 
-export function projectAuditRecord(
-  row: AuditRow | (AuditRow & Record<string, unknown>),
-): AuditRecord {
+export function projectAuditRecord(row: AuditRow): AuditRecord {
   return auditRecordSchema.parse({
     id: row.id,
     createdAt: row.createdAt.toISOString(),
@@ -85,7 +84,10 @@ const auditIndexColumns = {
   createdAt: auditLogs.createdAt,
   // Preserve PostgreSQL sub-millisecond precision inside the opaque cursor. The public projection
   // intentionally remains the normal ISO timestamp returned by the database driver.
-  cursorCreatedAt: sql<string>`${auditLogs.createdAt}::text`,
+  cursorCreatedAt: sql<string>`to_char(
+    ${auditLogs.createdAt} AT TIME ZONE 'UTC',
+    'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
+  )`,
 };
 
 export function createAuditIndexService(
