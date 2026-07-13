@@ -21,6 +21,7 @@ import type {
   UpdateClubInput,
   UpdateNotificationPreferences,
   UpdatePlayerProfile,
+  UsernameDiscoveryResult,
 } from '@squash/contracts';
 import Axios, { type AxiosInstance } from 'axios';
 
@@ -69,6 +70,10 @@ export function squashApi(client: AxiosInstance) {
     getProfile: async (): Promise<{ data: PlayerProfile }> => (await client.get('/profile')).data,
     updateProfile: async (input: UpdatePlayerProfile): Promise<{ data: PlayerProfile }> =>
       (await client.put('/profile', input)).data,
+    findPlayerByUsername: async (
+      username: string,
+    ): Promise<{ data: UsernameDiscoveryResult | null }> =>
+      (await client.get('/players/discovery', { params: { username } })).data,
     discoverClubs: async (params: {
       page?: number;
       pageSize?: number;
@@ -173,6 +178,7 @@ export function squashApi(client: AxiosInstance) {
 
 export const queryKeys = {
   profile: (userId: string) => ['profile', userId] as const,
+  usernameDiscovery: (username: string) => ['players', 'username', username] as const,
   notificationPreferences: () => ['notification-preferences'] as const,
   notifications: () => ['notifications'] as const,
   friends: () => ['friends'] as const,
